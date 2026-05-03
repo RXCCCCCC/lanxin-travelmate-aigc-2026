@@ -1,0 +1,34 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node / frontend future work
+node_modules/
+dist/
+build/
+.coverage/
+coverage/
+.env
+.env.*
+
+# Archives / generated exports
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Office temporary files
+~$*
+*.tmp
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local browser / test artifacts
+.playwright-mcp/
