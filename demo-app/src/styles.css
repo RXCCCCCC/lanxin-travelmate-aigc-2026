@@ -179,6 +179,153 @@ button {
   border: 1px solid rgba(92, 176, 241, 0.12);
 }
 
+.panelToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toolbarButton,
+.miniButton {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 14px;
+  color: #2478d4;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(71, 166, 239, 0.18);
+  cursor: pointer;
+}
+
+.toolbarButton.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1c82ff, #40c6ff);
+  box-shadow: 0 10px 22px rgba(35, 139, 255, 0.2);
+}
+
+.toolbarButton.danger,
+.miniButton.danger {
+  color: #d14b66;
+  border-color: rgba(209, 75, 102, 0.16);
+  background: rgba(255, 247, 249, 0.95);
+}
+
+.editorForm {
+  display: grid;
+  gap: 12px;
+  max-height: 78vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.editorSection {
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(92, 176, 241, 0.14);
+  box-shadow: 0 8px 18px rgba(77, 146, 216, 0.06);
+}
+
+.editorSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.editorTitle {
+  margin: 0 0 10px;
+  color: #173453;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.fieldLabel {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.fieldLabel span {
+  color: rgba(22, 49, 79, 0.62);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.fieldLabel input,
+.fieldLabel textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(92, 176, 241, 0.18);
+  background: rgba(247, 252, 255, 0.92);
+  color: #173453;
+  font: inherit;
+  resize: vertical;
+}
+
+.imageHints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.imageChip {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #2478d4;
+  background: rgba(232, 247, 255, 0.95);
+  border: 1px solid rgba(71, 166, 239, 0.16);
+  cursor: pointer;
+}
+
+.imageChip.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1c82ff, #40c6ff);
+}
+
+.inlineGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.inlineGridTwo {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.compactField {
+  margin-top: 0;
+}
+
+.cardEditorStack {
+  display: grid;
+  gap: 10px;
+}
+
+.cardEditor {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(246, 252, 255, 0.9);
+  border: 1px solid rgba(92, 176, 241, 0.12);
+}
+
+.cardEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cardEditorHeader strong {
+  color: #173453;
+  font-size: 13px;
+}
+
 .captureGuide ul {
   margin: 0;
   padding-left: 18px;
@@ -556,8 +703,25 @@ h1 {
     padding: 0;
   }
 
-  .showcasePanel {
+  .leftPanel {
     display: none;
+  }
+
+  .rightPanel {
+    display: block;
+    margin: 0;
+    border-radius: 0;
+    padding: 16px;
+  }
+
+  .editorForm {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .inlineGrid,
+  .inlineGridTwo {
+    grid-template-columns: 1fr;
   }
 
   .phoneFrame {

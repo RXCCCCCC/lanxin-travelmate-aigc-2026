@@ -49,10 +49,13 @@ python -m http.server 8765 --bind 127.0.0.1 --directory "e:/contest/C4/2026/AIGC
 ```bash
 cd demo-app
 npm install
+npm run sync:images
 npm run dev -- --host 127.0.0.1
 npm run build
 npm run preview -- --host 127.0.0.1
 ```
+
+素材维护约定：原始角色图和新增图片统一放在 `project/img/`；若要让 Demo 页面可直接通过 `/img/...` 引用，先执行 `npm run sync:images` 同步到 `demo-app/public/img/`。
 
 当前没有单独测试框架；功能检查以 `npm run build`、浏览器移动端预览和演示链路点击为主。Demo 首页必须检查蓝小心全身图是否完整展示，而不是只截到头部。
 
