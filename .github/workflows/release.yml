@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build frontend artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f demo-app/package.json ]; then
+            echo "No frontend project detected at demo-app/."
+            exit 0
+          fi
+
+          pushd demo-app >/dev/null
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f pnpm-lock.yaml ]; then
+            corepack enable pnpm
+            pnpm install --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            corepack enable yarn
+            yarn install --frozen-lockfile
+          else
+            npm install
+          fi
+
+          npm run sync:images --if-present
+          npm run build --if-present
+
+          if [ -d dist ]; then
+            zip -r ../frontend-dist.zip dist
+          else
+            echo "dist/ not found after frontend build; skipping frontend-dist.zip."
+          fi
+
+          popd >/dev/null
+
+      - name: Build Android artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t android_projects < <(find . \( -name gradlew -o -name build.gradle -o -name build.gradle.kts -o -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/.git/*' -printf '%h\n' | sort -u)
+
+          if [ "${#android_projects[@]}" -eq 0 ]; then
+            echo "No Android project detected."
+            exit 0
+          fi
+
+          for android_dir in "${android_projects[@]}"; do
+            pushd "$android_dir" >/dev/null
+
+            if [ -f ./gradlew ]; then
+              chmod +x ./gradlew
+              ./gradlew assembleDebug
+
+              apk_path=$(find . -path '*/build/outputs/apk/debug/*.apk' | sort | head -n 1 || true)
+              if [ -n "$apk_path" ]; then
+                cp "$apk_path" "$GITHUB_WORKSPACE/app-debug.apk"
+              else
+                echo "APK not found after build."
+              fi
+            else
+              echo "Gradle wrapper not found; skipping APK build."
+            fi
+
+            popd >/dev/null
+          done
+
+      - name: Package source code
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -r source-code.zip . \
+            -x ".git/*" ".git/**" \
+               "*/node_modules/*" "*/node_modules/**" \
+               "*/.venv/*" "*/.venv/**" \
+               ".env" ".env.*" "*/.env" "*/.env.*" \
+               "*.log" "*/*.log" \
+               "*/dist/*" "*/dist/**" \
+               "*/build/*" "*/build/**" \
+               "*.zip" "*.apk"
+
+      - name: Collect release assets
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets=()
+
+          for file in source-code.zip frontend-dist.zip app-debug.apk; do
+            if [ -f "$file" ]; then
+              assets+=("$file")
+            fi
+          done
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets were produced." >&2
+            exit 1
+          fi
+
+          {
+            echo 'files<<EOF'
+            printf '%s\n' "${assets[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.assets.outputs.files }}
+          generate_release_notes: true

@@ -11,7 +11,8 @@ build/
 .coverage/
 coverage/
 .env
-.env.*
+.env.local
+.env.*.local
 
 # Archives / generated exports
 *.zip
