@@ -95,7 +95,8 @@ jobs:
             -x ".git/*" ".git/**" \
                "*/node_modules/*" "*/node_modules/**" \
                "*/.venv/*" "*/.venv/**" \
-               ".env" ".env.*" "*/.env" "*/.env.*" \
+               ".env" ".env.local" ".env.*.local" \
+               "*/.env" "*/.env.local" "*/.env.*.local" \
                "*.log" "*/*.log" \
                "*/dist/*" "*/dist/**" \
                "*/build/*" "*/build/**" \
