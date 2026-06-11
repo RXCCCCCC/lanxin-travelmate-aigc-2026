@@ -33,3 +33,5 @@ pnpm-debug.log*
 
 # Local browser / test artifacts
 .playwright-mcp/
+.trellis/
+.claude/
