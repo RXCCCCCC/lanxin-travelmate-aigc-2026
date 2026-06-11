@@ -1,41 +1,37 @@
-# 蓝心同行：懂你的全旅程 AI 旅伴（项目仓库）
+# 蓝心同行：懂你的全旅程 AI 旅伴
 
-本仓库为 2026 年 AIGC 创新赛（应用赛道）的项目资料与轻量原型集合，用于存放产品需求文档、原型与前端 Demo。当前仓库以产品策划、PRD、演示原型为主，非完整后端服务。
+本仓库用于 2026 年 AIGC 创新赛（应用赛道）的产品策划、原型与前端 Demo。
 
-## 项目目标
-- 产品方向：面向移动端的个性化 AI 旅伴（长期记忆、可控隐私、主动陪伴、2D 形象表达、全旅程闭环）。
-- 用途：整理 PRD、演示原型、前期 Demo 与提交材料，支持快速在本地预览原型与前端演示。
+## 项目简介
 
-## 仓库结构（关键文件）
-- `PRD.md`：产品需求文档（核心说明）。
-- `CLAUDE.md`：仓库维护与开发约定。
-- `prototype/mobile.html`：单文件竖屏静态原型（可直接打开预览）。
-- `demo-app/`：基于 Vite 的前端 Demo（用于演示与热开发）。
-  - `demo-app/public/img/`：Demo 使用的静态素材（由同步脚本维护）。
-  - `demo-app/src/`：Demo 源码。
-- `project/img/`：原始素材与角色立绘（设计稿、表情等）。
-- `材料/`：比赛材料与宣讲 PPT/PDF。
+- 产品方向：面向移动端的个性化 AI 旅伴，强调长期记忆、可控隐私、主动陪伴、2D 形象表达和全旅程闭环。
+- 当前定位：PRD、原型、演示材料和轻量 Demo 为主，不是完整后端服务。
 
-## 快速开始
-1. 本地预览单文件原型：
-   - 在仓库根目录运行一个静态服务器（示例）：
+## 技术栈
+
+- `demo-app/`：Vite + React + TypeScript
+- `prototype/mobile.html`：单文件静态原型
+- 资源素材：`project/img/`、`demo-app/public/img/`
+
+## 本地启动
+
+### 静态原型
 
 ```bash
-python -m http.server 8765 --bind 127.0.0.1 --directory "e:/contest/C4/2026/AIGC"
-# 然后在浏览器打开 http://127.0.0.1:8765/prototype/mobile.html
+python -m http.server 8765 --bind 127.0.0.1 --directory .
+# 浏览器打开 http://127.0.0.1:8765/prototype/mobile.html
 ```
 
-2. 运行前端 Demo（需 Node.js）：
-   - 进入 `demo-app/`：
+### 前端 Demo
 
 ```bash
 cd demo-app
-npm install
-npm run sync:images   # 将 project/img 同步到 demo-app/public/img
+npm ci
+npm run sync:images
 npm run dev -- --host 127.0.0.1
 ```
 
-3. 构建与预览生产包：
+### 构建与预览
 
 ```bash
 cd demo-app
@@ -43,20 +39,46 @@ npm run build
 npm run preview -- --host 127.0.0.1
 ```
 
-## 常用脚本说明
-- `demo-app/sync-images.mjs`：把 `project/img/` 中的素材同步到 `demo-app/public/img/`，保证原型与 Demo 的素材路径一致。
+## 环境变量
 
-## 素材与约定
-- 设计素材统一保存在 `project/img/`；若要让 Demo 页面通过 `/img/...` 引用，请先运行 `npm run sync:images`。
-- 文档默认使用中文维护（见 `CLAUDE.md` 中说明）。
+仓库目前未发现明确的运行时环境变量读取逻辑，先统一参考根目录 `.env.example`。
 
-## 检查清单（提交前）
-- [ ] PRD 与 Demo 演示脚本一致。
-- [ ] `prototype/mobile.html` 在本地可正常打开并适配竖屏截图。
-- [ ] Demo 的蓝小心角色图在页面完整展示（不是只截到头部）。
+## 分支协作规范
 
-## 联系与贡献
-欢迎通过仓库 Issues 提交建议或更改请求。有关开发约定与命令请参阅 `CLAUDE.md`。
+请参考 `CONTRIBUTING.md`。当前约定：
 
----
-（README 自动生成 — 如果需要补充更详细的安装/部署步骤或增加示例截图，我可以根据需求继续补充。）
+- `main`：稳定可发布分支
+- `dev`：开发集成分支
+- `feat/*`、`fix/*`、`chore/*`、`docs/*`：功能、修复、工程和文档分支
+
+## 测试与构建
+
+当前主要验证方式：
+
+```bash
+cd demo-app
+npm run lint --if-present
+npm test --if-present
+npm run build --if-present
+```
+
+仓库当前没有单独的 Python 或 Android 工程目录；如果后续新增，会在 CI 中自动检测并执行对应检查。
+
+## 版本发布
+
+- 在 `main` 打 tag，例如 `v0.1.0`
+- 触发 Release workflow
+- 自动生成 Release Notes，并上传可用构建产物
+
+## 仓库结构
+
+- `PRD.md`：产品需求文档
+- `CLAUDE.md`：仓库约定
+- `prototype/mobile.html`：静态原型
+- `demo-app/`：前端 Demo
+- `材料/`：比赛材料
+
+## 素材约定
+
+- 新增素材统一放在 `project/img/`
+- Demo 通过 `/img/...` 引用素材时，先同步到 `demo-app/public/img/`

@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Node checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t node_projects < <(find . -name package.json -not -path '*/node_modules/*' -not -path './.git/*' -printf '%h\n' | sort -u)
+
+          if [ "${#node_projects[@]}" -eq 0 ]; then
+            echo "No Node project detected."
+            exit 0
+          fi
+
+          for pkg_dir in "${node_projects[@]}"; do
+            echo "::group::Node project: $pkg_dir"
+            pushd "$pkg_dir" >/dev/null
+
+            if [ -f package-lock.json ]; then
+              npm ci
+            elif [ -f pnpm-lock.yaml ]; then
+              corepack enable pnpm
+              pnpm install --frozen-lockfile
+            elif [ -f yarn.lock ]; then
+              corepack enable yarn
+              yarn install --frozen-lockfile
+            else
+              npm install
+            fi
+
+            npm run lint --if-present
+            npm test --if-present
+            npm run build --if-present
+
+            popd >/dev/null
+            echo "::endgroup::"
+          done
+
+      - name: Run Python checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t python_projects < <(find . \( -name pyproject.toml -o -name requirements.txt -o -name uv.lock \) -not -path '*/.venv/*' -not -path '*/node_modules/*' -not -path './.git/*' -printf '%h\n' | sort -u)
+
+          if [ "${#python_projects[@]}" -eq 0 ]; then
+            echo "No Python project detected."
+            exit 0
+          fi
+
+          if ! command -v uv >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+          export PATH="$HOME/.cargo/bin:$PATH"
+
+          for py_dir in "${python_projects[@]}"; do
+            echo "::group::Python project: $py_dir"
+            pushd "$py_dir" >/dev/null
+
+            if [ -f uv.lock ] || [ -f pyproject.toml ]; then
+              uv sync
+            elif [ -f requirements.txt ]; then
+              uv pip install --system -r requirements.txt
+            fi
+
+            python -m compileall .
+
+            has_pytest=false
+            if [ -d tests ] || find . -type d -name tests | grep -q . || [ -f pytest.ini ]; then
+              has_pytest=true
+            fi
+
+            if [ -f pyproject.toml ] && grep -Eq '^\[tool\.pytest(\.ini_options)?\]' pyproject.toml; then
+              has_pytest=true
+            fi
+
+            if [ "$has_pytest" = true ]; then
+              if [ -f pyproject.toml ]; then
+                uv run pytest
+              else
+                pytest
+              fi
+            else
+              echo "No pytest configuration or tests detected."
+            fi
+
+            popd >/dev/null
+            echo "::endgroup::"
+          done
+
+      - name: Run Android checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t android_projects < <(find . \( -name gradlew -o -name build.gradle -o -name build.gradle.kts -o -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/.git/*' -printf '%h\n' | sort -u)
+
+          if [ "${#android_projects[@]}" -eq 0 ]; then
+            echo "No Android project detected."
+            exit 0
+          fi
+
+          for android_dir in "${android_projects[@]}"; do
+            echo "::group::Android project: $android_dir"
+            pushd "$android_dir" >/dev/null
+
+            if [ -f ./gradlew ]; then
+              chmod +x ./gradlew
+              ./gradlew test
+              ./gradlew assembleDebug
+            else
+              echo "Gradle wrapper not found; skipping Android build."
+            fi
+
+            popd >/dev/null
+            echo "::endgroup::"
+          done
