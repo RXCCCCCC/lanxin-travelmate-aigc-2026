@@ -10,19 +10,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 当前仓库结构
 
-- `PRD.md`：核心产品需求文档，包含产品定位、用户痛点、功能需求、技术架构、Demo剧本和里程碑。
-- `材料中有用的信息.md`：比赛资源、开发环境、蓝心大模型能力、快应用方案、提交清单和评分要点摘要。
+- `doc/PRD.md`：核心产品需求文档，包含产品定位、用户痛点、功能需求、技术架构、Demo剧本和里程碑。
+- `doc/材料中有用的信息.md`：比赛资源、开发环境、蓝心大模型能力、快应用方案、提交清单和评分要点摘要。
 - `材料/`：大赛宣讲PDF材料，包括AIGC创新赛介绍、蓝心大模型、蓝心九问平台、快应用平台。
-- 根目录PDF/PPTX：参赛声明、赛事附件、应用赛道初赛作品策划模板。
-- `AIGC.zip`：材料压缩包备份，内容与仓库内材料基本重复。
 - `prototype/mobile.html`：竖屏手机端静态原型，单文件HTML/CSS，使用 `project/img/` 下的蓝小心素材。
-- `demo-app/`：Vite + React + TypeScript 前端Demo应用，用于初赛展示和热更新调试。
-- `demo-app/public/img/`：Demo应用使用的蓝小心素材副本，对应页面中的 `/img/...` 静态资源路径。
 - `project/img/`：蓝小心角色图、表情状态图和后续原型素材。
 
 ## 常用命令
 
-当前仓库根目录没有统一的 `package.json`、构建脚本、测试框架或lint配置；前端Demo命令需进入 `demo-app/` 后执行。
+当前仓库根目录没有统一的 `package.json`、构建脚本、测试框架或lint配置；当前仓库也没有前端Demo工程。
 
 当前可用的检查方式主要是文档与Git状态检查：
 
@@ -31,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 git status --short
 
 # 查看文档差异
-git diff -- PRD.md CLAUDE.md .gitignore
+git diff -- doc/PRD.md README.md .gitignore
 
 # 查看仓库已跟踪文件
 git ls-files
@@ -44,20 +40,9 @@ python -m http.server 8765 --bind 127.0.0.1 --directory "e:/contest/C4/2026/AIGC
 # 浏览器打开 http://127.0.0.1:8765/prototype/mobile.html
 ```
 
-当前 Vite 前端 Demo 可用命令：
+素材维护约定：原始角色图和新增图片统一放在 `project/img/`。
 
-```bash
-cd demo-app
-npm install
-npm run sync:images
-npm run dev -- --host 127.0.0.1
-npm run build
-npm run preview -- --host 127.0.0.1
-```
-
-素材维护约定：原始角色图和新增图片统一放在 `project/img/`；若要让 Demo 页面可直接通过 `/img/...` 引用，先执行 `npm run sync:images` 同步到 `demo-app/public/img/`。
-
-当前没有单独测试框架；功能检查以 `npm run build`、浏览器移动端预览和演示链路点击为主。Demo 首页必须检查蓝小心全身图是否完整展示，而不是只截到头部。
+当前没有单独测试框架；功能检查以浏览器移动端预览和演示链路点击为主。后续若恢复前端Demo工程，再补充对应的 lint/test/build 命令。
 
 ## 产品架构大图
 
