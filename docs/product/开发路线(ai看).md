@@ -256,11 +256,11 @@ tests/
 请创建或更新：
 
 * README.md
-* docs/tech-design.md
-* docs/dev-roadmap.md
-* docs/api-contract.md
-* docs/agent-graph.md
-* docs/contribution.md
+* docs/engineering/tech-design.md
+* docs/engineering/dev-roadmap.md
+* docs/engineering/api-contract.md
+* docs/engineering/agent-graph.md
+* docs/engineering/contribution.md
 
 文档中必须说明：
 

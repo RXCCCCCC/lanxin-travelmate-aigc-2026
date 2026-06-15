@@ -10,8 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 当前仓库结构
 
-- `doc/PRD.md`：核心产品需求文档，包含产品定位、用户痛点、功能需求、技术架构、Demo剧本和里程碑。
-- `doc/材料中有用的信息.md`：比赛资源、开发环境、蓝心大模型能力、快应用方案、提交清单和评分要点摘要。
+- `docs/todo.md`：全项目未完成待办总表，不仅是功能清单。
+- `docs/product/PRD.md`：核心产品需求文档，包含产品定位、用户痛点、功能需求、技术架构、Demo剧本和里程碑。
+- `docs/product/开发路线(ai看).md`：面向 AI 开发执行的工程骨架与验收要求。
+- `docs/product/材料中有用的信息.md`：比赛资源、开发环境、蓝心大模型能力、快应用方案、提交清单和评分要点摘要。
+- `docs/engineering/`：技术设计、开发路线、API 契约、Agent 图、素材索引和贡献说明。
+- `docs/handoff/`：面向队友交接和人工阅读的说明材料。
 - `材料/`：大赛宣讲PDF材料，包括AIGC创新赛介绍、蓝心大模型、蓝心九问平台、快应用平台。
 - `prototype/mobile.html`：竖屏手机端静态原型，单文件HTML/CSS，使用 `project/img/` 下的蓝小心素材。
 - `project/img/`：蓝小心角色图、表情状态图和后续原型素材。
@@ -27,7 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 git status --short
 
 # 查看文档差异
-git diff -- doc/PRD.md README.md .gitignore
+git diff -- docs/product/PRD.md README.md .gitignore
 
 # 查看仓库已跟踪文件
 git ls-files
@@ -131,7 +135,7 @@ PRD当前采用端云协同Agent思路：
 - 评估用户提供的角色图、原型图或视觉素材时，应优先采用用户给出的素材定位；若姿势、用途或生成阶段不确定，先标注为“待确认”或询问，不要自行断定为自拍图、标准立绘或其他类型。
 - 当用户通过 `@文件名`、模板名或模糊文件名引用项目资料时，应先用 Glob 主动搜索根目录和相关目录，确认真实文件名与格式后再读取，不要只依赖用户给出的路径或扩展名。
 - 开发过程中若沉淀出新的工程事实、运行命令、验收方式、约束规则或用户纠正点，必须同步更新本文件；`AGENTS.md` 通过引用本文件继承最新项目上下文，不单独维护重复规则。
-- `doc/todo.md` 是全项目未完成待办总表，不仅是功能清单。更新时删除已完成项，只保留未完成、未真实化、待验证或人工介入事项；主链路不得把 Mock、固定演示数据或手动模拟标为完成，人工介入项必须单独标注。
+- `docs/todo.md` 是全项目未完成待办总表，不仅是功能清单。更新时删除已完成项，只保留未完成、未真实化、待验证或人工介入事项；主链路不得把 Mock、固定演示数据或手动模拟标为完成，人工介入项必须单独标注。
 
 ## 当前代码工程状态
 
@@ -139,7 +143,7 @@ PRD当前采用端云协同Agent思路：
 
 - `apps/mobile/`：Flutter App，已接入 `dio`、Drift SQLite、蓝小心状态枚举和 Agent 聊天联调。
 - `services/api/`：FastAPI + LangGraph 后端，使用 `uv` 管理依赖，默认 Mock Provider。
-- `docs/`：技术设计、开发路线、API 契约、Agent 图、素材索引和贡献说明。
+- `docs/`：统一文档目录，按 `product/`、`engineering/`、`handoff/` 分层维护。
 - `infra/docker-compose.yml`：api + postgres 本地编排，nginx 为占位服务。
 
 常用命令：

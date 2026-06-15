@@ -6,9 +6,11 @@
 
 - `apps/mobile/`：Flutter 移动端原型，含蓝小心状态、聊天页、记忆、规划、提醒、复盘页面。
 - `services/api/`：FastAPI 后端，使用 uv 管理依赖，内置 LangGraph TravelMate Agent Mock 流程。
-- `docs/`：技术设计、开发路线、API 契约、Agent 图和贡献说明。
+- `docs/todo.md`：全项目未完成待办总表。
+- `docs/product/`：PRD、开发路线、UI 计划和比赛材料整理。
+- `docs/engineering/`：技术设计、API 契约、Agent 图、开发路线和贡献说明。
+- `docs/handoff/`：面向队友交接和人工阅读的说明材料。
 - `infra/docker-compose.yml`：本地 api + postgres 编排，nginx 作为占位服务。
-- `doc/`：PRD、功能 todo 和比赛材料整理。
 - `project/img/`、`apps/mobile/assets/avatars/`：蓝小心素材。
 
 ## 启动后端
