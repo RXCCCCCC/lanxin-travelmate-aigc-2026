@@ -1,69 +1,105 @@
 # 蓝心同行：懂你的全旅程 AI 旅伴
 
-本仓库用于 2026 年 AIGC 创新赛（应用赛道）的产品策划、原型与演示材料。
+本仓库用于 2026 年 AIGC 创新赛应用赛道作品“蓝心同行”。当前已形成可运行的 Flutter App + FastAPI + LangGraph Mock Agent 骨架，支持本地演示“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的 P0 闭环。
 
-## 项目简介
+## 当前结构
 
-- 产品方向：面向移动端的个性化 AI 旅伴，强调长期记忆、可控隐私、主动陪伴、2D 形象表达和全旅程闭环。
-- 当前定位：PRD、原型和演示材料为主；当前仓库内没有可运行的前端 Demo 工程，先以文档与原型推进。
+- `apps/mobile/`：Flutter 移动端原型，含蓝小心状态、聊天页、记忆、规划、提醒、复盘页面。
+- `services/api/`：FastAPI 后端，使用 uv 管理依赖，内置 LangGraph TravelMate Agent Mock 流程。
+- `docs/`：技术设计、开发路线、API 契约、Agent 图和贡献说明。
+- `infra/docker-compose.yml`：本地 api + postgres 编排，nginx 作为占位服务。
+- `doc/`：PRD、功能 todo 和比赛材料整理。
+- `project/img/`、`apps/mobile/assets/avatars/`：蓝小心素材。
 
-## 当前仓库组成
+## 启动后端
 
-- 产品文档：`doc/PRD.md`、`doc/材料中有用的信息.md`
-- 竖屏原型：`prototype/mobile.html`
-- 素材目录：`project/img/`
-
-## 本地启动
-
-### 静态原型（当前可用）
-
-```bash
-python -m http.server 8765 --bind 127.0.0.1 --directory "e:/contest/C4/2026/AIGC"
-# 浏览器打开 http://127.0.0.1:8765/prototype/mobile.html
+```powershell
+cd services/api
+uv sync
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-### 前端 Demo（当前仓库未包含）
+访问：
 
-如果后续把前端 Demo 工程（例如 `demo-app/`）放回仓库，再补充 `npm install`、`npm run dev`、`npm run build`、`npm run preview` 等命令。
+- 健康检查：`http://127.0.0.1:8000/api/health`
+- Swagger：`http://127.0.0.1:8000/docs`
 
-## 环境变量
+Mock 聊天接口：
 
-当前仓库没有前端或后端工程配置，因此暂无必须配置的运行时环境变量。
+```powershell
+cd services/api
+uv run python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/api/agent/chat', json={'message':'周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜'}).json())"
+```
 
-## 分支协作规范
+## 启动 Flutter
 
-当前约定：
+```powershell
+cd apps/mobile
+flutter pub get
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
+```
 
-- `main`：稳定可发布分支
-- `dev`：开发集成分支
-- `feat/*`、`fix/*`、`chore/*`、`docs/*`：功能、修复、工程和文档分支
+Android 模拟器使用：
 
-## 测试与构建
+```powershell
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
+```
 
-当前主要验证方式：
+真机使用局域网 IP：
 
-- `git status --short` 查看改动
-- `git diff -- doc/PRD.md README.md .gitignore` 查看文档差异
-- 浏览器打开 `prototype/mobile.html` 验证原型链路
+```powershell
+flutter run --dart-define=API_BASE_URL=http://你的电脑局域网IP:8000
+```
 
-当前仓库没有统一的前端/后端构建命令；如后续新增真实工程，再补齐对应测试与构建说明。
+## 测试与检查
 
-## 版本发布
+后端：
 
-- 在 `main` 打 tag，例如 `v0.1.0`
-- 触发 Release workflow
-- 自动生成 Release Notes，并上传可用构建产物
+```powershell
+cd services/api
+uv run pytest
+```
 
-## 仓库结构
+前端：
 
-- `CLAUDE.md`：仓库约定
-- `doc/PRD.md`：产品需求文档
-- `doc/材料中有用的信息.md`：比赛资源与提交检查参考
-- `prototype/mobile.html`：静态原型
-- `project/img/`：素材目录
-- `材料/`：比赛材料
+```powershell
+cd apps/mobile
+$env:NO_PROXY='localhost,127.0.0.1,::1'
+flutter analyze
+flutter test --concurrency=1
+flutter build apk --debug
+```
 
-## 素材约定
+如果本机设置了 `HTTP_PROXY`，运行 Flutter 测试时需要临时设置 `NO_PROXY`，否则本地 `flutter_tester` WebSocket 可能被代理拦截。
 
-- 新增素材统一放在 `project/img/`
-- 当前仓库没有 `demo-app/public/img/`，因此不需要先运行素材同步脚本
+本机执行 `flutter build apk --debug` 需要安装 Android SDK `platforms;android-35`；CI 会自动安装 Android SDK 35 和 `build-tools;35.0.0`。
+
+Docker：
+
+```powershell
+docker build -t lanxin-travelmate-api ./services/api
+docker compose -f infra/docker-compose.yml up --build
+```
+
+## 第一阶段验收
+
+1. 后端 `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000` 可启动。
+2. `/api/health` 返回 `status=ok`。
+3. `/docs` 可打开。
+4. `/api/agent/chat` 返回统一 Agent 响应结构。
+5. Flutter 聊天页发送“周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜”后展示蓝小心回复。
+6. 聊天页出现记忆候选，点击“确认记忆胶囊”后写入本地 Drift SQLite。
+7. 记忆页可看到已确认胶囊，并支持编辑/删除。
+8. 规划、提醒、复盘页优先展示本次 Agent Mock 响应。
+9. P1 演示可继续验证：规划页备选方案/高德导航入口、提醒页三类模拟触发、旅拍页文案生成/盲盒任务、复盘页独立生成。
+10. `uv run pytest`、`flutter analyze`、`flutter test --concurrency=1` 可作为基础验收命令；本机有 Android SDK 35 时再执行 `flutter build apk --debug`。
+
+## 分支协作
+
+- `main`：稳定发布分支。
+- `dev`：开发集成分支。
+- `feat/*`：功能分支。
+- `fix/*`：修复分支。
+- `docs/*`：文档分支。
+
+不自动推送远程；涉及 push、PR、merge、删除远程分支等操作需单独确认。

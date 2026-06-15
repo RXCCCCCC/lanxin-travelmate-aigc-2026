@@ -1,0 +1,23 @@
+[project]
+name = "lanxin-travelmate-api"
+version = "0.1.0"
+description = "蓝心同行 FastAPI + LangGraph 后端"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.128.0",
+    "uvicorn[standard]>=0.38.0",
+    "pydantic-settings>=2.12.0",
+    "sqlmodel>=0.0.27",
+    "langgraph>=1.0.8",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

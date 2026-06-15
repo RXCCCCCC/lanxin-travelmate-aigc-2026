@@ -204,10 +204,16 @@ class _WeatherCard extends StatelessWidget {
         Row(children: [
           const Icon(Icons.cloud_rounded, color: Colors.white, size: 20),
           const SizedBox(width: 7),
-          ShaderMask(shaderCallback: (r) => const LinearGradient(
-            colors: [Color(0xFF4A83FF), Color(0xFFA7CBFF)],
-          ).createShader(r), child: const Text('24°C 多云',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14.5))),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: ShaderMask(shaderCallback: (r) => const LinearGradient(
+                colors: [Color(0xFF4A83FF), Color(0xFFA7CBFF)],
+              ).createShader(r), child: const Text('24°C 多云',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14.5))),
+            ),
+          ),
         ]),
         const SizedBox(height: 6),
         Row(children: [

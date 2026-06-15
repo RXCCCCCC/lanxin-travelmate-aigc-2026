@@ -2,13 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/demo_agent_state.dart';
+import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
 import '../../data/mock_data.dart';
+import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/chat_bubble.dart';
 import '../../shared/widgets/glass_box.dart';
+import 'data/agent_chat_models.dart';
+import 'data/agent_chat_service.dart';
 
 /// 聊天页面
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  const ChatPage({
+    super.key,
+    this.agentChatService,
+    this.memoryRepository,
+  });
+
+  final AgentChatService? agentChatService;
+  final MemoryRepository? memoryRepository;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -18,18 +30,39 @@ class _ChatPageState extends State<ChatPage> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _messages = List<ChatMessage>.from(mockChatMessages);
+  late final AgentChatService _agentChatService;
+  late final MemoryRepository _memoryRepository;
+  AppDatabase? _ownedDatabase;
+  List<MemoryCandidate> _pendingMemoryCandidates = [];
+  Map<String, dynamic>? _memoryConflictSuggestion;
+  String? _memoryStatusText;
+  bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _agentChatService = widget.agentChatService ?? AgentChatService();
+    if (widget.memoryRepository == null) {
+      _ownedDatabase = AppDatabase();
+      _memoryRepository = MemoryRepository(_ownedDatabase!);
+    } else {
+      _memoryRepository = widget.memoryRepository!;
+    }
+  }
 
   @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _ownedDatabase?.close();
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isSending) return;
     setState(() {
+      _isSending = true;
       _messages.add(ChatMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         sender: MessageSender.user,
@@ -38,6 +71,38 @@ class _ChatPageState extends State<ChatPage> {
       ));
     });
     _controller.clear();
+    final response = await _agentChatService.sendMessage(
+      text,
+      sessionId: 'demo-session',
+      userId: 'guest',
+      tripId: 'demo-chongqing-weekend',
+    );
+    if (!mounted) return;
+    latestAgentResponse.value = response;
+    setState(() {
+      _isSending = false;
+      _pendingMemoryCandidates = response.memoryCandidates;
+      _memoryConflictSuggestion = _firstSyncSuggestion(response.syncSuggestions, 'memoryConflict');
+      _memoryStatusText = null;
+      _messages.add(ChatMessage(
+        id: 'assistant-${DateTime.now().millisecondsSinceEpoch}',
+        sender: MessageSender.assistant,
+        text: response.replyText,
+        time: TimeOfDay.now().format(context),
+        avatarState: response.avatarState,
+      ));
+    });
+    _scrollToBottom();
+  }
+
+  Map<String, dynamic>? _firstSyncSuggestion(List<Map<String, dynamic>> suggestions, String type) {
+    for (final suggestion in suggestions) {
+      if (suggestion['type'] == type) return suggestion;
+    }
+    return null;
+  }
+
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -49,19 +114,36 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
+  Future<void> _confirmMemoryCandidates() async {
+    final candidates = List<MemoryCandidate>.from(_pendingMemoryCandidates);
+    for (final candidate in candidates) {
+      await _memoryRepository.saveCandidate(
+        candidate,
+        scope: candidate.recommendedScope,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _pendingMemoryCandidates = [];
+      _memoryStatusText = '已保存 ${candidates.length} 条记忆胶囊';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF5FA4FF), Color(0xFFAAD6FF), Color(0xFFE8F7FF)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF5FA4FF), Color(0xFFAAD6FF), Color(0xFFE8F7FF)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
+        child: SafeArea(
+          child: Column(
+            children: [
             // 顶部栏
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -101,6 +183,14 @@ class _ChatPageState extends State<ChatPage> {
                 itemBuilder: (_, i) => ChatBubble(message: _messages[i]),
               ),
             ),
+            if (_pendingMemoryCandidates.isNotEmpty || _memoryStatusText != null)
+              _MemoryCandidatePanel(
+                count: _pendingMemoryCandidates.length,
+                statusText: _memoryStatusText,
+                onConfirm: _pendingMemoryCandidates.isEmpty ? null : _confirmMemoryCandidates,
+              ),
+            if (_memoryConflictSuggestion != null)
+              _MemoryConflictPanel(suggestion: _memoryConflictSuggestion!),
             // 快捷操作
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLg, vertical: AppTheme.spacingSm),
@@ -140,7 +230,7 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: _send,
+                    onTap: _isSending ? null : _send,
                     child: Container(
                       width: 40,
                       height: 40,
@@ -148,14 +238,106 @@ class _ChatPageState extends State<ChatPage> {
                         color: AppTheme.primary,
                         borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                       ),
-                      child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      child: Icon(
+                        _isSending ? Icons.more_horiz_rounded : Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _MemoryCandidatePanel extends StatelessWidget {
+  const _MemoryCandidatePanel({
+    required this.count,
+    required this.statusText,
+    required this.onConfirm,
+  });
+
+  final int count;
+  final String? statusText;
+  final Future<void> Function()? onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassBox(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      opacity: 0.2,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.bubble_chart_rounded, color: AppTheme.primary, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              statusText ?? '发现 $count 条记忆候选',
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          if (onConfirm != null)
+            GestureDetector(
+              onTap: onConfirm,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                child: const Text(
+                  '确认记忆胶囊',
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemoryConflictPanel extends StatelessWidget {
+  const _MemoryConflictPanel({required this.suggestion});
+
+  final Map<String, dynamic> suggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassBox(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      opacity: 0.22,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.compare_arrows_rounded, color: AppTheme.accent, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                suggestion['title']?.toString() ?? '发现记忆变化',
+                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                suggestion['description']?.toString() ?? '蓝小心会先按本次行程处理，长期画像等待你确认。',
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, height: 1.35),
+              ),
+            ]),
+          ),
+        ],
       ),
     );
   }

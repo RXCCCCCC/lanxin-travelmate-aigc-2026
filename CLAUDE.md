@@ -130,3 +130,41 @@ PRD当前采用端云协同Agent思路：
 - 如果新增真实代码项目，必须同步补充本文件中的开发命令、目录说明和测试方式。
 - 评估用户提供的角色图、原型图或视觉素材时，应优先采用用户给出的素材定位；若姿势、用途或生成阶段不确定，先标注为“待确认”或询问，不要自行断定为自拍图、标准立绘或其他类型。
 - 当用户通过 `@文件名`、模板名或模糊文件名引用项目资料时，应先用 Glob 主动搜索根目录和相关目录，确认真实文件名与格式后再读取，不要只依赖用户给出的路径或扩展名。
+- 开发过程中若沉淀出新的工程事实、运行命令、验收方式、约束规则或用户纠正点，必须同步更新本文件；`AGENTS.md` 通过引用本文件继承最新项目上下文，不单独维护重复规则。
+- `doc/todo.md` 是全项目未完成待办总表，不仅是功能清单。更新时删除已完成项，只保留未完成、未真实化、待验证或人工介入事项；主链路不得把 Mock、固定演示数据或手动模拟标为完成，人工介入项必须单独标注。
+
+## 当前代码工程状态
+
+截至 2026-06-14，仓库已包含可运行工程：
+
+- `apps/mobile/`：Flutter App，已接入 `dio`、Drift SQLite、蓝小心状态枚举和 Agent 聊天联调。
+- `services/api/`：FastAPI + LangGraph 后端，使用 `uv` 管理依赖，默认 Mock Provider。
+- `docs/`：技术设计、开发路线、API 契约、Agent 图、素材索引和贡献说明。
+- `infra/docker-compose.yml`：api + postgres 本地编排，nginx 为占位服务。
+
+常用命令：
+
+```powershell
+# 后端
+cd services/api
+uv sync
+uv run pytest
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 前端
+cd apps/mobile
+flutter pub get
+$env:NO_PROXY='localhost,127.0.0.1,::1'
+flutter analyze
+flutter test --concurrency=1
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
+
+# Android APK
+flutter build apk --debug
+```
+
+本机执行 `flutter build apk --debug` 需要 Android SDK `platforms;android-35`；CI 已配置自动安装 Android SDK 35 和 `build-tools;35.0.0`。
+
+当前演示闭环：聊天页发送重庆周末游需求后，后端返回记忆候选、规划卡、提醒卡和复盘卡；Flutter 将响应同步到规划、主动提醒和旅行复盘页面；确认记忆后写入本地 Drift SQLite，并可在记忆页编辑/删除。
+
+P1 增强状态：规划页已展示备选方案和高德外部导航入口；聊天页展示记忆冲突提示；提醒页支持拍照行为、低精力状态、天气/排队外部事件的手动模拟触发；设置页展示 5 种人格、自定义 Prompt、动作映射和状态表达文案；旅拍页支持候选集、旅行盲盒任务和朋友圈/小红书/日记/Vlog 文案生成；复盘页可独立调用 `/api/trip/review`。

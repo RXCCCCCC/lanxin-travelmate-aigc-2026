@@ -15,129 +15,81 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  flutter:
+    name: Flutter analyze and test
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: apps/mobile
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: subosito/flutter-action@v2
         with:
-          node-version: 20
+          flutter-version: "3.44.2"
+          channel: stable
+          cache: true
 
-      - name: Run Node checks
-        shell: bash
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
         run: |
-          set -euo pipefail
-          mapfile -t node_projects < <(find . -name package.json -not -path '*/node_modules/*' -not -path './.git/*' -printf '%h\n' | sort -u)
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-          if [ "${#node_projects[@]}" -eq 0 ]; then
-            echo "No Node project detected."
-            exit 0
-          fi
+      - name: Install Flutter dependencies
+        run: flutter pub get
 
-          for pkg_dir in "${node_projects[@]}"; do
-            echo "::group::Node project: $pkg_dir"
-            pushd "$pkg_dir" >/dev/null
+      - name: Analyze Flutter project
+        run: flutter analyze
 
-            if [ -f package-lock.json ]; then
-              npm ci
-            elif [ -f pnpm-lock.yaml ]; then
-              corepack enable pnpm
-              pnpm install --frozen-lockfile
-            elif [ -f yarn.lock ]; then
-              corepack enable yarn
-              yarn install --frozen-lockfile
-            else
-              npm install
-            fi
+      - name: Run Flutter tests
+        run: flutter test --concurrency=1
 
-            npm run lint --if-present
-            npm test --if-present
-            npm run build --if-present
+  api:
+    name: Python pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
 
-            popd >/dev/null
-            echo "::endgroup::"
-          done
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
 
-      - name: Run Python checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t python_projects < <(find . \( -name pyproject.toml -o -name requirements.txt -o -name uv.lock \) -not -path '*/.venv/*' -not -path '*/node_modules/*' -not -path './.git/*' -printf '%h\n' | sort -u)
+      - name: Sync API dependencies
+        run: uv sync --dev
 
-          if [ "${#python_projects[@]}" -eq 0 ]; then
-            echo "No Python project detected."
-            exit 0
-          fi
+      - name: Run API tests
+        run: uv run pytest
 
-          if ! command -v uv >/dev/null 2>&1; then
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          fi
+  android-apk:
+    name: Android debug APK build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
 
-          export PATH="$HOME/.cargo/bin:$PATH"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+          cache: true
 
-          for py_dir in "${python_projects[@]}"; do
-            echo "::group::Python project: $py_dir"
-            pushd "$py_dir" >/dev/null
+      - name: Install Flutter dependencies
+        run: flutter pub get
 
-            if [ -f uv.lock ] || [ -f pyproject.toml ]; then
-              uv sync
-            elif [ -f requirements.txt ]; then
-              uv pip install --system -r requirements.txt
-            fi
+      - name: Build debug APK
+        run: flutter build apk --debug
 
-            python -m compileall .
+  docker:
+    name: Backend Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            has_pytest=false
-            if [ -d tests ] || find . -type d -name tests | grep -q . || [ -f pytest.ini ]; then
-              has_pytest=true
-            fi
-
-            if [ -f pyproject.toml ] && grep -Eq '^\[tool\.pytest(\.ini_options)?\]' pyproject.toml; then
-              has_pytest=true
-            fi
-
-            if [ "$has_pytest" = true ]; then
-              if [ -f pyproject.toml ]; then
-                uv run pytest
-              else
-                pytest
-              fi
-            else
-              echo "No pytest configuration or tests detected."
-            fi
-
-            popd >/dev/null
-            echo "::endgroup::"
-          done
-
-      - name: Run Android checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t android_projects < <(find . \( -name gradlew -o -name build.gradle -o -name build.gradle.kts -o -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/.git/*' -printf '%h\n' | sort -u)
-
-          if [ "${#android_projects[@]}" -eq 0 ]; then
-            echo "No Android project detected."
-            exit 0
-          fi
-
-          for android_dir in "${android_projects[@]}"; do
-            echo "::group::Android project: $android_dir"
-            pushd "$android_dir" >/dev/null
-
-            if [ -f ./gradlew ]; then
-              chmod +x ./gradlew
-              ./gradlew test
-              ./gradlew assembleDebug
-            else
-              echo "Gradle wrapper not found; skipping Android build."
-            fi
-
-            popd >/dev/null
-            echo "::endgroup::"
-          done
+      - name: Build API Docker image
+        run: docker build -t lanxin-travelmate-api ./services/api

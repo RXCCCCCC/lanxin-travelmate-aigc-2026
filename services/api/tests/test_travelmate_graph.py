@@ -1,0 +1,17 @@
+from app.agents.travelmate.graph import TravelMateGraph
+from app.agents.travelmate.state import create_initial_state
+
+
+def test_travelmate_graph_runs_mock_p0_flow():
+    state = create_initial_state(
+        message="周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜",
+        session_id="demo-session",
+    )
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["response"]["avatarState"] == "planning"
+    assert "重庆" in result["response"]["replyText"]
+    assert len(result["memory_candidates"]) >= 3
+    assert result["avatar_status"]["rapport"] >= 13
+    assert "response_composer" in result["visited_nodes"]

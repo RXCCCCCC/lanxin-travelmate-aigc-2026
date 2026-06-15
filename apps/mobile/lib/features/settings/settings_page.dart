@@ -48,18 +48,40 @@ class SettingsPage extends StatelessWidget {
                     child: GlassBox(
                       opacity: 0.12,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.smart_toy_rounded, size: 20, color: AppTheme.primary),
-                          const SizedBox(width: AppTheme.spacingMd),
-                          const Expanded(child: Text('活泼可爱', style: TextStyle(color: AppTheme.textPrimary, fontSize: 15))),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
+                          const Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _PersonaChip(label: '活泼向导', selected: true),
+                              _PersonaChip(label: '细心管家'),
+                              _PersonaChip(label: '冷静规划师'),
+                              _PersonaChip(label: '元气拍档'),
+                              _PersonaChip(label: '安静陪伴'),
+                            ],
+                          ),
+                          const SizedBox(height: AppTheme.spacingMd),
+                          TextField(
+                            minLines: 2,
+                            maxLines: 3,
+                            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: '自定义人格 Prompt，例如：更像靠谱朋友，少打扰但关键时刻主动提醒',
+                              hintStyle: TextStyle(color: AppTheme.textMuted.withOpacity(0.72), fontSize: 12),
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.32),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                borderSide: BorderSide(color: Colors.white.withOpacity(0.4)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                borderSide: BorderSide(color: Colors.white.withOpacity(0.4)),
+                              ),
+                              isDense: true,
                             ),
-                            child: const Text('切换', style: TextStyle(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w600)),
                           ),
                         ],
                       ),
@@ -138,6 +160,37 @@ class SettingsPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                  _SettingsSection(
+                    title: '动作映射',
+                    icon: Icons.animation_rounded,
+                    child: const GlassBox(
+                      opacity: 0.12,
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Column(
+                        children: [
+                          _InfoLine(icon: Icons.route_rounded, text: '规划中 → planning'),
+                          _InfoLine(icon: Icons.warning_amber_rounded, text: '风险提醒 → warning'),
+                          _InfoLine(icon: Icons.auto_awesome_rounded, text: '发现盲盒 → excited'),
+                          _InfoLine(icon: Icons.task_alt_rounded, text: '任务完成 → happy'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _SettingsSection(
+                    title: '状态表达文案',
+                    icon: Icons.record_voice_over_rounded,
+                    child: const GlassBox(
+                      opacity: 0.12,
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Column(
+                        children: [
+                          _InfoLine(icon: Icons.battery_2_bar_rounded, text: '精力低时：我们把下一站换成近一点的轻松路线。'),
+                          _InfoLine(icon: Icons.favorite_rounded, text: '好感度提升时：这次配合很默契，我更懂你的旅行节奏了。'),
+                          _InfoLine(icon: Icons.explore_rounded, text: '好奇心高时：附近有个不绕路的小发现，要不要去看看？'),
+                        ],
+                      ),
+                    ),
+                  ),
                   // 关于
                   _SettingsSection(
                     title: '关于',
@@ -194,6 +247,55 @@ class _SettingsSection extends StatelessWidget {
           ),
           const SizedBox(height: AppTheme.spacingSm),
           child,
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonaChip extends StatelessWidget {
+  const _PersonaChip({required this.label, this.selected = false});
+
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: selected ? AppTheme.primary.withOpacity(0.18) : Colors.white.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        border: Border.all(color: selected ? AppTheme.primary.withOpacity(0.32) : Colors.white.withOpacity(0.28)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: selected ? AppTheme.primary : AppTheme.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: AppTheme.primary),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.35))),
         ],
       ),
     );

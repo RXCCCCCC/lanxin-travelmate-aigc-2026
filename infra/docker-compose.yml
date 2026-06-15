@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: ../services/api
+    ports:
+      - "8000:8000"
+    environment:
+      LANXIN_MODEL_PROVIDER: mock
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lanxin_travelmate
+      POSTGRES_USER: lanxin
+      POSTGRES_PASSWORD: lanxin_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  nginx:
+    image: nginx:1.27-alpine
+    profiles:
+      - placeholder
+
+volumes:
+  postgres_data:
