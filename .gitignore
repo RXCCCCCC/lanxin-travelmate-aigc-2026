@@ -44,3 +44,5 @@ pnpm-debug.log*
 .playwright-mcp/
 .trellis/
 .claude/
+
+材料/

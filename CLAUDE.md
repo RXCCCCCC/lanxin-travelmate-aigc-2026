@@ -167,6 +167,14 @@ flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
 flutter build apk --debug
 ```
 
+## 移动端适配基线
+
+- Flutter 前端需要优先覆盖 vivo/Android 主流手机尺寸：360x780、375x812、390x844、412x915、430x932，同时关注横屏、平板宽度和系统字体缩放 1.2/1.4。
+- 固定底部导航、输入栏、底部 CTA 和列表页必须显式处理 SafeArea；主要触控目标按 Android 48dp 设计。
+- 首页这类沉浸式页面不得只依赖 `Stack + Positioned + 屏幕比例`，短屏或横屏需要折叠次要浮动元素或允许滚动兜底。
+- Flutter widget test 在本机若设置了 `HTTP_PROXY`，必须临时设置 `$env:NO_PROXY='localhost,127.0.0.1,::1'` 后再运行，否则 `flutter_tester` 可能出现 WebSocket 握手失败。
+- Windows 桌面构建使用 `sqlite3` hook 的 `source: system` + `name_windows: winsqlite3`，避免 native assets 构建阶段从 GitHub 下载 `sqlite3.x64.windows.dll` 失败。
+
 本机执行 `flutter build apk --debug` 需要 Android SDK `platforms;android-35`；CI 已配置自动安装 Android SDK 35 和 `build-tools;35.0.0`。
 
 当前演示闭环：聊天页发送重庆周末游需求后，后端返回记忆候选、规划卡、提醒卡和复盘卡；Flutter 将响应同步到规划、主动提醒和旅行复盘页面；确认记忆后写入本地 Drift SQLite，并可在记忆页编辑/删除。

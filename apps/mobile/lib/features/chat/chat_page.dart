@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
+import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/demo_agent_state.dart';
 import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
@@ -13,11 +14,7 @@ import 'data/agent_chat_service.dart';
 
 /// 聊天页面
 class ChatPage extends StatefulWidget {
-  const ChatPage({
-    super.key,
-    this.agentChatService,
-    this.memoryRepository,
-  });
+  const ChatPage({super.key, this.agentChatService, this.memoryRepository});
 
   final AgentChatService? agentChatService;
   final MemoryRepository? memoryRepository;
@@ -63,12 +60,14 @@ class _ChatPageState extends State<ChatPage> {
     if (text.isEmpty || _isSending) return;
     setState(() {
       _isSending = true;
-      _messages.add(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sender: MessageSender.user,
-        text: text,
-        time: TimeOfDay.now().format(context),
-      ));
+      _messages.add(
+        ChatMessage(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          sender: MessageSender.user,
+          text: text,
+          time: TimeOfDay.now().format(context),
+        ),
+      );
     });
     _controller.clear();
     final response = await _agentChatService.sendMessage(
@@ -82,20 +81,28 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _isSending = false;
       _pendingMemoryCandidates = response.memoryCandidates;
-      _memoryConflictSuggestion = _firstSyncSuggestion(response.syncSuggestions, 'memoryConflict');
+      _memoryConflictSuggestion = _firstSyncSuggestion(
+        response.syncSuggestions,
+        'memoryConflict',
+      );
       _memoryStatusText = null;
-      _messages.add(ChatMessage(
-        id: 'assistant-${DateTime.now().millisecondsSinceEpoch}',
-        sender: MessageSender.assistant,
-        text: response.replyText,
-        time: TimeOfDay.now().format(context),
-        avatarState: response.avatarState,
-      ));
+      _messages.add(
+        ChatMessage(
+          id: 'assistant-${DateTime.now().millisecondsSinceEpoch}',
+          sender: MessageSender.assistant,
+          text: response.replyText,
+          time: TimeOfDay.now().format(context),
+          avatarState: response.avatarState,
+        ),
+      );
     });
     _scrollToBottom();
   }
 
-  Map<String, dynamic>? _firstSyncSuggestion(List<Map<String, dynamic>> suggestions, String type) {
+  Map<String, dynamic>? _firstSyncSuggestion(
+    List<Map<String, dynamic>> suggestions,
+    String type,
+  ) {
     for (final suggestion in suggestions) {
       if (suggestion['type'] == type) return suggestion;
     }
@@ -131,6 +138,10 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final inputBottom = keyboardOpen ? 8.0 : metrics.safeInsets.bottom + 8;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
@@ -142,113 +153,176 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-            // 顶部栏
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => context.pop(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          bottom: false,
+          child: AdaptiveContentWidth(
+            child: Column(
+              children: [
+                // 顶部栏
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: metrics.horizontalPadding - 8,
+                    vertical: 4,
                   ),
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white.withOpacity(0.3),
-                    child: Image.asset(
-                      AvatarState.hello.assetPath,
-                      width: 28,
-                      height: 28,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.smart_toy_rounded, color: AppTheme.primary, size: 22),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.spacingSm),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text('蓝小心', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-                      Text('在线', style: TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+                      IconButton(
+                        onPressed: () => context.pop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.white.withOpacity(0.3),
+                        child: Image.asset(
+                          AvatarState.hello.assetPath,
+                          width: 28,
+                          height: 28,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.smart_toy_rounded,
+                            color: AppTheme.primary,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spacingSm),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '蓝小心',
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '在线',
+                            style: TextStyle(
+                              color: AppTheme.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            // 聊天消息列表
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingSm),
-                itemCount: _messages.length,
-                itemBuilder: (_, i) => ChatBubble(message: _messages[i]),
-              ),
-            ),
-            if (_pendingMemoryCandidates.isNotEmpty || _memoryStatusText != null)
-              _MemoryCandidatePanel(
-                count: _pendingMemoryCandidates.length,
-                statusText: _memoryStatusText,
-                onConfirm: _pendingMemoryCandidates.isEmpty ? null : _confirmMemoryCandidates,
-              ),
-            if (_memoryConflictSuggestion != null)
-              _MemoryConflictPanel(suggestion: _memoryConflictSuggestion!),
-            // 快捷操作
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLg, vertical: AppTheme.spacingSm),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _QuickChip(label: '规划路线', onTap: () => context.go('/trip')),
-                    const SizedBox(width: AppTheme.spacingSm),
-                    _QuickChip(label: '记忆胶囊', onTap: () => context.go('/memory')),
-                    const SizedBox(width: AppTheme.spacingSm),
-                    _QuickChip(label: '调整行程', onTap: () => context.go('/trip')),
-                    const SizedBox(width: AppTheme.spacingSm),
-                    _QuickChip(label: '生成复盘', onTap: () => context.go('/review')),
-                  ],
                 ),
-              ),
-            ),
-            // 输入栏
-            GlassBox(
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-                      decoration: InputDecoration(
-                        hintText: '和蓝小心说点什么...',
-                        hintStyle: TextStyle(color: AppTheme.textMuted.withOpacity(0.6)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      onSubmitted: (_) => _send(),
+                // 聊天消息列表
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: EdgeInsets.symmetric(vertical: metrics.cardGap),
+                    itemCount: _messages.length,
+                    itemBuilder: (_, i) => ChatBubble(message: _messages[i]),
+                  ),
+                ),
+                if (_pendingMemoryCandidates.isNotEmpty ||
+                    _memoryStatusText != null)
+                  _MemoryCandidatePanel(
+                    count: _pendingMemoryCandidates.length,
+                    statusText: _memoryStatusText,
+                    onConfirm: _pendingMemoryCandidates.isEmpty
+                        ? null
+                        : _confirmMemoryCandidates,
+                  ),
+                if (_memoryConflictSuggestion != null)
+                  _MemoryConflictPanel(suggestion: _memoryConflictSuggestion!),
+                // 快捷操作
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: metrics.horizontalPadding,
+                    vertical: metrics.cardGap,
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _QuickChip(
+                          label: '规划路线',
+                          onTap: () => context.go('/trip'),
+                        ),
+                        const SizedBox(width: AppTheme.spacingSm),
+                        _QuickChip(
+                          label: '记忆胶囊',
+                          onTap: () => context.go('/memory'),
+                        ),
+                        const SizedBox(width: AppTheme.spacingSm),
+                        _QuickChip(
+                          label: '调整行程',
+                          onTap: () => context.go('/trip'),
+                        ),
+                        const SizedBox(width: AppTheme.spacingSm),
+                        _QuickChip(
+                          label: '生成复盘',
+                          onTap: () => context.go('/review'),
+                        ),
+                      ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: _isSending ? null : _send,
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                      ),
-                      child: Icon(
-                        _isSending ? Icons.more_horiz_rounded : Icons.send_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
+                ),
+                // 输入栏
+                GlassBox(
+                  margin: EdgeInsets.fromLTRB(
+                    metrics.horizontalPadding,
+                    0,
+                    metrics.horizontalPadding,
+                    inputBottom,
                   ),
-                ],
-              ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '和蓝小心说点什么...',
+                            hintStyle: TextStyle(
+                              color: AppTheme.textMuted.withOpacity(0.6),
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                            ),
+                          ),
+                          onSubmitted: (_) => _send(),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _isSending ? null : _send,
+                        child: Container(
+                          width: metrics.minTouchTarget,
+                          height: metrics.minTouchTarget,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary,
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSm,
+                            ),
+                          ),
+                          child: Icon(
+                            _isSending
+                                ? Icons.more_horiz_rounded
+                                : Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            ],
           ),
         ),
       ),
@@ -269,13 +343,23 @@ class _MemoryCandidatePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
     return GlassBox(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      margin: EdgeInsets.fromLTRB(
+        metrics.horizontalPadding,
+        4,
+        metrics.horizontalPadding,
+        2,
+      ),
       opacity: 0.2,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
-          const Icon(Icons.bubble_chart_rounded, color: AppTheme.primary, size: 20),
+          const Icon(
+            Icons.bubble_chart_rounded,
+            color: AppTheme.primary,
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -291,14 +375,24 @@ class _MemoryCandidatePanel extends StatelessWidget {
             GestureDetector(
               onTap: onConfirm,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                constraints: BoxConstraints(
+                  minHeight: metrics.minTouchTarget - 4,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.primary,
                   borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 ),
                 child: const Text(
                   '确认记忆胶囊',
-                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -315,27 +409,49 @@ class _MemoryConflictPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
     return GlassBox(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      margin: EdgeInsets.fromLTRB(
+        metrics.horizontalPadding,
+        4,
+        metrics.horizontalPadding,
+        2,
+      ),
       opacity: 0.22,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.compare_arrows_rounded, color: AppTheme.accent, size: 20),
+          const Icon(
+            Icons.compare_arrows_rounded,
+            color: AppTheme.accent,
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                suggestion['title']?.toString() ?? '发现记忆变化',
-                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                suggestion['description']?.toString() ?? '蓝小心会先按本次行程处理，长期画像等待你确认。',
-                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, height: 1.35),
-              ),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  suggestion['title']?.toString() ?? '发现记忆变化',
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  suggestion['description']?.toString() ??
+                      '蓝小心会先按本次行程处理，长期画像等待你确认。',
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -350,12 +466,25 @@ class _QuickChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
     return GestureDetector(
       onTap: onTap,
       child: GlassBox(
         opacity: 0.18,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Text(label, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: metrics.minTouchTarget - 16),
+          child: Center(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

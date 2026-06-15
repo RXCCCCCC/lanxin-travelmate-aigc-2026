@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/local/app_database.dart' as local_db;
 import '../../data/mock_data.dart';
@@ -58,7 +59,9 @@ class _MemoryPageState extends State<MemoryPage> {
         storedId: memory.id,
       );
     });
-    final mockItems = mockMemoryCapsules.map((capsule) => _MemoryDisplayItem(capsule: capsule));
+    final mockItems = mockMemoryCapsules.map(
+      (capsule) => _MemoryDisplayItem(capsule: capsule),
+    );
     return [...storedItems, ...mockItems];
   }
 
@@ -95,13 +98,26 @@ class _MemoryPageState extends State<MemoryPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: titleController, decoration: const InputDecoration(labelText: '标题')),
-            TextField(controller: contentController, decoration: const InputDecoration(labelText: '内容'), maxLines: 3),
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: '标题'),
+            ),
+            TextField(
+              controller: contentController,
+              decoration: const InputDecoration(labelText: '内容'),
+              maxLines: 3,
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('保存')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('保存'),
+          ),
         ],
       ),
     );
@@ -116,6 +132,7 @@ class _MemoryPageState extends State<MemoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -129,15 +146,29 @@ class _MemoryPageState extends State<MemoryPage> {
           children: [
             // 顶部栏
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: metrics.horizontalPadding - 8,
+                vertical: 4,
+              ),
               child: Row(
                 children: [
                   IconButton(
                     onPressed: () => context.pop(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
                   const Expanded(
-                    child: Text('记忆胶囊', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+                    child: Text(
+                      '记忆胶囊',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   const SizedBox(width: 48), // 平衡返回按钮
                 ],
@@ -145,35 +176,50 @@ class _MemoryPageState extends State<MemoryPage> {
             ),
             // 筛选标签
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLg, vertical: AppTheme.spacingSm),
-              child: Row(
-                children: List.generate(_tabs.length, (i) {
-                  final selected = _selectedTab == i;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: AppTheme.spacingSm),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedTab = i),
-                      child: GlassBox(
-                        opacity: selected ? 0.35 : 0.12,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Text(
-                          _tabs[i],
-                          style: TextStyle(
-                            color: selected ? AppTheme.primary : AppTheme.textSecondary,
-                            fontSize: 14,
-                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              padding: EdgeInsets.symmetric(
+                horizontal: metrics.horizontalPadding,
+                vertical: AppTheme.spacingSm,
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(_tabs.length, (i) {
+                    final selected = _selectedTab == i;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: AppTheme.spacingSm),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedTab = i),
+                        child: GlassBox(
+                          opacity: selected ? 0.35 : 0.12,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            _tabs[i],
+                            style: TextStyle(
+                              color: selected
+                                  ? AppTheme.primary
+                                  : AppTheme.textSecondary,
+                              fontSize: 14,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
             // 记忆胶囊列表
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 80),
+                padding: EdgeInsets.only(
+                  bottom: metrics.listBottomPadding + 48,
+                ),
                 itemCount: _filtered.length,
                 itemBuilder: (_, i) {
                   final item = _filtered[i];
@@ -184,7 +230,9 @@ class _MemoryPageState extends State<MemoryPage> {
                     children: [
                       MemoryCapsuleCard(capsule: item.capsule),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLg),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingLg,
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -195,8 +243,12 @@ class _MemoryPageState extends State<MemoryPage> {
                             ),
                             const SizedBox(width: 8),
                             TextButton.icon(
-                              onPressed: () => _deleteStoredMemory(item.storedId!),
-                              icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                              onPressed: () =>
+                                  _deleteStoredMemory(item.storedId!),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 16,
+                              ),
                               label: const Text('删除'),
                             ),
                           ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import 'glass_box.dart';
 
@@ -10,9 +11,10 @@ class TripReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
     return GlassBox(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spacingLg,
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
         vertical: AppTheme.spacingSm,
       ),
       padding: const EdgeInsets.symmetric(

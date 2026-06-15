@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../layout/responsive_metrics.dart';
 import '../../features/home/home_page.dart';
 import '../../features/chat/chat_page.dart';
 import '../../features/trip/trip_page.dart';
@@ -42,6 +43,8 @@ class ScaffoldWithNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: child,
@@ -60,15 +63,27 @@ class ScaffoldWithNav extends StatelessWidget {
           ),
         ),
         child: SafeArea(
+          top: false,
+          minimum: EdgeInsets.symmetric(
+            horizontal: metrics.horizontalPadding / 2,
+          ),
           child: SizedBox(
-            height: 62,
+            height: metrics.bottomNavHeight,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(icon: Icons.home_rounded, label: '首页', path: '/'),
                 _NavItem(icon: Icons.map_rounded, label: '规划', path: '/trip'),
-                _NavItem(icon: Icons.photo_library_rounded, label: '旅拍', path: '/photo'),
-                _NavItem(icon: Icons.settings_rounded, label: '设置', path: '/settings'),
+                _NavItem(
+                  icon: Icons.photo_library_rounded,
+                  label: '旅拍',
+                  path: '/photo',
+                ),
+                _NavItem(
+                  icon: Icons.settings_rounded,
+                  label: '设置',
+                  path: '/settings',
+                ),
               ],
             ),
           ),
@@ -86,28 +101,39 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = context.responsive;
     final isActive = GoRouterState.of(context).uri.path == path;
     final color = isActive ? const Color(0xFF215ECA) : const Color(0xFF6F8CAF);
 
-    return GestureDetector(
-      onTap: () => context.go(path),
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 64,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 26),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+    return Semantics(
+      button: true,
+      selected: isActive,
+      label: label,
+      child: GestureDetector(
+        onTap: () => context.go(path),
+        behavior: HitTestBehavior.opaque,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: metrics.minTouchTarget,
+            minHeight: metrics.minTouchTarget,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: metrics.navIconSize),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: metrics.navLabelSize,
+                  fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/mock_data.dart';
 import 'glass_box.dart';
@@ -17,9 +18,11 @@ class MemoryCapsuleCard extends StatelessWidget {
       MemoryScope.temporary => (AppTheme.textMuted, '临时'),
     };
 
+    final metrics = context.responsive;
+
     return GlassBox(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spacingLg,
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
         vertical: AppTheme.spacingSm,
       ),
       child: Column(
@@ -28,7 +31,10 @@ class MemoryCapsuleCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
@@ -45,7 +51,10 @@ class MemoryCapsuleCard extends StatelessWidget {
               if (capsule.isNew) ...[
                 const SizedBox(width: AppTheme.spacingSm),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.orange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(8),
@@ -63,10 +72,7 @@ class MemoryCapsuleCard extends StatelessWidget {
               const Spacer(),
               Text(
                 capsule.createdAt,
-                style: const TextStyle(
-                  color: AppTheme.textMuted,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
               ),
             ],
           ),
