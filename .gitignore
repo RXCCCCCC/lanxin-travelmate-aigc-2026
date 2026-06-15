@@ -10,6 +10,15 @@ dist/
 build/
 .coverage/
 coverage/
+
+# Python / uv
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+*.py[cod]
 .env
 .env.local
 .env.*.local
