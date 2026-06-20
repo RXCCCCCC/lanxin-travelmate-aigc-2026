@@ -3,13 +3,19 @@ import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/adaptive_chrome.dart';
 import '../../shared/widgets/glass_box.dart';
+import '../trip/data/trip_dashboard_service.dart';
 import 'data/photo_experience_service.dart';
 
 /// 旅拍候选页面
 class PhotoPage extends StatefulWidget {
-  const PhotoPage({super.key, this.photoExperienceService});
+  const PhotoPage({
+    super.key,
+    this.photoExperienceService,
+    this.dashboardService,
+  });
 
   final PhotoExperienceService? photoExperienceService;
+  final TripDashboardService? dashboardService;
 
   @override
   State<PhotoPage> createState() => _PhotoPageState();
@@ -17,27 +23,78 @@ class PhotoPage extends StatefulWidget {
 
 class _PhotoPageState extends State<PhotoPage> {
   late final PhotoExperienceService _photoExperienceService;
-  late final Future<void> _loadFuture;
+  late final TripDashboardService _dashboardService;
+  late Future<void> _loadFuture;
   List<Map<String, dynamic>> _candidates = const [];
   List<Map<String, dynamic>> _tasks = const [];
   Map<String, dynamic>? _copywriting;
   bool _isGenerating = false;
+  bool _isRegistering = false;
+  String? _photoNotice;
 
   @override
   void initState() {
     super.initState();
     _photoExperienceService =
         widget.photoExperienceService ?? PhotoExperienceService();
+    _dashboardService = widget.dashboardService ?? TripDashboardService();
     _loadFuture = _load();
   }
 
   Future<void> _load() async {
+    final dashboard = await _dashboardService.fetchDashboard();
+    _candidates = dashboard.photoCandidates;
+    _tasks = dashboard.blindBoxTasks;
+    if (_candidates.isNotEmpty && _tasks.isNotEmpty) return;
+
     final results = await Future.wait([
-      _photoExperienceService.fetchCandidates(),
-      _photoExperienceService.fetchBlindBoxTasks(),
+      if (_candidates.isEmpty) _photoExperienceService.fetchCandidates(),
+      if (_tasks.isEmpty) _photoExperienceService.fetchBlindBoxTasks(),
     ]);
-    _candidates = results[0];
-    _tasks = results[1];
+    var index = 0;
+    if (_candidates.isEmpty) {
+      _candidates = results[index++];
+    }
+    if (_tasks.isEmpty) {
+      _tasks = results[index];
+    }
+  }
+
+  void _retryLoad() {
+    setState(() {
+      _photoNotice = null;
+      _candidates = const [];
+      _tasks = const [];
+      _copywriting = null;
+      _loadFuture = _load();
+    });
+  }
+
+  Future<void> _registerManualCandidate() async {
+    if (_isRegistering) return;
+    setState(() {
+      _isRegistering = true;
+      _photoNotice = null;
+    });
+    final upload = await _photoExperienceService.createUploadMetadata(
+      filename: 'manual-night-photo.jpg',
+      contentType: 'image/jpeg',
+      localPath: 'device://selected-photo/manual-night-photo.jpg',
+    );
+    final candidate = await _photoExperienceService.createCandidate(
+      id: 'manual-photo-${DateTime.now().millisecondsSinceEpoch}',
+      remoteUrl: upload['remoteUrl']?.toString(),
+      location: '手动导入照片',
+      score: 8.6,
+      description: '已登记为旅拍候选，本地路径不会上传保存。',
+      tags: const ['手动导入', '待分析'],
+    );
+    if (!mounted) return;
+    setState(() {
+      _candidates = [candidate, ..._candidates];
+      _photoNotice = '已登记候选照片，本地路径不会上传保存';
+      _isRegistering = false;
+    });
   }
 
   Future<void> _generateCopywriting() async {
@@ -88,9 +145,52 @@ class _PhotoPageState extends State<PhotoPage> {
               child: FutureBuilder<void>(
                 future: _loadFuture,
                 builder: (context, snapshot) {
+                  final isLoading =
+                      snapshot.connectionState == ConnectionState.waiting;
+                  final isEmpty =
+                      !isLoading && _candidates.isEmpty && _tasks.isEmpty;
                   return ListView(
                     padding: metrics.listPadding(),
                     children: [
+                      if (isLoading)
+                        const _LoadingState()
+                      else if (snapshot.hasError || isEmpty)
+                        _PhotoEmptyState(
+                          hasError: snapshot.hasError,
+                          onRetry: _retryLoad,
+                        ),
+                      if (_photoNotice != null) ...[
+                        GlassBox(
+                          opacity: 0.18,
+                          margin: const EdgeInsets.only(
+                            bottom: AppTheme.spacingMd,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.privacy_tip_rounded,
+                                color: AppTheme.primary,
+                                size: 18,
+                              ),
+                              const SizedBox(width: AppTheme.spacingSm),
+                              Expanded(
+                                child: Text(
+                                  _photoNotice!,
+                                  style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -132,31 +232,70 @@ class _PhotoPageState extends State<PhotoPage> {
               ),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isGenerating ? null : _generateCopywriting,
-                  icon: Icon(
-                    _isGenerating
-                        ? Icons.more_horiz_rounded
-                        : Icons.edit_note_rounded,
-                    size: 22,
-                  ),
-                  label: Text(
-                    _isGenerating ? '生成中' : '生成文案',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isRegistering
+                            ? null
+                            : _registerManualCandidate,
+                        icon: Icon(
+                          _isRegistering
+                              ? Icons.more_horiz_rounded
+                              : Icons.add_photo_alternate_rounded,
+                          size: 22,
+                        ),
+                        label: Text(
+                          _isRegistering ? '登记中' : '登记候选',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.primary,
+                          minimumSize: Size.fromHeight(metrics.minTouchTarget),
+                          side: const BorderSide(color: AppTheme.primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMd,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size.fromHeight(metrics.minTouchTarget),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    const SizedBox(width: AppTheme.spacingSm),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isGenerating ? null : _generateCopywriting,
+                        icon: Icon(
+                          _isGenerating
+                              ? Icons.more_horiz_rounded
+                              : Icons.edit_note_rounded,
+                          size: 22,
+                        ),
+                        label: Text(
+                          _isGenerating ? '生成中' : '生成文案',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: Size.fromHeight(metrics.minTouchTarget),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMd,
+                            ),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
                     ),
-                    elevation: 0,
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -167,6 +306,92 @@ class _PhotoPageState extends State<PhotoPage> {
   }
 }
 
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const GlassBox(
+      opacity: 0.16,
+      margin: EdgeInsets.only(bottom: AppTheme.spacingMd),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: AppTheme.spacingSm),
+          Text(
+            '正在加载旅拍候选',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoEmptyState extends StatelessWidget {
+  const _PhotoEmptyState({required this.hasError, required this.onRetry});
+
+  final bool hasError;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassBox(
+      opacity: 0.18,
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingMd),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                hasError ? Icons.cloud_off_rounded : Icons.photo_library_outlined,
+                color: AppTheme.primary,
+                size: 20,
+              ),
+              const SizedBox(width: AppTheme.spacingSm),
+              Text(
+                hasError ? '旅拍候选加载失败' : '还没有旅拍候选',
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          Text(
+            hasError
+                ? '请检查网络后重试；也可以先登记本机候选。'
+                : '可以先登记候选照片，后续再接入系统相册和相机权限。',
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingMd),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('重试加载'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.icon, required this.title});
 

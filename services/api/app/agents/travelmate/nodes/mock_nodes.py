@@ -2,8 +2,10 @@ from copy import deepcopy
 from typing import Any
 
 from app.agents.travelmate.state import TravelMateState
-from app.services.model_providers import MockModelProvider
-from app.tools.registry import build_mock_tool_registry
+from app.core.config import get_settings
+from app.services.model_providers import MockModelProvider, ModelProviderError, build_model_provider
+from app.services.model_providers.call_log import ModelCallLogger
+from app.tools.registry import build_tool_registry
 
 
 NODE_SEQUENCE = [
@@ -76,9 +78,12 @@ def memory_extractor(state: TravelMateState) -> TravelMateState:
             "id": "mem-cilantro",
             "title": "不吃香菜",
             "content": "用户明确表示不吃香菜，后续餐厅和菜品推荐需要避开。",
+            "category": "dietary_preference",
+            "sensitivity": "personal",
+            "requiresExplicitConsent": True,
             "scopeOptions": ["longTerm", "currentTrip", "temporary", "ignore"],
             "recommendedScope": "longTerm",
-            "reason": "这是稳定饮食偏好，会长期影响餐饮推荐。",
+            "reason": "饮食忌口会长期影响餐饮推荐，但仍需要用户明确确认后保存。",
         })
     if "夜景" in text:
         candidates.append({
@@ -98,6 +103,42 @@ def memory_extractor(state: TravelMateState) -> TravelMateState:
             "recommendedScope": "currentTrip",
             "reason": "这更像本次旅行约束，先按本次行程保存。",
         })
+    if _contains_any(text, ["膝盖", "腿疼", "不舒服", "晕车", "过敏", "低血糖", "身体"]):
+        candidates.append({
+            "id": "mem-health-condition",
+            "title": "身体状态需要照顾",
+            "content": "用户提到身体状态可能影响步行强度，规划时需要降低爬坡和长距离步行。",
+            "category": "health",
+            "sensitivity": "sensitive",
+            "requiresExplicitConsent": True,
+            "scopeOptions": ["currentTrip", "temporary", "ignore"],
+            "recommendedScope": "currentTrip",
+            "reason": "身体状态属于敏感信息，只在用户明确确认后按本次旅行使用，不默认长期保存。",
+        })
+    if _contains_any(text, ["住在", "家在", "酒店在", "附近"]):
+        candidates.append({
+            "id": "mem-location-context",
+            "title": "位置上下文需要保护",
+            "content": "用户提到住址或当前位置相关信息，可用于本次路线避绕，但不应默认长期保存。",
+            "category": "location",
+            "sensitivity": "sensitive",
+            "requiresExplicitConsent": True,
+            "scopeOptions": ["currentTrip", "temporary", "ignore"],
+            "recommendedScope": "temporary",
+            "reason": "位置相关信息属于高敏感上下文，默认仅作本次会话或本次旅行使用。",
+        })
+    if _contains_any(text, ["妈妈", "爸爸", "孩子", "女朋友", "男朋友", "朋友", "同事", "同行"]):
+        candidates.append({
+            "id": "mem-companion-context",
+            "title": "同行人信息需要确认",
+            "content": "用户提到同行人，规划可考虑同行人节奏，但多人信息不应默认进入长期画像。",
+            "category": "companion",
+            "sensitivity": "sensitive",
+            "requiresExplicitConsent": True,
+            "scopeOptions": ["currentTrip", "temporary", "ignore"],
+            "recommendedScope": "currentTrip",
+            "reason": "同行人信息涉及他人隐私，需要更高确认门槛。",
+        })
     next_state["memory_candidates"] = candidates
     return next_state
 
@@ -109,6 +150,16 @@ def memory_confirm_interrupt(state: TravelMateState) -> TravelMateState:
             "type": "memoryConfirmation",
             "title": "发现新的旅行偏好",
             "description": "保存前需要用户确认记忆范围。",
+        })
+    sensitive_count = sum(
+        1 for item in next_state["memory_candidates"] if item.get("sensitivity") == "sensitive"
+    )
+    if sensitive_count:
+        next_state["sync_suggestions"].append({
+            "type": "sensitiveMemoryConfirmation",
+            "title": "发现敏感旅行信息",
+            "description": "身体状态、位置和同行人信息只会在你明确确认后使用，默认不进入长期记忆。",
+            "count": sensitive_count,
         })
     return next_state
 
@@ -174,14 +225,23 @@ def tool_planner(state: TravelMateState) -> TravelMateState:
 
 def tool_executor(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "tool_executor")
-    registry = build_mock_tool_registry()
+    registry = build_tool_registry()
     trace = []
     for item in next_state["tool_plan"]:
+        output = registry.call(item["tool"], item["input"])
         trace.append({
             "tool": item["tool"],
             "input": item["input"],
-            "output": registry.call(item["tool"], item["input"]),
-            "mock": True,
+            "output": output,
+            "provider": output.get("provider"),
+            "fallback": bool(output.get("fallback")),
+            "fallbackReason": output.get("fallbackReason"),
+            "sourceTime": output.get("sourceTime"),
+            "errorType": output.get("errorType"),
+            "retryCount": int(output.get("retryCount") or 0),
+            "cacheHit": bool(output.get("cacheHit")),
+            "circuitOpen": bool(output.get("circuitOpen")),
+            "mock": output.get("provider") == "mock",
         })
     next_state["tool_trace"] = trace
     return next_state
@@ -189,10 +249,52 @@ def tool_executor(state: TravelMateState) -> TravelMateState:
 
 def trip_planner(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_planner")
-    provider = MockModelProvider()
-    next_state["trip_plan"] = provider.plan_trip(next_state)
+    settings = get_settings()
+    logger = ModelCallLogger()
+    provider_name = settings.model_provider
+    timer = logger.track(
+        provider=provider_name,
+        scenario="trip_planning",
+        request_summary={
+            "userId": next_state.get("user_id"),
+            "tripId": next_state.get("trip_id"),
+            "intent": next_state.get("intent"),
+            "destination": next_state.get("trip_context", {}).get("destination"),
+            "userSettings": next_state.get("context", {}).get("userSettings") or {},
+        },
+    )
+    try:
+        provider = build_model_provider(settings)
+        plan = provider.plan_trip(next_state)
+        if isinstance(plan, dict) and "text" in plan:
+            next_state.setdefault("errors", []).append({
+                "code": "MODEL_JSON_PENDING",
+                "message": "真实模型已返回内容，但结构化规划解析仍待接入，当前使用降级规划。",
+            })
+            raise ModelProviderError("模型返回结构暂未映射为 TripPlan。")
+        next_state["trip_plan"] = plan
+        timer.finish(fallback=False)
+    except ModelProviderError as exc:
+        fallback_provider = MockModelProvider()
+        next_state["trip_plan"] = fallback_provider.plan_trip(next_state)
+        timer.finish(fallback=True, error=str(exc))
+        next_state.setdefault("model_call_logs", []).extend(record.__dict__ for record in logger.records)
+        next_state.setdefault("tool_trace", []).append({
+            "tool": "model_provider",
+            "provider": provider_name,
+            "fallback": True,
+            "scenario": "trip_planning",
+            "error": str(exc),
+        })
+        return next_state
+    next_state.setdefault("model_call_logs", []).extend(record.__dict__ for record in logger.records)
+    next_state.setdefault("tool_trace", []).append({
+        "tool": "model_provider",
+        "provider": provider_name,
+        "fallback": False,
+        "scenario": "trip_planning",
+    })
     return next_state
-
 
 def trip_adjuster(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_adjuster")
@@ -313,16 +415,26 @@ def review_generator(state: TravelMateState) -> TravelMateState:
         }
         for item in temporary_memories
     ]
+    highlight_photos = next_state["context"].get("highlightPhotos") or ["洪崖洞夜景"]
+    reminder_highlights = next_state["context"].get("reminderHighlights") or []
+    status_changes = next_state["context"].get("avatarStatusChanges") or ["默契值 +1", "好感度 +2", "精力 -5"]
+    if next_state["context"].get("completedTasks"):
+        status_changes.append("盲盒任务完成奖励已进入复盘")
+    if reminder_highlights:
+        status_changes.append("提醒响应记录已进入复盘")
+
     next_state["completed_tasks"] = completed_tasks
     next_state["temporary_memory_promotions"] = promotions
     next_state["review"] = {
-        "route": "解放碑 → 山城步道 → 洪崖洞 → 南山一棵树",
-        "highlightPhotos": ["洪崖洞夜景"],
-        "newMemories": [item["title"] for item in next_state["memory_candidates"]],
+        "route": next_state["context"].get("route") or "解放碑 → 山城步道 → 洪崖洞 → 南山一棵树",
+        "highlightPhotos": highlight_photos,
+        "newMemories": next_state["context"].get("newMemories") or [item["title"] for item in next_state["memory_candidates"]],
         "completedTasks": completed_tasks,
-        "avatarStatusChanges": ["默契值 +1", "好感度 +2", "精力 -5"],
-        "nextTripSuggestions": ["成都慢节奏美食线", "长沙夜景与小吃线"],
+        "reminderHighlights": reminder_highlights,
+        "avatarStatusChanges": status_changes,
+        "nextTripSuggestions": next_state["context"].get("nextTripSuggestions") or ["成都慢节奏美食线", "长沙夜景与小吃线"],
         "temporaryMemoryPromotions": promotions,
+        "profileContext": next_state["context"].get("profileContext") or {},
     }
     return next_state
 

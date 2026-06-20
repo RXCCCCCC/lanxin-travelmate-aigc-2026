@@ -11,6 +11,7 @@ class TripReviewPayload {
     required this.avatarStatusChanges,
     required this.nextTripSuggestions,
     required this.temporaryMemoryPromotions,
+    this.profileContext = const {},
   });
 
   final String route;
@@ -20,6 +21,7 @@ class TripReviewPayload {
   final List<String> avatarStatusChanges;
   final List<String> nextTripSuggestions;
   final List<Map<String, dynamic>> temporaryMemoryPromotions;
+  final Map<String, dynamic> profileContext;
 
   factory TripReviewPayload.fromJson(Map<String, dynamic> json) {
     return TripReviewPayload(
@@ -30,6 +32,7 @@ class TripReviewPayload {
       avatarStatusChanges: _stringList(json['avatarStatusChanges']),
       nextTripSuggestions: _stringList(json['nextTripSuggestions']),
       temporaryMemoryPromotions: _mapList(json['temporaryMemoryPromotions']),
+      profileContext: _map(json['profileContext']),
     );
   }
 
@@ -44,7 +47,7 @@ class TripReviewPayload {
           'title': '拍一张不是游客照的重庆夜景',
           'status': 'completed',
           'reward': '好感度 +2',
-        }
+        },
       ],
       avatarStatusChanges: ['默契值 +1', '好感度 +2'],
       nextTripSuggestions: ['成都慢节奏美食线', '长沙夜景与小吃线'],
@@ -54,7 +57,7 @@ class TripReviewPayload {
           'title': '本次旅行想轻松一点',
           'suggestedScope': 'longTerm',
           'reason': '这条临时记忆已经影响本次规划，建议转为长期偏好。',
-        }
+        },
       ],
     );
   }
@@ -68,6 +71,7 @@ class TripReviewPayload {
       'avatarStatusChanges': avatarStatusChanges,
       'nextTripSuggestions': nextTripSuggestions,
       'temporaryMemoryPromotions': temporaryMemoryPromotions,
+      'profileContext': profileContext,
     };
   }
 }
@@ -82,6 +86,7 @@ class TripReviewService {
     String? tripId,
     List<Map<String, dynamic>> completedTasks = const [],
     List<Map<String, dynamic>> temporaryMemories = const [],
+    Map<String, dynamic> profileContext = const {},
   }) async {
     try {
       final response = await _dio.post<dynamic>(
@@ -91,11 +96,16 @@ class TripReviewService {
           if (tripId != null) 'tripId': tripId,
           'completedTasks': completedTasks,
           'temporaryMemories': temporaryMemories,
+          if (profileContext.isNotEmpty) 'profileContext': profileContext,
         },
       );
       final data = response.data;
       if (data is Map<String, dynamic>) {
-        return TripReviewPayload.fromJson(data);
+        return TripReviewPayload.fromJson({
+          ...data,
+          if (profileContext.isNotEmpty && data['profileContext'] == null)
+            'profileContext': profileContext,
+        });
       }
       return TripReviewPayload.fallback();
     } on DioException {
@@ -105,11 +115,17 @@ class TripReviewService {
 }
 
 List<String> _stringList(Object? value) {
-  return (value as List<dynamic>? ?? const []).map((item) => item.toString()).toList();
+  return (value as List<dynamic>? ?? const [])
+      .map((item) => item.toString())
+      .toList();
 }
 
 List<Map<String, dynamic>> _mapList(Object? value) {
   return (value as List<dynamic>? ?? const [])
       .whereType<Map<String, dynamic>>()
       .toList();
+}
+
+Map<String, dynamic> _map(Object? value) {
+  return value is Map<String, dynamic> ? value : <String, dynamic>{};
 }

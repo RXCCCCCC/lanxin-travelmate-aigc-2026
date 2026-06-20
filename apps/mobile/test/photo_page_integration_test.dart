@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanxin_travelmate/features/photo/data/photo_experience_service.dart';
 import 'package:lanxin_travelmate/features/photo/photo_page.dart';
+import 'package:lanxin_travelmate/features/trip/data/trip_dashboard_service.dart';
 
 class StubPhotoExperienceService extends PhotoExperienceService {
   StubPhotoExperienceService() : super(dio: Dio());
+
+  bool createdCandidate = false;
 
   @override
   Future<List<Map<String, dynamic>>> fetchCandidates() async {
@@ -17,8 +20,51 @@ class StubPhotoExperienceService extends PhotoExperienceService {
         'description': '夜景高光',
         'tags': ['夜景'],
         'canAddToReview': true,
-      }
+      },
     ];
+  }
+
+  @override
+  Future<Map<String, dynamic>> createUploadMetadata({
+    String userId = 'guest',
+    required String filename,
+    String contentType = 'image/jpeg',
+    String? localPath,
+    String? remoteUrl,
+  }) async {
+    return const {
+      'id': 'file-manual',
+      'filename': 'manual-night.jpg',
+      'contentType': 'image/jpeg',
+      'localPath': null,
+      'remoteUrl': 'https://cdn.example/manual-night.jpg',
+      'privacy': {'localPathStored': false},
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> createCandidate({
+    String userId = 'guest',
+    String? id,
+    String? tripId,
+    String? remoteUrl,
+    required String location,
+    required double score,
+    required String description,
+    List<String> tags = const [],
+    bool canAddToReview = true,
+  }) async {
+    createdCandidate = true;
+    return {
+      'id': id ?? 'photo-manual',
+      'location': location,
+      'score': score,
+      'description': description,
+      'tags': tags,
+      'localUri': null,
+      'remoteUrl': remoteUrl,
+      'canAddToReview': canAddToReview,
+    };
   }
 
   @override
@@ -38,35 +84,156 @@ class StubPhotoExperienceService extends PhotoExperienceService {
   @override
   Future<List<Map<String, dynamic>>> fetchBlindBoxTasks() async {
     return const [
-      {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景'}
+      {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景'},
     ];
   }
 }
 
+class EmptyPhotoExperienceService extends StubPhotoExperienceService {
+  @override
+  Future<List<Map<String, dynamic>>> fetchCandidates() async => const [];
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks() async => const [];
+}
+
+class EmptyPhotoDashboardService extends TripDashboardService {
+  EmptyPhotoDashboardService() : super(dio: Dio());
+
+  @override
+  Future<TripDashboardPayload> fetchDashboard({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
+    return TripDashboardPayload.fallback(userId: userId, tripId: tripId);
+  }
+}
+
+class StubPhotoDashboardService extends TripDashboardService {
+  StubPhotoDashboardService() : super();
+
+  @override
+  Future<TripDashboardPayload> fetchDashboard({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
+    return TripDashboardPayload(
+      userId: userId,
+      tripId: tripId ?? 'photo-trip',
+      currentTrip: const {'status': 'planning', 'plan': <String, dynamic>{}},
+      routePoints: const {'route': '', 'points': []},
+      reminderHistory: const [],
+      blindBoxTasks: const [
+        {
+          'id': 'task-dashboard-photo',
+          'type': 'photo',
+          'title': 'Dashboard photo mission',
+          'status': 'completed',
+        },
+      ],
+      avatarStateEvents: const [],
+      latestReview: const {},
+      photoCandidates: const [
+        {
+          'id': 'dashboard-photo',
+          'location': 'West Lake',
+          'score': 8.8,
+          'description': 'A real dashboard photo candidate.',
+          'tags': ['lake', 'night'],
+          'canAddToReview': true,
+        },
+      ],
+      memories: const [],
+    );
+  }
+}
+
 void main() {
-  testWidgets('PhotoPage shows candidates blind box tasks and generated copywriting', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: PhotoPage(photoExperienceService: StubPhotoExperienceService()),
-    ));
+  testWidgets(
+    'PhotoPage shows candidates blind box tasks and generated copywriting',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PhotoPage(photoExperienceService: StubPhotoExperienceService()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('洪崖洞'), findsWidgets);
+      await tester.scrollUntilVisible(
+        find.text('拍一张夜景'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('拍一张夜景'), findsOneWidget);
+
+      await tester.tap(find.text('生成文案'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.textContaining('朋友圈文案'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('朋友圈文案'), findsOneWidget);
+      expect(find.textContaining('小红书文案'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'PhotoPage uses dashboard candidates and blind box tasks before fallback services',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PhotoPage(
+            photoExperienceService: StubPhotoExperienceService(),
+            dashboardService: StubPhotoDashboardService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('West Lake'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Dashboard photo mission'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Dashboard photo mission'), findsOneWidget);
+    },
+  );
+  testWidgets('PhotoPage can register a manual photo candidate through API', (
+    tester,
+  ) async {
+    final service = StubPhotoExperienceService();
+
+    await tester.pumpWidget(
+      MaterialApp(home: PhotoPage(photoExperienceService: service)),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('洪崖洞'), findsWidgets);
-    await tester.scrollUntilVisible(
-      find.text('拍一张夜景'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('拍一张夜景'), findsOneWidget);
-
-    await tester.tap(find.text('生成文案'));
+    await tester.tap(find.text('登记候选'));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.textContaining('朋友圈文案'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.textContaining('朋友圈文案'), findsOneWidget);
-    expect(find.textContaining('小红书文案'), findsOneWidget);
+    expect(service.createdCandidate, isTrue);
+    expect(find.text('手动导入照片'), findsOneWidget);
+    expect(find.text('已登记候选照片，本地路径不会上传保存'), findsOneWidget);
   });
+  testWidgets(
+    'PhotoPage shows empty state and retry action for no photo data',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PhotoPage(
+            photoExperienceService: EmptyPhotoExperienceService(),
+            dashboardService: EmptyPhotoDashboardService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('还没有旅拍候选'), findsOneWidget);
+      expect(find.text('重试加载'), findsOneWidget);
+    },
+  );
 }

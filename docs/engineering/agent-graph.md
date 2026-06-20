@@ -24,7 +24,7 @@
 
 ## 当前行为
 
-当前图是确定性 Mock 流程。输入“周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜”后，会生成：
+当前图仍保留确定性演示响应，但 `tool_executor` 已接入真实工具注册器。无高德 Key 时工具轨迹会返回 `provider=unconfigured` 与 `fallback=true`，不会把固定样例伪装成真实外部数据。输入“周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜”后，会生成：
 
 - 记忆候选：不吃香菜、喜欢夜景、本次旅行想轻松一点。
 - 规划卡：重庆两日轻松夜景线。
@@ -43,7 +43,7 @@
 
 ## 添加新工具
 
-1. 在 `services/api/app/tools/mock_tools.py` 新增工具函数。
-2. 在 `build_mock_tool_registry()` 注册工具名。
-3. 在 `tool_planner` 中加入调用计划。
-4. 在 `tests/test_tools.py` 补充工具存在性和返回结构测试。
+1. 若是真实外部工具，优先在 `services/api/app/tools/external_providers.py` 或独立 provider 文件中实现，并通过 `build_tool_registry()` 注册。
+2. Mock/离线降级工具仍放在 `services/api/app/tools/mock_tools.py`，并通过 `build_mock_tool_registry()` 仅供测试或显式降级使用。
+3. 在 `tool_planner` 中加入调用计划，并保证输出包含 `provider`、`fallback`、`sourceTime` 或 `confidence` 等可解释元数据。
+4. 在 `tests/test_real_tool_providers.py` 或对应测试中补充无 Key 降级与 HTTP 响应解析测试。

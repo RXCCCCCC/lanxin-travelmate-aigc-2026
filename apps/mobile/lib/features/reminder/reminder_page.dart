@@ -6,13 +6,22 @@ import '../../data/demo_agent_state.dart';
 import '../../data/mock_data.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../../shared/widgets/reminder_card.dart';
+import '../profile/data/profile_service.dart';
+import '../trip/data/trip_dashboard_service.dart';
 import 'data/reminder_trigger_service.dart';
 
 /// 主动提醒页面
 class ReminderPage extends StatefulWidget {
-  const ReminderPage({super.key, this.reminderTriggerService});
+  const ReminderPage({
+    super.key,
+    this.reminderTriggerService,
+    this.dashboardService,
+    this.profileService,
+  });
 
   final ReminderTriggerService? reminderTriggerService;
+  final TripDashboardService? dashboardService;
+  final ProfileService? profileService;
 
   @override
   State<ReminderPage> createState() => _ReminderPageState();
@@ -20,13 +29,68 @@ class ReminderPage extends StatefulWidget {
 
 class _ReminderPageState extends State<ReminderPage> {
   late final ReminderTriggerService _reminderTriggerService;
+  late final TripDashboardService _dashboardService;
+  late final ProfileService _profileService;
+  ProfilePayload? _profile;
   List<Map<String, dynamic>> _simulatedReminders = const [];
+  List<Map<String, dynamic>> _dashboardReminders = const [];
+  List<Map<String, dynamic>> _evaluatedReminders = const [];
+  String? _suppressedReason;
+  int _cooldownRemainingSeconds = 0;
 
   @override
   void initState() {
     super.initState();
     _reminderTriggerService =
         widget.reminderTriggerService ?? ReminderTriggerService();
+    _dashboardService = widget.dashboardService ?? TripDashboardService();
+    _profileService = widget.profileService ?? ProfileService();
+    _loadDashboardReminders();
+    _loadProfileAndEvaluate();
+  }
+
+  Future<void> _loadDashboardReminders() async {
+    final dashboard = await _dashboardService.fetchDashboard();
+    final reminders = <Map<String, dynamic>>[];
+    for (final history in dashboard.reminderHistory) {
+      final items = history['items'];
+      if (items is List) {
+        for (final item in items.whereType<Map<String, dynamic>>()) {
+          reminders.add({
+            'triggerType': history['triggerType'],
+            'location': history['location'],
+            ...item,
+          });
+        }
+      }
+    }
+    if (!mounted || reminders.isEmpty) return;
+    setState(() => _dashboardReminders = reminders);
+  }
+
+  Future<void> _loadProfileAndEvaluate() async {
+    final profile = await _profileService.fetchProfile();
+    final result = await _reminderTriggerService.evaluate(
+      ReminderEvaluateDraft(
+        userId: profile.userId,
+        proactivityLevel: profile.proactivityLevel,
+        currentTime: DateTime.now().toIso8601String(),
+        location: '洪崖洞',
+        status: {'energy': 32, 'travelPace': profile.travelPace},
+        external: {
+          'interestTags': profile.interestTags,
+          'dietaryPreferences': profile.dietaryPreferences,
+          'transportPreferences': profile.transportPreferences,
+        },
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _profile = profile;
+      _evaluatedReminders = result.items;
+      _suppressedReason = result.suppressedReason;
+      _cooldownRemainingSeconds = result.cooldownRemainingSeconds;
+    });
   }
 
   Future<void> _simulateTrigger(
@@ -51,7 +115,11 @@ class _ReminderPageState extends State<ReminderPage> {
         final agentReminders = agentCardPayloadList(response, 'reminders');
         final activeAgentReminders = _simulatedReminders.isNotEmpty
             ? _simulatedReminders
-            : agentReminders;
+            : (agentReminders.isNotEmpty
+                  ? agentReminders
+                  : (_dashboardReminders.isNotEmpty
+                        ? _dashboardReminders
+                        : _evaluatedReminders));
         return Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -63,7 +131,6 @@ class _ReminderPageState extends State<ReminderPage> {
           child: SafeArea(
             child: Column(
               children: [
-                // 顶部栏
                 Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: metrics.horizontalPadding - 8,
@@ -93,6 +160,12 @@ class _ReminderPageState extends State<ReminderPage> {
                     ],
                   ),
                 ),
+                if (_profile != null)
+                  _ProfileReminderContext(
+                    profile: _profile!,
+                    suppressedReason: _suppressedReason,
+                    cooldownRemainingSeconds: _cooldownRemainingSeconds,
+                  ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     metrics.horizontalPadding,
@@ -127,7 +200,6 @@ class _ReminderPageState extends State<ReminderPage> {
                     ),
                   ),
                 ),
-                // 提醒列表
                 Expanded(
                   child: activeAgentReminders.isEmpty
                       ? ListView.builder(
@@ -157,6 +229,60 @@ class _ReminderPageState extends State<ReminderPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ProfileReminderContext extends StatelessWidget {
+  const _ProfileReminderContext({
+    required this.profile,
+    required this.suppressedReason,
+    required this.cooldownRemainingSeconds,
+  });
+
+  final ProfilePayload profile;
+  final String? suppressedReason;
+  final int cooldownRemainingSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    final tags = <String>[
+      profile.proactivityLevel,
+      profile.travelPace,
+      ...profile.interestTags.take(2),
+      ...profile.dietaryPreferences.take(1),
+    ];
+    final status = suppressedReason == 'cooldown'
+        ? '冷却 ${cooldownRemainingSeconds ~/ 60} 分钟'
+        : '实时评估';
+    return GlassBox(
+      opacity: 0.2,
+      margin: EdgeInsets.fromLTRB(
+        metrics.horizontalPadding,
+        0,
+        metrics.horizontalPadding,
+        AppTheme.spacingSm,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.tune_rounded, color: AppTheme.primary, size: 18),
+          const SizedBox(width: AppTheme.spacingSm),
+          Expanded(
+            child: Text(
+              '画像提醒 · ${tags.join(' / ')} · $status',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

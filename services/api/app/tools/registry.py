@@ -1,7 +1,9 @@
 from collections.abc import Callable
 from typing import Any
 
+from app.core.config import get_settings
 from app.tools import mock_tools
+from app.tools.external_providers import AmapToolProvider
 
 
 ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -18,6 +20,19 @@ class ToolRegistry:
         if name not in self._tools:
             raise KeyError(f"Tool not registered: {name}")
         return self._tools[name](payload)
+
+
+def build_tool_registry() -> ToolRegistry:
+    provider = AmapToolProvider(get_settings())
+    return ToolRegistry({
+        "weather_tool": provider.weather,
+        "poi_tool": provider.poi,
+        "route_tool": provider.route,
+        "navigation_link_tool": mock_tools.navigation_link_tool,
+        "asr_tool": mock_tools.asr_tool,
+        "tts_tool": mock_tools.tts_tool,
+        "photo_analyze_tool": mock_tools.photo_analyze_tool,
+    })
 
 
 def build_mock_tool_registry() -> ToolRegistry:

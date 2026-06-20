@@ -2,7 +2,7 @@
 
 ## 架构概览
 
-蓝心同行采用 Flutter App + FastAPI + LangGraph Agent 的端云协同结构。当前版本默认使用 Mock Provider，不依赖真实蓝心或 OpenAI 密钥，确保比赛演示链路稳定可控。
+蓝心同行采用 Flutter App + FastAPI + LangGraph Agent 的端云协同结构。当前版本默认使用 Mock 模型 Provider，不依赖真实蓝心或 OpenAI 密钥；外部工具已接入高德 Provider 骨架，无 Key 时返回明确降级，确保比赛演示链路稳定可控。
 
 ## 前端
 
@@ -19,13 +19,13 @@
 - `/api/health` 提供健康检查。
 - `/api/agent/chat` 运行 TravelMateGraph，并返回统一 camelCase 响应。
 - SQLModel 模型文件预留云端用户、记忆、画像、行程、复盘、同步、模型调用、工具调用和上传文件表。
-- 地图、天气、POI 第一版采用可降级工具输出：返回 `provider` 和 `fallback` 元数据；无真实密钥时使用 Mock，规划卡仍提供高德外部导航 URI 供演示。
+- 地图、天气、POI、步行路线已通过 `AmapToolProvider` 接入高德 HTTP 接口；无 `LANXIN_AMAP_API_KEY` 时返回 `provider=unconfigured`、`fallback=true` 和原因说明，不伪装真实数据。Provider 已具备进程内成功结果缓存与一次 HTTP 重试，规划卡仍保留高德外部导航 URI 供演示。
 
 ## Agent
 
 TravelMateGraph 当前按固定顺序串联 19 个节点，覆盖输入归一化、上下文加载、意图识别、记忆提取、画像更新、工具调用、规划、提醒、旅拍、复盘、状态映射和响应组装。
 
-真实模型接入前，所有模型和工具都走 Mock 降级。
+真实模型接入前，模型规划仍可降级到 Mock；天气、POI、路线工具优先走真实注册器，未配置 Key 时返回显式 unconfigured fallback。
 
 P1 阶段已补充记忆冲突处理：当长期偏好与本次行程约束冲突时，Agent 通过 `syncSuggestions` 提醒用户确认，不直接覆盖长期画像。
 
@@ -34,4 +34,4 @@ P1 阶段已补充记忆冲突处理：当长期偏好与本次行程约束冲�
 - 不实现 Live2D。
 - 不实现后台无感相册监听。
 - 不实现自动社交发布。
-- 不默认调用真实地图、天气或大模型 API。
+- 不在缺少 Key 时伪造真实地图、天气或大模型 API 结果。

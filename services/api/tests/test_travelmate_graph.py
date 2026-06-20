@@ -15,3 +15,38 @@ def test_travelmate_graph_runs_mock_p0_flow():
     assert len(result["memory_candidates"]) >= 3
     assert result["avatar_status"]["rapport"] >= 13
     assert "response_composer" in result["visited_nodes"]
+
+
+def test_travelmate_graph_marks_sensitive_memory_candidates():
+    state = create_initial_state(
+        message="我最近膝盖不舒服，住在解放碑附近，这次和妈妈一起去重庆，别安排太多爬坡",
+        session_id="privacy-session",
+    )
+
+    result = TravelMateGraph().invoke(state)
+    sensitive_candidates = [
+        item for item in result["memory_candidates"] if item.get("sensitivity") == "sensitive"
+    ]
+
+    assert sensitive_candidates
+    assert all(item["requiresExplicitConsent"] is True for item in sensitive_candidates)
+    assert all(item["recommendedScope"] in {"currentTrip", "temporary", "ignore"} for item in sensitive_candidates)
+    assert any(item.get("category") == "health" for item in sensitive_candidates)
+    assert any(suggestion["type"] == "sensitiveMemoryConfirmation" for suggestion in result["sync_suggestions"])
+
+def test_travelmate_graph_requires_explicit_consent_for_dietary_restrictions():
+    state = create_initial_state(
+        message="周末去重庆两天，我不吃香菜，喜欢夜景",
+        session_id="dietary-privacy-session",
+    )
+
+    result = TravelMateGraph().invoke(state)
+    dietary = next(
+        item for item in result["memory_candidates"] if item["id"] == "mem-cilantro"
+    )
+
+    assert dietary["category"] == "dietary_preference"
+    assert dietary["sensitivity"] == "personal"
+    assert dietary["requiresExplicitConsent"] is True
+    assert dietary["recommendedScope"] == "longTerm"
+    assert "longTerm" in dietary["scopeOptions"]

@@ -6,8 +6,10 @@ services:
       - "8000:8000"
     environment:
       LANXIN_MODEL_PROVIDER: mock
+      LANXIN_DATABASE_URL: postgresql+psycopg://lanxin:lanxin_dev@postgres:5432/lanxin_travelmate
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
@@ -19,6 +21,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lanxin -d lanxin_travelmate"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
 
   nginx:
     image: nginx:1.27-alpine

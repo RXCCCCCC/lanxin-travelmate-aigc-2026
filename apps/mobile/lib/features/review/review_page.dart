@@ -6,13 +6,22 @@ import '../../data/demo_agent_state.dart';
 import '../../data/mock_data.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../../shared/widgets/trip_review_card.dart';
+import '../profile/data/profile_service.dart';
+import '../trip/data/trip_dashboard_service.dart';
 import 'data/trip_review_service.dart';
 
 /// 旅行复盘页面
 class ReviewPage extends StatefulWidget {
-  const ReviewPage({super.key, this.tripReviewService});
+  const ReviewPage({
+    super.key,
+    this.tripReviewService,
+    this.dashboardService,
+    this.profileService,
+  });
 
   final TripReviewService? tripReviewService;
+  final TripDashboardService? dashboardService;
+  final ProfileService? profileService;
 
   @override
   State<ReviewPage> createState() => _ReviewPageState();
@@ -20,13 +29,34 @@ class ReviewPage extends StatefulWidget {
 
 class _ReviewPageState extends State<ReviewPage> {
   late final TripReviewService _tripReviewService;
+  late final TripDashboardService _dashboardService;
+  late final ProfileService _profileService;
   late final Future<TripReviewPayload> _generatedReview;
 
   @override
   void initState() {
     super.initState();
     _tripReviewService = widget.tripReviewService ?? TripReviewService();
-    _generatedReview = _tripReviewService.generateReview(
+    _dashboardService = widget.dashboardService ?? TripDashboardService();
+    _profileService = widget.profileService ?? ProfileService();
+    _generatedReview = _loadReview();
+  }
+
+  Future<TripReviewPayload> _loadReview() async {
+    final shouldReadDashboard =
+        widget.dashboardService != null || widget.tripReviewService == null;
+    if (shouldReadDashboard) {
+      final dashboard = await _dashboardService.fetchDashboard(
+        tripId: 'demo-chongqing-weekend',
+      );
+      final dashboardReview = _reviewFromDashboard(dashboard.latestReview);
+      if (dashboardReview != null) return dashboardReview;
+      final dashboardStateReview = _reviewFromDashboardStateEvents(dashboard);
+      if (dashboardStateReview != null) return dashboardStateReview;
+    }
+
+    final profile = await _profileService.fetchProfile();
+    return _tripReviewService.generateReview(
       tripId: 'demo-chongqing-weekend',
       completedTasks: const [
         {
@@ -42,6 +72,34 @@ class _ReviewPageState extends State<ReviewPage> {
           'content': '本次行程希望低强度，减少跨区移动和密集景点。',
         },
       ],
+      profileContext: _reviewProfileContext(profile),
+    );
+  }
+
+  TripReviewPayload? _reviewFromDashboard(Map<String, dynamic> latestReview) {
+    final review = latestReview['review'];
+    if (review is Map<String, dynamic> && review.isNotEmpty) {
+      return TripReviewPayload.fromJson(review);
+    }
+    return null;
+  }
+
+  TripReviewPayload? _reviewFromDashboardStateEvents(
+    TripDashboardPayload dashboard,
+  ) {
+    if (dashboard.avatarStateEvents.isEmpty) return null;
+    final route = dashboard.routePoints['route']?.toString();
+    return TripReviewPayload(
+      route: (route == null || route.isEmpty) ? '今日路线' : route,
+      highlightPhotos: const [],
+      newMemories: const [],
+      completedTasks: const [],
+      avatarStatusChanges: dashboard.avatarStateEvents
+          .map(_avatarStateEventText)
+          .where((item) => item.isNotEmpty)
+          .toList(),
+      nextTripSuggestions: const [],
+      temporaryMemoryPromotions: const [],
     );
   }
 
@@ -268,6 +326,8 @@ class _AgentReviewView extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.only(bottom: metrics.listBottomPadding),
       children: [
+        if (_reviewProfileContextText(review).isNotEmpty)
+          _ReviewProfileContext(text: _reviewProfileContextText(review)),
         GlassBox(
           margin: EdgeInsets.symmetric(
             horizontal: metrics.horizontalPadding,
@@ -321,6 +381,23 @@ class _AgentReviewView extends StatelessWidget {
       ],
     );
   }
+}
+
+String _avatarStateEventText(Map<String, dynamic> event) {
+  final title = event['title']?.toString() ?? '';
+  final deltas = event['deltas'];
+  if (deltas is! Map<String, dynamic> || deltas.isEmpty) return title;
+  final deltaText = deltas.entries
+      .map((entry) {
+        final value = entry.value;
+        if (value is num) {
+          final sign = value >= 0 ? '+' : '';
+          return '${entry.key} $sign$value';
+        }
+        return '${entry.key} $value';
+      })
+      .join('、');
+  return title.isEmpty ? deltaText : '$title（$deltaText）';
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -393,6 +470,74 @@ class _SummaryBadge extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+Map<String, dynamic> _reviewProfileContext(ProfilePayload profile) {
+  return {
+    'travelPace': profile.travelPace,
+    'dietaryPreferences': profile.dietaryPreferences,
+    'interestTags': profile.interestTags,
+    'transportPreferences': profile.transportPreferences,
+    'budgetPreference': profile.budgetPreference,
+  };
+}
+
+String _reviewProfileContextText(Map<String, dynamic> review) {
+  final context = review['profileContext'];
+  if (context is! Map<String, dynamic> || context.isEmpty) return '';
+  final tags = <String>[
+    context['travelPace']?.toString() ?? '',
+    ...((context['interestTags'] as List<dynamic>? ?? const []).map(
+      (e) => e.toString(),
+    )),
+    ...((context['dietaryPreferences'] as List<dynamic>? ?? const []).map(
+      (e) => e.toString(),
+    )),
+  ].where((item) => item.trim().isNotEmpty).toList(growable: false);
+  return tags.isEmpty ? '' : '复盘画像 · ${tags.join(' / ')}';
+}
+
+class _ReviewProfileContext extends StatelessWidget {
+  const _ReviewProfileContext({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return GlassBox(
+      opacity: 0.2,
+      margin: EdgeInsets.fromLTRB(
+        metrics.horizontalPadding,
+        AppTheme.spacingSm,
+        metrics.horizontalPadding,
+        AppTheme.spacingSm,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.person_search_rounded,
+            color: AppTheme.primary,
+            size: 18,
+          ),
+          const SizedBox(width: AppTheme.spacingSm),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -4,12 +4,15 @@ import 'package:flutter/services.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../shared/widgets/glass_box.dart';
+import '../trip/data/trip_dashboard_service.dart';
 
 /// 首页 — 完全复刻参考图
 /// 上方 65%：天空渐变背景 + 蓝小心立绘浮动 + 浮动状态卡 + 品牌/天气/旅行胶囊
 /// 下方 35%：磨砂玻璃聊天面板 + 输入栏 + 快捷指令
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.dashboardService});
+
+  final TripDashboardService? dashboardService;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -18,6 +21,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _floatCtrl;
+  late final TripDashboardService _dashboardService;
+  _HomeDashboardSummary _dashboardSummary = const _HomeDashboardSummary();
 
   @override
   void initState() {
@@ -26,6 +31,16 @@ class _HomePageState extends State<HomePage>
       vsync: this,
       duration: const Duration(milliseconds: 3400),
     )..repeat(reverse: true);
+    _dashboardService = widget.dashboardService ?? TripDashboardService();
+    _loadDashboardSummary();
+  }
+
+  Future<void> _loadDashboardSummary() async {
+    final dashboard = await _dashboardService.fetchDashboard();
+    if (!mounted) return;
+    setState(
+      () => _dashboardSummary = _HomeDashboardSummary.fromDashboard(dashboard),
+    );
   }
 
   @override
@@ -105,7 +120,7 @@ class _HomePageState extends State<HomePage>
                 Positioned(
                   top: topSafe + 82,
                   left: sidePadding,
-                  child: const _TripPill(),
+                  child: _TripPill(label: _dashboardSummary.tripLabel),
                 ),
 
                 // ── 天气卡片 ──
@@ -144,13 +159,18 @@ class _HomePageState extends State<HomePage>
                 ),
 
                 // ── 右侧浮动状态卡 ──
-                if (compact)
+                if (compact) ...[
                   Positioned(
                     top: topSafe + 146,
                     right: sidePadding,
                     child: const _CompactStatusBadge(),
-                  )
-                else ...[
+                  ),
+                  Positioned(
+                    top: topSafe + 192,
+                    right: sidePadding,
+                    child: _DashboardSummaryBadge(summary: _dashboardSummary),
+                  ),
+                ] else ...[
                   Positioned(
                     top: h * 0.24,
                     right: sidePadding,
@@ -169,7 +189,7 @@ class _HomePageState extends State<HomePage>
                   Positioned(
                     top: h * 0.48,
                     right: sidePadding,
-                    child: const _MemoryCapsuleBadge(),
+                    child: _MemoryCapsuleBadge(summary: _dashboardSummary),
                   ),
                 ],
 
@@ -242,28 +262,70 @@ class _BrandBlock extends StatelessWidget {
   }
 }
 
+class _HomeDashboardSummary {
+  const _HomeDashboardSummary({
+    this.tripLabel = '重庆周末游',
+    this.memoryCount = 0,
+    this.reminderCount = 0,
+  });
+
+  final String tripLabel;
+  final int memoryCount;
+  final int reminderCount;
+
+  factory _HomeDashboardSummary.fromDashboard(TripDashboardPayload dashboard) {
+    final destination = dashboard.currentTrip['destination']?.toString().trim();
+    return _HomeDashboardSummary(
+      tripLabel: destination == null || destination.isEmpty
+          ? '当前旅程'
+          : '$destination 旅程',
+      memoryCount: dashboard.memories.length,
+      reminderCount: dashboard.reminderHistory.fold<int>(0, (count, history) {
+        final items = history['items'];
+        return count + (items is List ? items.length : 1);
+      }),
+    );
+  }
+
+  String get summaryLine {
+    if (memoryCount == 0 && reminderCount == 0) return '等待真实旅程数据';
+    return '$memoryCount memories · $reminderCount reminders';
+  }
+}
+
 class _TripPill extends StatelessWidget {
-  const _TripPill();
+  const _TripPill({required this.label});
+
+  final String label;
+
   @override
   Widget build(BuildContext context) {
     return GlassBox(
       borderRadius: BorderRadius.circular(22),
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.location_on_rounded, color: Color(0xFF5F9BFF), size: 19),
-          SizedBox(width: 7),
+          const Icon(
+            Icons.location_on_rounded,
+            color: Color(0xFF5F9BFF),
+            size: 19,
+          ),
+          const SizedBox(width: 7),
           Text(
-            '重庆周末游',
-            style: TextStyle(
+            label,
+            style: const TextStyle(
               color: Color(0xFF2B5BA9),
               fontWeight: FontWeight.w800,
               fontSize: 13.5,
             ),
           ),
-          SizedBox(width: 5),
-          Icon(Icons.chevron_right_rounded, color: Color(0xFF326BCA), size: 19),
+          const SizedBox(width: 5),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: Color(0xFF326BCA),
+            size: 19,
+          ),
         ],
       ),
     );
@@ -537,6 +599,28 @@ class _CompactStatusBadge extends StatelessWidget {
   }
 }
 
+class _DashboardSummaryBadge extends StatelessWidget {
+  const _DashboardSummaryBadge({required this.summary});
+
+  final _HomeDashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassBox(
+      borderRadius: BorderRadius.circular(18),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      child: Text(
+        summary.summaryLine,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.86),
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _PlanningBadge extends StatelessWidget {
   const _PlanningBadge();
   @override
@@ -568,7 +652,10 @@ class _PlanningBadge extends StatelessWidget {
 }
 
 class _MemoryCapsuleBadge extends StatelessWidget {
-  const _MemoryCapsuleBadge();
+  const _MemoryCapsuleBadge({required this.summary});
+
+  final _HomeDashboardSummary summary;
+
   @override
   Widget build(BuildContext context) {
     return GlassBox(
@@ -620,6 +707,14 @@ class _MemoryCapsuleBadge extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.65),
                   fontSize: 10.5,
+                ),
+              ),
+              Text(
+                summary.summaryLine,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.82),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],

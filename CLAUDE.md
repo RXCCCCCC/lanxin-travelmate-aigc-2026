@@ -142,10 +142,19 @@ PRD当前采用端云协同Agent思路：
 截至 2026-06-14，仓库已包含可运行工程：
 
 - `apps/mobile/`：Flutter App，已接入 `dio`、Drift SQLite、蓝小心状态枚举和 Agent 聊天联调。
-- `services/api/`：FastAPI + LangGraph 后端，使用 `uv` 管理依赖，默认 Mock Provider。
+- `services/api/`：FastAPI + LangGraph 后端，使用 `uv` 管理依赖；模型默认 Mock Provider，天气/POI/步行/驾车/公交/混合路线已接高德 Provider，无 Key 时显式 `provider=unconfigured` 降级。
 - `docs/`：统一文档目录，按 `product/`、`engineering/`、`handoff/` 分层维护。
-- `infra/docker-compose.yml`：api + postgres 本地编排，nginx 为占位服务。
+- infra/docker-compose.yml：api + postgres 本地编排，nginx 为占位服务。
+- 后端已新增 Alembic 初始迁移：services/api/alembic.ini、services/api/migrations/；API 容器通过 LANXIN_DATABASE_URL=postgresql+psycopg://... 连接 Postgres，并在启动前执行 uv run alembic upgrade head。
 
+高德工具 Provider 已支持成功结果进程内缓存、SQLite 持久缓存、一次 HTTP 重试、连续失败熔断和本地限流，并在工具结果和 Agent `toolTrace` 中输出 `retryCount/cacheHit/circuitOpen/errorType/rateLimited/retryAfterSeconds/fallbackReason/sourceTime`，前端可直接展示工具降级原因。
+照片候选和上传元数据接口兼容接收 `localUri/localPath`，但云端不保存也不返回设备本地 URI/路径，只保留远程 URL、文件名、内容类型和显式隐私标记。
+后端模型调用日志 `ModelCallLogger` 已对 `requestSummary` 做最小化脱敏：密钥、Authorization、Token、密码统一记录为 `[REDACTED]`，用户原文类字段只保留字符数，普通超长文本截断；剩余隐私任务集中在端侧日志和照片/音频敏感内容审计。
+
+后端已新增多人出游协调接口：`POST /api/trip/group/coordinate` 接收至少 2 名成员真实偏好，输出冲突、折中方案和隐私汇总并写入 `group_coordination_records`；`GET /api/trip/group/coordination?tripId=...` 可读回最近协调结果，敏感偏好原文不会出现在对外响应中。
+后端已新增复盘生成持久化、提醒触发历史持久化、盲盒任务状态持久化和统一工具调用日志接口：`POST /api/trip/review` 会返回并保存 `reviewId`，未显式传 `completedTasks` 时会自动读取已完成盲盒任务，并聚合真实路线轨迹、可复盘照片地点、提醒历史、蓝小心状态事件、本次旅程记忆沉淀与基于这些上下文派生的下次旅行建议；`GET /api/trip/review?tripId=...` 可读回最近复盘；`POST /api/trip/reminders/trigger` 会返回并保存 `historyId`，`POST /api/trip/reminders/evaluate` 可根据时间/位置/状态/外部事件自动评估提醒、按主动程度过滤并执行冷却，`GET /api/trip/reminders/history` 可读回提醒历史；`GET /api/trip/blind-box/tasks?userId=...&tripId=...` 可读任务状态，`POST /api/trip/blind-box/tasks/{taskId}/status` 可写入 accepted/skipped/completed；`POST/GET /api/trip/route-points` 可写入/读取真实路线轨迹点；`POST/GET /api/trip/avatar-state/events` 可写入/读取蓝小心状态事件，盲盒完成会自动写入 `blind_box_completed`；`POST /api/tools/{tool_name}/call` 会返回 `toolTraceId`；`GET /api/audit/tool-calls` 和 `GET /api/audit/model-calls` 可按工具、Provider、场景、fallback 状态读取审计日志，模型请求摘要已脱敏。
+后端真实联调配置从 `services/api/.env.example` 复制到 `.env`；真实模型需要 `LANXIN_MODEL_PROVIDER`、对应 base URL/API Key/model，真实高德工具需要 `LANXIN_AMAP_API_KEY`。不要提交真实 `.env`。隐私说明接口为 `GET /api/privacy/summary`，配套文档在 `docs/engineering/privacy-and-compliance.md`。
+后端云同步接口 `POST /api/sync/push` 已支持记忆 `updatedAt` 冲突检测，默认 `serverWins` 不覆盖较新的服务端记忆，端侧明确传 `conflictStrategy=clientWins` 时才覆盖，并在响应 `conflicts` 中返回冲突详情；`POST /api/sync/revoke` 可撤销云端记忆、画像和旅程副本并写入同步审计记录；设置页已接入基础冲突检测、本机覆盖云端和按 ID 撤销指定记忆/旅程；端侧 Drift 已新增 `local_sync_operations` 同步队列，记忆新增/编辑/删除会入队，设置页会优先消费 `memory/upsert` 队列和 `memory/delete` 撤销队列，按成功/失败更新状态，并展示最近同步历史；记忆页已支持选择本地记忆后只同步已选条目；`SyncRetryService` 已抽出 pending 队列重试逻辑，App 启动和回到前台时会自动重试 `memory/upsert` 与 `memory/delete` pending 操作。
 常用命令：
 
 ```powershell
@@ -179,4 +188,57 @@ flutter build apk --debug
 
 当前演示闭环：聊天页发送重庆周末游需求后，后端返回记忆候选、规划卡、提醒卡和复盘卡；Flutter 将响应同步到规划、主动提醒和旅行复盘页面；确认记忆后写入本地 Drift SQLite，并可在记忆页编辑/删除。
 
-P1 增强状态：规划页已展示备选方案和高德外部导航入口；聊天页展示记忆冲突提示；提醒页支持拍照行为、低精力状态、天气/排队外部事件的手动模拟触发；设置页展示 5 种人格、自定义 Prompt、动作映射和状态表达文案；旅拍页支持候选集、旅行盲盒任务和朋友圈/小红书/日记/Vlog 文案生成；复盘页可独立调用 `/api/trip/review`。
+P1 增强状态：规划页已展示备选方案和高德外部导航入口，并新增真实规划表单与 `TripPlanService` 调用 `/api/trip/plan`，可提交目的地、日期、预算、同行人、偏好和交通方式后展示返回计划；规划页还会读取 `/api/profile/me`，把预算、交通偏好、兴趣、饮食忌口和节奏画像合并进规划请求；本页生成计划后会展示“天气变化重规划”入口，点击后复用当前输入并传 `replanReason=weather_risk`；后端工具注册器已支持高德天气、POI、步行/驾车/公交/混合路线 HTTP 解析，路线可输出换乘、费用、拥堵段、红绿灯和备选方案，并具备进程内成功缓存和一次 HTTP 重试；后端规划卡已将 `toolTrace` 汇总为 `externalContext`，并把天气提示、营业时间和路线耗时写入规划解释；`POST /api/trip/plan` 已支持 destination/startDate/endDate/budget/companions/preferences/transportMode/tripStyle/replanReason，保存到当前旅程并在计划中返回 `planningInputs`，需配置 `LANXIN_AMAP_API_KEY` 才算真实数据联调完成；聊天页展示记忆冲突提示；后端已为饮食偏好、身体状态、位置和同行人记忆候选输出隐私分级与显式确认字段；提醒页支持拍照行为、低精力状态、天气/排队外部事件的手动模拟触发，并会读取 `/api/profile/me`，将主动程度、节奏、兴趣、饮食和交通偏好带入 `/api/trip/reminders/evaluate` 后展示画像上下文与自动评估提醒；后端已支持主动提醒自动评估、主动程度过滤、冷却和历史落库；画像页已通过 `ProfileService` 读取和编辑 `/api/profile/me` 的饮食、节奏、交通、预算和兴趣画像；设置页已通过 `ProfileService` 读取和写回人格、主动程度、同步策略、通知、语音/文字偏好和自定义 Prompt，并通过 `SettingsDataService` 接入 `/api/privacy/summary`、`/api/memory/export`、`DELETE /api/memory/capsules`、`DELETE /api/trip/current` 和 `/api/sync/revoke`，危险操作均有确认弹窗；旅拍页支持候选集、旅行盲盒任务、上传元数据登记、照片候选创建和朋友圈/小红书/日记/Vlog 文案生成；候选登记会调用真实后端并提示设备本地路径不会上传保存，真实系统选图/相机权限仍需真机接入与验收；复盘页可独立调用 `/api/trip/review`，会读取 `/api/profile/me` 并把节奏、兴趣、饮食、交通和预算画像作为 `profileContext` 传入后端，页面展示复盘引用画像；后端响应已包含可聚合的 `route/highlightPhotos/completedTasks/reminderHighlights/avatarStatusChanges/newMemories/nextTripSuggestions/temporaryMemoryPromotions/profileContext`，且没有最新复盘时可将 dashboard `avatarStateEvents` 渲染为“蓝小心状态变化”。
+## GitNexus 使用记录
+
+- 当前仓库已由 GitNexus 索引为 `lanxin-travelmate-aigc-2026`。
+- 2026-06-19 已执行 `npx gitnexus analyze` 刷新本地索引，CLI 输出约 `3909 nodes / 6220 edges / 55 flows`。
+- 后续阶段完成后继续刷新索引，并优先使用 GitNexus 资源理解模块、流程和影响；若当前工具面板未暴露 `query/impact/detect_changes`，则用本地 `git diff`、`rg` 和测试结果补充核对。
+
+## Recent Backend Facts
+
+- `GET /api/trip/dashboard` aggregates one user's current trip, route points, reminder history, blind-box task states, avatar-state events, latest review, photo candidates, and trip-scoped memories for Flutter real-data screens. When `tripId` is provided, the endpoint only returns the trip if it belongs to the same `userId`; otherwise `currentTrip.status=empty` avoids cross-user data exposure. Flutter has `TripDashboardService` with offline fallback; `HomePage` shows dashboard trip/memory/reminder summary, `TripPage` loads `currentTrip.plan` when no live Agent plan exists, renders dashboard `routePoints` as a real trajectory summary, and can submit `/api/trip/plan` with user input plus profile-derived budget/transport/preference context; `ReminderPage` displays dashboard `reminderHistory.items` and evaluates reminders with `/api/profile/me` context, `PhotoPage` reads `photoCandidates/blindBoxTasks` and can register upload metadata/photo candidates through the backend, `ReviewPage` prefers dashboard `latestReview` before generating a new review, passes `/api/profile/me` context into `/api/trip/review`, and can render dashboard `avatarStateEvents` as status changes, and `MemoryPage` merges local Drift memories with dashboard `memories` before falling back to offline fixtures and can sync only selected local memories. `ProfileService` reads/writes `/api/profile/me`; `ProfilePage` displays and edits persisted profile fields, while `SettingsPage` updates persisted personality/proactivity/sync/notification/voice/text/customPrompt fields. `SettingsDataService` backs the Settings data-control section for privacy summary, memory export, clearing all memories, clearing the current trip, revoking cloud profile sync, revoking selected memory/trip cloud copies by ID, basic conflict detection/client-wins resolution, Drift `memory/upsert` pending queue consumption, Drift `memory/delete` revoke queue consumption, and local sync history display; App lifecycle now calls `SyncRetryService` on launch/resume for pending queue retry. Remaining frontend work is device permissions, true photo picker/camera integration, true scheduled/location/notification reminder triggers, real-provider validation, and scattered offline/mock fallbacks.
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **lanxin-travelmate-aigc-2026** (4424 symbols, 7176 relationships, 81 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/lanxin-travelmate-aigc-2026/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/lanxin-travelmate-aigc-2026/clusters` | All functional areas |
+| `gitnexus://repo/lanxin-travelmate-aigc-2026/processes` | All execution flows |
+| `gitnexus://repo/lanxin-travelmate-aigc-2026/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->

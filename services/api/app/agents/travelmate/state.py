@@ -29,6 +29,7 @@ class TravelMateState(TypedDict, total=False):
     sync_suggestions: list[dict[str, Any]]
     errors: list[dict[str, Any]]
     response: dict[str, Any]
+    model_call_logs: list[dict[str, Any]]
     visited_nodes: list[str]
 
 
@@ -71,5 +72,6 @@ def create_initial_state(
         "next_actions": [],
         "sync_suggestions": [],
         "errors": [],
+        "model_call_logs": [],
         "visited_nodes": [],
     }

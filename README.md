@@ -1,6 +1,6 @@
 # 蓝心同行：懂你的全旅程 AI 旅伴
 
-本仓库用于 2026 年 AIGC 创新赛应用赛道作品“蓝心同行”。当前已形成可运行的 Flutter App + FastAPI + LangGraph Mock Agent 骨架，支持本地演示“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的 P0 闭环。
+本仓库用于 2026 年 AIGC 创新赛应用赛道作品“蓝心同行”。当前已形成可运行的 Flutter App + FastAPI + LangGraph Agent 骨架，支持本地演示“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的 P0 闭环；模型默认 Mock，天气/POI/路线工具已接入高德 Provider，无 Key 时明确降级。
 
 ## 当前结构
 
@@ -33,6 +33,19 @@ cd services/api
 uv run python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/api/agent/chat', json={'message':'周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜'}).json())"
 ```
 
+## 后端环境变量
+
+可复制 `services/api/.env.example` 为 `services/api/.env`。真实联调时常用配置：
+
+```powershell
+LANXIN_MODEL_PROVIDER=lanxin
+LANXIN_LANXIN_BASE_URL=你的蓝心接口地址
+LANXIN_LANXIN_API_KEY=你的蓝心密钥
+LANXIN_LANXIN_MODEL=模型名
+LANXIN_AMAP_API_KEY=你的高德Key
+```
+
+未配置 `LANXIN_AMAP_API_KEY` 时，天气、POI、路线工具返回 `provider=unconfigured` 和 `fallback=true`，不会伪装真实数据。
 ## 启动 Flutter
 
 ```powershell

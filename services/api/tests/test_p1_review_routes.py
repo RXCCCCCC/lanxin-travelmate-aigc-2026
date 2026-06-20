@@ -26,6 +26,11 @@ def test_trip_review_endpoint_returns_p1_review_fields():
                     "content": "本次行程希望低强度，减少跨区移动。",
                 }
             ],
+            "profileContext": {
+                "travelPace": "light",
+                "interestTags": ["夜景"],
+                "dietaryPreferences": ["不吃香菜"],
+            },
         },
     )
 
@@ -35,6 +40,8 @@ def test_trip_review_endpoint_returns_p1_review_fields():
     assert payload["completedTasks"][0]["title"] == "拍一张不是游客照的重庆夜景"
     assert payload["nextTripSuggestions"]
     assert payload["temporaryMemoryPromotions"][0]["suggestedScope"] == "longTerm"
+    assert payload["profileContext"]["travelPace"] == "light"
+    assert payload["profileContext"]["interestTags"] == ["夜景"]
 
 
 def test_trip_review_endpoint_has_mock_fallback_without_request_context():

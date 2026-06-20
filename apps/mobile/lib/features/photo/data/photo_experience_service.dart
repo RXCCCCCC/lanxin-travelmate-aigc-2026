@@ -26,17 +26,87 @@ class PhotoExperienceService {
     try {
       final response = await _dio.post<dynamic>(
         '/api/photo/copywriting',
-        data: {
-          'photoIds': photoIds,
-          'persona': persona,
-          'style': style,
-        },
+        data: {'photoIds': photoIds, 'persona': persona, 'style': style},
       );
       final data = response.data;
       if (data is Map<String, dynamic>) return data;
       return _fallbackCopywriting();
     } on DioException {
       return _fallbackCopywriting();
+    }
+  }
+
+  Future<Map<String, dynamic>> createUploadMetadata({
+    String userId = 'guest',
+    required String filename,
+    String contentType = 'image/jpeg',
+    String? localPath,
+    String? remoteUrl,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        '/api/photo/upload-metadata',
+        data: {
+          'userId': userId,
+          'filename': filename,
+          'contentType': contentType,
+          if (localPath != null) 'localPath': localPath,
+          if (remoteUrl != null) 'remoteUrl': remoteUrl,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      return _fallbackUploadMetadata(filename: filename, remoteUrl: remoteUrl);
+    } on DioException {
+      return _fallbackUploadMetadata(filename: filename, remoteUrl: remoteUrl);
+    }
+  }
+
+  Future<Map<String, dynamic>> createCandidate({
+    String userId = 'guest',
+    String? id,
+    String? tripId,
+    String? remoteUrl,
+    required String location,
+    required double score,
+    required String description,
+    List<String> tags = const [],
+    bool canAddToReview = true,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        '/api/photo/candidates',
+        data: {
+          if (id != null) 'id': id,
+          'userId': userId,
+          if (tripId != null) 'tripId': tripId,
+          if (remoteUrl != null) 'remoteUrl': remoteUrl,
+          'location': location,
+          'score': score,
+          'description': description,
+          'tags': tags,
+          'canAddToReview': canAddToReview,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      return _fallbackCreatedCandidate(
+        id: id,
+        location: location,
+        score: score,
+        description: description,
+        tags: tags,
+        remoteUrl: remoteUrl,
+      );
+    } on DioException {
+      return _fallbackCreatedCandidate(
+        id: id,
+        location: location,
+        score: score,
+        description: description,
+        tags: tags,
+        remoteUrl: remoteUrl,
+      );
     }
   }
 
@@ -51,6 +121,42 @@ class PhotoExperienceService {
     }
   }
 
+  Map<String, dynamic> _fallbackUploadMetadata({
+    required String filename,
+    String? remoteUrl,
+  }) {
+    return {
+      'id': 'offline-upload-$filename',
+      'filename': filename,
+      'contentType': 'image/jpeg',
+      'localPath': null,
+      'remoteUrl': remoteUrl,
+      'privacy': {'localPathStored': false},
+      'offline': true,
+    };
+  }
+
+  Map<String, dynamic> _fallbackCreatedCandidate({
+    String? id,
+    required String location,
+    required double score,
+    required String description,
+    required List<String> tags,
+    String? remoteUrl,
+  }) {
+    return {
+      'id': id ?? 'offline-photo',
+      'location': location,
+      'score': score,
+      'description': description,
+      'tags': tags,
+      'localUri': null,
+      'remoteUrl': remoteUrl,
+      'canAddToReview': true,
+      'offline': true,
+    };
+  }
+
   List<Map<String, dynamic>> _fallbackCandidates() {
     return const [
       {
@@ -60,7 +166,7 @@ class PhotoExperienceService {
         'description': '夜景灯光层次明显，适合做今日高光。',
         'tags': ['夜景', '高光照片'],
         'canAddToReview': true,
-      }
+      },
     ];
   }
 

@@ -3,61 +3,144 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lanxin_travelmate/features/photo/data/photo_experience_service.dart';
 
 void main() {
-  test('PhotoExperienceService fetches candidates copywriting and blind box tasks', () async {
-    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (options.path == '/api/photo/candidates') {
-          handler.resolve(Response<dynamic>(
-            requestOptions: options,
-            statusCode: 200,
-            data: {
-              'items': [
-                {
-                  'id': 'photo-night',
-                  'location': '洪崖洞',
-                  'score': 9.3,
-                  'description': '夜景高光',
-                  'tags': ['夜景'],
-                  'canAddToReview': true,
-                }
-              ]
-            },
-          ));
-          return;
-        }
-        if (options.path == '/api/photo/copywriting') {
-          handler.resolve(Response<dynamic>(
-            requestOptions: options,
-            statusCode: 200,
-            data: {
-              'moments': '朋友圈文案：重庆夜色刚刚好。',
-              'xiaohongshu': '小红书文案：重庆夜景线。',
-              'diary': '旅行日记',
-              'vlogNarration': 'Vlog 旁白',
-            },
-          ));
-          return;
-        }
-        handler.resolve(Response<dynamic>(
-          requestOptions: options,
-          statusCode: 200,
-          data: {
-            'items': [
-              {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景'}
-            ]
+  test(
+    'PhotoExperienceService fetches candidates copywriting and blind box tasks',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.path == '/api/photo/candidates') {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'items': [
+                      {
+                        'id': 'photo-night',
+                        'location': '洪崖洞',
+                        'score': 9.3,
+                        'description': '夜景高光',
+                        'tags': ['夜景'],
+                        'canAddToReview': true,
+                      },
+                    ],
+                  },
+                ),
+              );
+              return;
+            }
+            if (options.path == '/api/photo/copywriting') {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'moments': '朋友圈文案：重庆夜色刚刚好。',
+                    'xiaohongshu': '小红书文案：重庆夜景线。',
+                    'diary': '旅行日记',
+                    'vlogNarration': 'Vlog 旁白',
+                  },
+                ),
+              );
+              return;
+            }
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'items': [
+                    {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景'},
+                  ],
+                },
+              ),
+            );
           },
-        ));
-      },
-    ));
+        ),
+      );
 
-    final service = PhotoExperienceService(dio: dio);
-    final candidates = await service.fetchCandidates();
-    final copywriting = await service.generateCopywriting(photoIds: const ['photo-night']);
-    final tasks = await service.fetchBlindBoxTasks();
+      final service = PhotoExperienceService(dio: dio);
+      final candidates = await service.fetchCandidates();
+      final copywriting = await service.generateCopywriting(
+        photoIds: const ['photo-night'],
+      );
+      final tasks = await service.fetchBlindBoxTasks();
 
-    expect(candidates.single['location'], '洪崖洞');
-    expect(copywriting['moments'], contains('朋友圈'));
-    expect(tasks.single['type'], 'photo');
-  });
+      expect(candidates.single['location'], '洪崖洞');
+      expect(copywriting['moments'], contains('朋友圈'));
+      expect(tasks.single['type'], 'photo');
+    },
+  );
+  test(
+    'PhotoExperienceService creates photo candidates and upload metadata',
+    () async {
+      final requests = <RequestOptions>[];
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            if (options.path == '/api/photo/upload-metadata') {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'id': 'file-a',
+                    'filename': 'night.jpg',
+                    'contentType': 'image/jpeg',
+                    'localPath': null,
+                    'remoteUrl': 'https://cdn.example/night.jpg',
+                    'privacy': {'localPathStored': false},
+                  },
+                ),
+              );
+              return;
+            }
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'id': 'photo-local-a',
+                  'location': '洪崖洞',
+                  'score': 8.9,
+                  'description': '用户手动加入的夜景照片。',
+                  'tags': ['手动导入', '夜景'],
+                  'localUri': null,
+                  'remoteUrl': 'https://cdn.example/night.jpg',
+                  'canAddToReview': true,
+                },
+              ),
+            );
+          },
+        ),
+      );
+
+      final service = PhotoExperienceService(dio: dio);
+      final upload = await service.createUploadMetadata(
+        filename: 'night.jpg',
+        contentType: 'image/jpeg',
+        localPath: '/device/private/night.jpg',
+        remoteUrl: 'https://cdn.example/night.jpg',
+      );
+      final candidate = await service.createCandidate(
+        id: 'photo-local-a',
+        location: '洪崖洞',
+        score: 8.9,
+        description: '用户手动加入的夜景照片。',
+        tags: const ['手动导入', '夜景'],
+        remoteUrl: upload['remoteUrl']?.toString(),
+      );
+
+      expect(requests.first.path, '/api/photo/upload-metadata');
+      expect(requests.first.data['localPath'], '/device/private/night.jpg');
+      expect(upload['privacy']['localPathStored'], isFalse);
+      expect(candidate['location'], '洪崖洞');
+      expect(candidate['localUri'], isNull);
+      expect(candidate['tags'], contains('手动导入'));
+    },
+  );
 }

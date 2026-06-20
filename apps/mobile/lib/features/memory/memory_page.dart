@@ -7,10 +7,23 @@ import '../../data/mock_data.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../../shared/widgets/memory_capsule_card.dart';
+import '../settings/data/settings_data_service.dart';
+import '../trip/data/trip_dashboard_service.dart';
 
 /// 记忆胶囊页面
 class MemoryPage extends StatefulWidget {
-  const MemoryPage({super.key});
+  const MemoryPage({
+    super.key,
+    this.database,
+    this.repository,
+    this.dashboardService,
+    this.syncService,
+  });
+
+  final local_db.AppDatabase? database;
+  final MemoryRepository? repository;
+  final TripDashboardService? dashboardService;
+  final SettingsDataService? syncService;
 
   @override
   State<MemoryPage> createState() => _MemoryPageState();
@@ -20,21 +33,33 @@ class _MemoryPageState extends State<MemoryPage> {
   int _selectedTab = 0;
   late final local_db.AppDatabase _database;
   late final MemoryRepository _repository;
+  late final TripDashboardService _dashboardService;
+  late final SettingsDataService _syncService;
+  late final bool _ownsDatabase;
   List<ConfirmedMemory> _storedMemories = [];
+  List<Map<String, dynamic>> _dashboardMemories = [];
+  final Set<String> _selectedMemoryIds = {};
+  String? _syncMessage;
 
   static const _tabs = ['全部', '长期', '本次', '临时'];
 
   @override
   void initState() {
     super.initState();
-    _database = local_db.AppDatabase();
-    _repository = MemoryRepository(_database);
+    _ownsDatabase = widget.database == null;
+    _database = widget.database ?? local_db.AppDatabase();
+    _repository = widget.repository ?? MemoryRepository(_database);
+    _dashboardService = widget.dashboardService ?? TripDashboardService();
+    _syncService = widget.syncService ?? SettingsDataService();
     _loadStoredMemories();
+    _loadDashboardMemories();
   }
 
   @override
   void dispose() {
-    _database.close();
+    if (_ownsDatabase) {
+      _database.close();
+    }
     super.dispose();
   }
 
@@ -42,6 +67,12 @@ class _MemoryPageState extends State<MemoryPage> {
     final memories = await _repository.listMemories();
     if (!mounted) return;
     setState(() => _storedMemories = memories);
+  }
+
+  Future<void> _loadDashboardMemories() async {
+    final dashboard = await _dashboardService.fetchDashboard();
+    if (!mounted) return;
+    setState(() => _dashboardMemories = dashboard.memories);
   }
 
   List<_MemoryDisplayItem> get _items {
@@ -59,10 +90,29 @@ class _MemoryPageState extends State<MemoryPage> {
         storedId: memory.id,
       );
     });
-    final mockItems = mockMemoryCapsules.map(
-      (capsule) => _MemoryDisplayItem(capsule: capsule),
+    final localIds = _storedMemories.map((memory) => memory.id).toSet();
+    final dashboardItems = _dashboardMemories
+        .where((memory) => !localIds.contains(memory['id']?.toString()))
+        .map(_memoryFromDashboard);
+    final realItems = [...storedItems, ...dashboardItems];
+    if (realItems.isNotEmpty) return realItems;
+    return mockMemoryCapsules
+        .map((capsule) => _MemoryDisplayItem(capsule: capsule))
+        .toList();
+  }
+
+  _MemoryDisplayItem _memoryFromDashboard(Map<String, dynamic> memory) {
+    return _MemoryDisplayItem(
+      capsule: MemoryCapsule(
+        id: memory['id']?.toString() ?? 'cloud-memory',
+        title: memory['title']?.toString() ?? 'Cloud memory',
+        content: memory['content']?.toString() ?? '',
+        scope: _scopeFromStorage(memory['scope']?.toString() ?? ''),
+        createdAt: _formatDashboardDate(memory['createdAt']?.toString()),
+        tags: const ['cloud'],
+        isNew: true,
+      ),
     );
-    return [...storedItems, ...mockItems];
   }
 
   List<_MemoryDisplayItem> get _filtered {
@@ -83,9 +133,62 @@ class _MemoryPageState extends State<MemoryPage> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  String _formatDashboardDate(String? value) {
+    if (value == null || value.length < 10) return _formatDate(DateTime.now());
+    return value.substring(0, 10);
+  }
+
   Future<void> _deleteStoredMemory(String id) async {
     await _repository.deleteMemory(id);
+    _selectedMemoryIds.remove(id);
     await _loadStoredMemories();
+  }
+
+  Future<void> _syncSelectedMemories() async {
+    final selected = _storedMemories
+        .where((memory) => _selectedMemoryIds.contains(memory.id))
+        .toList(growable: false);
+    if (selected.isEmpty) {
+      setState(() => _syncMessage = '请选择要同步的本地记忆');
+      return;
+    }
+    final result = await _syncService.pushSync(
+      memories: selected.map(_memoryToSyncDraft).toList(growable: false),
+    );
+    if (result.status != 'offline' && result.conflicts.isEmpty) {
+      final pending = await _repository.listPendingSyncOperations(
+        entityType: 'memory',
+        operation: 'upsert',
+      );
+      final selectedIds = selected.map((memory) => memory.id).toSet();
+      await _repository.markSyncOperationsSucceeded(
+        pending
+            .where((item) => selectedIds.contains(item.entityId))
+            .map((item) => item.id)
+            .toList(growable: false),
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      if (result.status == 'offline') {
+        _syncMessage = '同步失败，已保留到本机队列';
+      } else if (result.conflicts.isNotEmpty) {
+        _syncMessage = '检测到同步冲突，请到设置页合并';
+      } else {
+        _syncMessage = '已同步 ${selected.length} 条已选记忆';
+        _selectedMemoryIds.clear();
+      }
+    });
+  }
+
+  SyncMemoryDraft _memoryToSyncDraft(ConfirmedMemory memory) {
+    return SyncMemoryDraft(
+      id: memory.id,
+      title: memory.title,
+      content: memory.content,
+      scope: memory.scope,
+      updatedAt: memory.updatedAt.toUtc().toIso8601String(),
+    );
   }
 
   Future<void> _editStoredMemory(_MemoryDisplayItem item) async {
@@ -170,10 +273,50 @@ class _MemoryPageState extends State<MemoryPage> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(width: 48), // 平衡返回按钮
+                  IconButton(
+                    key: const ValueKey('sync-selected-memories'),
+                    tooltip: 'sync selected memories',
+                    onPressed: _syncSelectedMemories,
+                    icon: const Icon(
+                      Icons.cloud_upload_rounded,
+                      color: AppTheme.primary,
+                    ),
+                  ),
                 ],
               ),
             ),
+            if (_syncMessage != null)
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: metrics.horizontalPadding,
+                ),
+                child: GlassBox(
+                  opacity: 0.16,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: AppTheme.primary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _syncMessage!,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // 筛选标签
             Padding(
               padding: EdgeInsets.symmetric(
@@ -234,8 +377,36 @@ class _MemoryPageState extends State<MemoryPage> {
                           horizontal: AppTheme.spacingLg,
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            Material(
+                              type: MaterialType.transparency,
+                              child: Checkbox(
+                                key: ValueKey(
+                                  'select-memory-${item.storedId}',
+                                ),
+                                value: _selectedMemoryIds.contains(
+                                  item.storedId,
+                                ),
+                                onChanged: (selected) {
+                                  setState(() {
+                                    if (selected == true) {
+                                      _selectedMemoryIds.add(item.storedId!);
+                                    } else {
+                                      _selectedMemoryIds.remove(item.storedId);
+                                    }
+                                  });
+                                },
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                            const Text(
+                              '选择同步',
+                              style: TextStyle(
+                                color: AppTheme.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const Spacer(),
                             TextButton.icon(
                               onPressed: () => _editStoredMemory(item),
                               icon: const Icon(Icons.edit_rounded, size: 16),
