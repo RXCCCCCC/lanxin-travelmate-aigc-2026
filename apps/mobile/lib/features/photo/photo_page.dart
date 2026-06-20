@@ -30,6 +30,7 @@ class _PhotoPageState extends State<PhotoPage> {
   Map<String, dynamic>? _copywriting;
   bool _isGenerating = false;
   bool _isRegistering = false;
+  final Set<String> _updatingTaskIds = {};
   String? _photoNotice;
 
   @override
@@ -94,6 +95,37 @@ class _PhotoPageState extends State<PhotoPage> {
       _candidates = [candidate, ..._candidates];
       _photoNotice = '已登记候选照片，本地路径不会上传保存';
       _isRegistering = false;
+    });
+  }
+
+  Future<void> _updateTaskStatus(
+    Map<String, dynamic> task,
+    String status,
+  ) async {
+    final taskId = task['id']?.toString() ?? task['taskId']?.toString() ?? '';
+    if (taskId.isEmpty || _updatingTaskIds.contains(taskId)) return;
+    setState(() {
+      _updatingTaskIds.add(taskId);
+      _photoNotice = null;
+    });
+    final updated = await _photoExperienceService.updateBlindBoxTaskStatus(
+      taskId: taskId,
+      status: status,
+      note: status == 'completed' ? '用户在旅拍页完成盲盒任务' : null,
+    );
+    if (!mounted) return;
+    setState(() {
+      _tasks = _tasks
+          .map((item) {
+            final id = item['id']?.toString() ?? item['taskId']?.toString();
+            if (id != taskId) return item;
+            return {...item, ...updated, 'id': taskId};
+          })
+          .toList(growable: false);
+      _updatingTaskIds.remove(taskId);
+      _photoNotice = updated['offline'] == true
+          ? '盲盒任务状态同步失败，请检查后端连接后重试'
+          : _taskStatusNotice(status);
     });
   }
 
@@ -209,7 +241,18 @@ class _PhotoPageState extends State<PhotoPage> {
                           icon: Icons.card_giftcard_rounded,
                           title: '旅行盲盒',
                         ),
-                        ..._tasks.take(3).map((task) => _TaskCard(task: task)),
+                        ..._tasks.take(3).map((task) {
+                          final taskId =
+                              task['id']?.toString() ??
+                              task['taskId']?.toString() ??
+                              '';
+                          return _TaskCard(
+                            task: task,
+                            updating: _updatingTaskIds.contains(taskId),
+                            onStatusChanged: (status) =>
+                                _updateTaskStatus(task, status),
+                          );
+                        }),
                       ],
                       if (_copywriting != null) ...[
                         const _SectionHeader(
@@ -355,7 +398,9 @@ class _PhotoEmptyState extends StatelessWidget {
           Row(
             children: [
               Icon(
-                hasError ? Icons.cloud_off_rounded : Icons.photo_library_outlined,
+                hasError
+                    ? Icons.cloud_off_rounded
+                    : Icons.photo_library_outlined,
                 color: AppTheme.primary,
                 size: 20,
               ),
@@ -372,9 +417,7 @@ class _PhotoEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: AppTheme.spacingSm),
           Text(
-            hasError
-                ? '请检查网络后重试；也可以先登记本机候选。'
-                : '可以先登记候选照片，后续再接入系统相册和相机权限。',
+            hasError ? '请检查网络后重试；也可以先登记本机候选。' : '可以先登记候选照片，后续再接入系统相册和相机权限。',
             style: const TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 13,
@@ -392,6 +435,7 @@ class _PhotoEmptyState extends StatelessWidget {
     );
   }
 }
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.icon, required this.title});
 
@@ -516,36 +560,141 @@ class _AgentPhotoCandidateCard extends StatelessWidget {
   }
 }
 
+String _taskStatusNotice(String status) {
+  return switch (status) {
+    'accepted' => '已接受盲盒任务，完成后会写入蓝小心状态事件',
+    'completed' => '完成盲盒任务，蓝小心状态奖励已同步',
+    'skipped' => '已跳过盲盒任务',
+    _ => '盲盒任务状态已更新',
+  };
+}
+
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({required this.task});
+  const _TaskCard({
+    required this.task,
+    required this.updating,
+    required this.onStatusChanged,
+  });
 
   final Map<String, dynamic> task;
+  final bool updating;
+  final ValueChanged<String> onStatusChanged;
 
   @override
   Widget build(BuildContext context) {
+    final taskId = task['id']?.toString() ?? task['taskId']?.toString() ?? '';
+    final status = task['status']?.toString() ?? 'available';
+    final isAccepted = status == 'accepted';
+    final isCompleted = status == 'completed';
+    final isSkipped = status == 'skipped';
     return GlassBox(
       opacity: 0.16,
       margin: const EdgeInsets.only(bottom: AppTheme.spacingSm),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.auto_awesome_rounded,
-            color: AppTheme.primary,
-            size: 18,
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: AppTheme.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  task['title']?.toString() ?? '旅行盲盒任务',
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _TaskStatusPill(status: status),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              task['title']?.toString() ?? '旅行盲盒任务',
+          if (task['reward'] != null || task['note'] != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              (task['note'] ?? task['reward']).toString(),
               style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                height: 1.35,
               ),
             ),
+          ],
+          const SizedBox(height: AppTheme.spacingSm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                key: ValueKey('blind-box-$taskId-accept'),
+                onPressed: updating || isAccepted || isCompleted || isSkipped
+                    ? null
+                    : () => onStatusChanged('accepted'),
+                icon: const Icon(Icons.playlist_add_check_rounded, size: 16),
+                label: const Text('接受'),
+              ),
+              FilledButton.icon(
+                key: ValueKey('blind-box-$taskId-complete'),
+                onPressed: updating || isCompleted || isSkipped
+                    ? null
+                    : () => onStatusChanged('completed'),
+                icon: updating
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_rounded, size: 16),
+                label: const Text('完成'),
+              ),
+              TextButton.icon(
+                key: ValueKey('blind-box-$taskId-skip'),
+                onPressed: updating || isCompleted || isSkipped
+                    ? null
+                    : () => onStatusChanged('skipped'),
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: const Text('跳过'),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TaskStatusPill extends StatelessWidget {
+  const _TaskStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (status) {
+      'accepted' => '已接受',
+      'completed' => '已完成',
+      'skipped' => '已跳过',
+      _ => '待领取',
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppTheme.primary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }

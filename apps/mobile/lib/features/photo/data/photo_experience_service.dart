@@ -121,6 +121,39 @@ class PhotoExperienceService {
     }
   }
 
+  Future<Map<String, dynamic>> updateBlindBoxTaskStatus({
+    String userId = 'guest',
+    String tripId = 'current-guest-trip',
+    required String taskId,
+    required String status,
+    String? note,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        '/api/trip/blind-box/tasks/$taskId/status',
+        data: {
+          'userId': userId,
+          'tripId': tripId,
+          'status': status,
+          if (note != null && note.trim().isNotEmpty) 'note': note,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+    } on DioException {
+      return _fallbackBlindBoxTaskStatus(
+        taskId: taskId,
+        status: 'offline',
+        note: '盲盒任务状态同步失败，请检查后端连接后重试。',
+      );
+    }
+    return _fallbackBlindBoxTaskStatus(
+      taskId: taskId,
+      status: 'offline',
+      note: '盲盒任务状态响应无效，请稍后重试。',
+    );
+  }
+
   Map<String, dynamic> _fallbackUploadMetadata({
     required String filename,
     String? remoteUrl,
@@ -153,6 +186,22 @@ class PhotoExperienceService {
       'localUri': null,
       'remoteUrl': remoteUrl,
       'canAddToReview': true,
+      'offline': true,
+    };
+  }
+
+  Map<String, dynamic> _fallbackBlindBoxTaskStatus({
+    required String taskId,
+    required String status,
+    String? note,
+  }) {
+    return {
+      'id': 'offline-$taskId',
+      'taskId': taskId,
+      'status': status,
+      'title': taskId,
+      'rewardApplied': false,
+      if (note != null) 'note': note,
       'offline': true,
     };
   }

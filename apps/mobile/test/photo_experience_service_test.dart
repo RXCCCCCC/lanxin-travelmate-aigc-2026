@@ -143,4 +143,41 @@ void main() {
       expect(candidate['tags'], contains('手动导入'));
     },
   );
+  test('PhotoExperienceService updates blind box task status', () async {
+    RequestOptions? captured;
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          captured = options;
+          handler.resolve(
+            Response<dynamic>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'id': 'record-task-photo',
+                'taskId': 'task-photo',
+                'status': options.data['status'],
+                'title': '拍一张夜景',
+                'rewardApplied': options.data['status'] == 'completed',
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    final result = await PhotoExperienceService(dio: dio)
+        .updateBlindBoxTaskStatus(
+          tripId: 'trip-a',
+          taskId: 'task-photo',
+          status: 'completed',
+          note: 'done from mobile',
+        );
+
+    expect(captured?.path, '/api/trip/blind-box/tasks/task-photo/status');
+    expect(captured?.data['tripId'], 'trip-a');
+    expect(captured?.data['status'], 'completed');
+    expect(result['rewardApplied'], isTrue);
+  });
 }

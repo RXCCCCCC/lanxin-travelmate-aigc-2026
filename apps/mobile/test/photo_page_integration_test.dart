@@ -9,6 +9,7 @@ class StubPhotoExperienceService extends PhotoExperienceService {
   StubPhotoExperienceService() : super(dio: Dio());
 
   bool createdCandidate = false;
+  final List<String> updatedTaskStatuses = [];
 
   @override
   Future<List<Map<String, dynamic>>> fetchCandidates() async {
@@ -86,6 +87,25 @@ class StubPhotoExperienceService extends PhotoExperienceService {
     return const [
       {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景'},
     ];
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateBlindBoxTaskStatus({
+    String userId = 'guest',
+    String tripId = 'current-guest-trip',
+    required String taskId,
+    required String status,
+    String? note,
+  }) async {
+    updatedTaskStatuses.add('$taskId:$status');
+    return {
+      'id': 'record-$taskId',
+      'taskId': taskId,
+      'status': status,
+      'title': '拍一张夜景',
+      'rewardApplied': status == 'completed',
+      'note': note,
+    };
   }
 }
 
@@ -202,6 +222,35 @@ void main() {
       expect(find.text('Dashboard photo mission'), findsOneWidget);
     },
   );
+  testWidgets('PhotoPage can update blind box task status through API', (
+    tester,
+  ) async {
+    final service = StubPhotoExperienceService();
+
+    await tester.pumpWidget(
+      MaterialApp(home: PhotoPage(photoExperienceService: service)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('拍一张夜景'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('blind-box-task-photo-accept')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('blind-box-task-photo-complete')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.updatedTaskStatuses, [
+      'task-photo:accepted',
+      'task-photo:completed',
+    ]);
+    expect(find.textContaining('完成盲盒任务'), findsOneWidget);
+  });
+
   testWidgets('PhotoPage can register a manual photo candidate through API', (
     tester,
   ) async {
