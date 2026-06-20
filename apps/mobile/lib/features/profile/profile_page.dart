@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/mock_data.dart';
 import '../../shared/widgets/glass_box.dart';
 import 'data/profile_service.dart';
 
@@ -114,45 +113,32 @@ class _ProfileViewModel {
   final List<String> interestTags;
 
   factory _ProfileViewModel.fromPayload(ProfilePayload? payload) {
-    if (payload == null) return _ProfileViewModel.fromMock();
+    if (payload == null) return _ProfileViewModel.empty();
     return _ProfileViewModel(
-      name: payload.userId == 'guest' ? mockUserProfile.name : payload.userId,
-      dietaryPreferences: _fallbackList(
-        payload.dietaryPreferences,
-        mockUserProfile.dietaryPreferences,
-      ),
-      travelPace: payload.travelPace.isEmpty
-          ? mockUserProfile.travelPace
-          : payload.travelPace,
-      transportPreferences: _fallbackList(payload.transportPreferences, [
-        mockUserProfile.transportPreference,
-      ]),
+      name: payload.userId,
+      dietaryPreferences: _fallbackList(payload.dietaryPreferences),
+      travelPace: payload.travelPace.isEmpty ? '未设置' : payload.travelPace,
+      transportPreferences: _fallbackList(payload.transportPreferences),
       budgetPreference: payload.budgetPreference.isEmpty
-          ? mockUserProfile.budgetLevel
+          ? '未设置'
           : payload.budgetPreference,
-      interestTags: _fallbackList(
-        payload.interestTags,
-        mockUserProfile.interestTags,
-      ),
+      interestTags: _fallbackList(payload.interestTags),
     );
   }
 
-  factory _ProfileViewModel.fromMock() {
-    return _ProfileViewModel(
-      name: mockUserProfile.name,
-      dietaryPreferences: mockUserProfile.dietaryPreferences,
-      travelPace: mockUserProfile.travelPace,
-      transportPreferences: [mockUserProfile.transportPreference],
-      budgetPreference: mockUserProfile.budgetLevel,
-      interestTags: mockUserProfile.interestTags,
+  factory _ProfileViewModel.empty() {
+    return const _ProfileViewModel(
+      name: 'guest',
+      dietaryPreferences: ['未设置'],
+      travelPace: '未设置',
+      transportPreferences: ['未设置'],
+      budgetPreference: '未设置',
+      interestTags: ['未设置'],
     );
   }
 
-  static List<String> _fallbackList(
-    List<String> values,
-    List<String> fallback,
-  ) {
-    return values.isEmpty ? fallback : values;
+  static List<String> _fallbackList(List<String> values) {
+    return values.isEmpty ? const ['未设置'] : values;
   }
 }
 

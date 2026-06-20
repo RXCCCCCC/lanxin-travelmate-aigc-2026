@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/demo_agent_state.dart';
-import '../../data/mock_data.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../../shared/widgets/trip_review_card.dart';
 import '../profile/data/profile_service.dart';
@@ -105,8 +104,6 @@ class _ReviewPageState extends State<ReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final review = mockTripReview;
-
     return ValueListenableBuilder(
       valueListenable: latestAgentResponse,
       builder: (context, response, _) {
@@ -164,126 +161,9 @@ class _ReviewPageState extends State<ReviewPage> {
                               );
                             }
                             if (snapshot.hasError) {
-                              return _AgentReviewView(
-                                review: TripReviewPayload.fallback().toJson(),
-                              );
+                              return const _ReviewErrorState();
                             }
-                            return ListView(
-                              padding: EdgeInsets.only(
-                                bottom: metrics.listBottomPadding,
-                              ),
-                              children: [
-                                // 复盘摘要卡
-                                GlassBox(
-                                  margin: EdgeInsets.symmetric(
-                                    horizontal: metrics.horizontalPadding,
-                                    vertical: AppTheme.spacingSm,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        review.title,
-                                        style: const TextStyle(
-                                          color: AppTheme.textPrimary,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(
-                                        height: AppTheme.spacingSm,
-                                      ),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.calendar_today_rounded,
-                                            size: 14,
-                                            color: AppTheme.textMuted,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            review.dateRange,
-                                            style: const TextStyle(
-                                              color: AppTheme.textSecondary,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(
-                                        height: AppTheme.spacingSm,
-                                      ),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.route_rounded,
-                                            size: 14,
-                                            color: AppTheme.textMuted,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              review.route,
-                                              style: const TextStyle(
-                                                color: AppTheme.textSecondary,
-                                                fontSize: 13,
-                                                height: 1.3,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(
-                                        height: AppTheme.spacingMd,
-                                      ),
-                                      Row(
-                                        children: [
-                                          _SummaryBadge(
-                                            value:
-                                                '${review.highlightPhotoCount}',
-                                            label: '精选照片',
-                                            icon: Icons.photo_library_rounded,
-                                          ),
-                                          const SizedBox(
-                                            width: AppTheme.spacingMd,
-                                          ),
-                                          _SummaryBadge(
-                                            value: '${review.newMemoryCount}',
-                                            label: '新记忆',
-                                            icon: Icons.bubble_chart_rounded,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // 精选照片
-                                _SectionHeader(
-                                  title: '精选瞬间',
-                                  icon: Icons.photo_camera_rounded,
-                                ),
-                                ...review.highlightPhotos.map(
-                                  (p) => TripReviewCard(item: p),
-                                ),
-                                // 新记忆
-                                _SectionHeader(
-                                  title: '新的记忆',
-                                  icon: Icons.auto_awesome_rounded,
-                                ),
-                                ...review.newMemories.map(
-                                  (m) => TripReviewCard(item: m),
-                                ),
-                                // 下次旅行建议
-                                _SectionHeader(
-                                  title: '下次去哪',
-                                  icon: Icons.explore_rounded,
-                                ),
-                                ...review.nextTripSuggestions.map(
-                                  (s) => TripReviewCard(item: s),
-                                ),
-                              ],
-                            );
+                            return const _ReviewLoadingState();
                           },
                         )
                       : _AgentReviewView(review: agentReview),
@@ -293,6 +173,87 @@ class _ReviewPageState extends State<ReviewPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ReviewLoadingState extends StatelessWidget {
+  const _ReviewLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return ListView(
+      padding: EdgeInsets.only(
+        left: metrics.horizontalPadding,
+        right: metrics.horizontalPadding,
+        top: AppTheme.spacingSm,
+        bottom: metrics.listBottomPadding,
+      ),
+      children: const [
+        GlassBox(
+          opacity: 0.18,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '正在聚合真实路线、照片、任务、记忆和蓝小心状态...',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewErrorState extends StatelessWidget {
+  const _ReviewErrorState();
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return ListView(
+      padding: EdgeInsets.only(
+        left: metrics.horizontalPadding,
+        right: metrics.horizontalPadding,
+        top: AppTheme.spacingSm,
+        bottom: metrics.listBottomPadding,
+      ),
+      children: const [
+        GlassBox(
+          opacity: 0.18,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '复盘生成失败。请确认后端服务可用，并且当前旅程已有真实路线、照片、任务或记忆数据。',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -428,48 +389,6 @@ class _SectionHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SummaryBadge extends StatelessWidget {
-  const _SummaryBadge({
-    required this.value,
-    required this.label,
-    required this.icon,
-  });
-  final String value;
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: AppTheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: AppTheme.primary),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                color: AppTheme.primary,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
-            ),
-          ],
-        ),
       ),
     );
   }

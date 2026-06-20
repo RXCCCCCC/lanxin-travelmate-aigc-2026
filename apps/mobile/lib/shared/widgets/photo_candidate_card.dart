@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/mock_data.dart';
+import '../models/travelmate_models.dart';
 import 'glass_box.dart';
 
 /// 旅拍候选卡片组件
@@ -28,10 +28,7 @@ class PhotoCandidateCard extends StatelessWidget {
                 topRight: Radius.circular(AppTheme.radiusLg),
               ),
               gradient: LinearGradient(
-                colors: [
-                  placeholderColor,
-                  placeholderColor.withOpacity(0.5),
-                ],
+                colors: [placeholderColor, placeholderColor.withOpacity(0.5)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

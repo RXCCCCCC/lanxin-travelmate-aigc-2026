@@ -5,9 +5,9 @@ import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/demo_agent_state.dart';
 import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
-import '../../data/mock_data.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/chat_bubble.dart';
+import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
 import 'data/agent_chat_models.dart';
 import 'data/agent_chat_service.dart';
@@ -26,7 +26,15 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  final _messages = List<ChatMessage>.from(mockChatMessages);
+  final _messages = <ChatMessage>[
+    const ChatMessage(
+      id: 'welcome',
+      sender: MessageSender.assistant,
+      text: '你好，我是蓝小心。告诉我你的目的地、时间和偏好，我会结合真实画像与后端 Agent 帮你规划。',
+      time: '现在',
+      avatarState: AvatarState.hello,
+    ),
+  ];
   late final AgentChatService _agentChatService;
   late final MemoryRepository _memoryRepository;
   AppDatabase? _ownedDatabase;

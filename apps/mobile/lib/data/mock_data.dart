@@ -1,39 +1,12 @@
 import '../core/constants/avatar_states.dart';
+import '../shared/models/travelmate_models.dart';
 
 /// ============================================================
 /// Mock 数据
 /// 为各页面提供演示用的模拟数据，便于快速开发和预览。
 /// ============================================================
 
-/// 记忆作用域
-enum MemoryScope {
-  longTerm('长期'),
-  currentTrip('本次'),
-  temporary('临时');
-
-  const MemoryScope(this.label);
-  final String label;
-}
-
 // ── 聊天消息 ──────────────────────────────────────────────────
-
-class ChatMessage {
-  const ChatMessage({
-    required this.id,
-    required this.sender,
-    required this.text,
-    required this.time,
-    this.avatarState,
-  });
-
-  final String id;
-  final MessageSender sender;
-  final String text;
-  final String time;
-  final AvatarState? avatarState;
-}
-
-enum MessageSender { user, assistant }
 
 final List<ChatMessage> mockChatMessages = [
   const ChatMessage(
@@ -72,26 +45,6 @@ final List<ChatMessage> mockChatMessages = [
 ];
 
 // ── 记忆胶囊 ──────────────────────────────────────────────────
-
-class MemoryCapsule {
-  const MemoryCapsule({
-    required this.id,
-    required this.title,
-    required this.content,
-    required this.scope,
-    required this.createdAt,
-    this.tags = const [],
-    this.isNew = false,
-  });
-
-  final String id;
-  final String title;
-  final String content;
-  final MemoryScope scope;
-  final String createdAt;
-  final List<String> tags;
-  final bool isNew;
-}
 
 final List<MemoryCapsule> mockMemoryCapsules = [
   const MemoryCapsule(
@@ -139,26 +92,6 @@ final List<MemoryCapsule> mockMemoryCapsules = [
 
 // ── 用户画像 ──────────────────────────────────────────────────
 
-class UserProfile {
-  const UserProfile({
-    required this.name,
-    required this.avatarUrl,
-    required this.dietaryPreferences,
-    required this.travelPace,
-    required this.transportPreference,
-    required this.budgetLevel,
-    required this.interestTags,
-  });
-
-  final String name;
-  final String avatarUrl;
-  final List<String> dietaryPreferences;
-  final String travelPace;
-  final String transportPreference;
-  final String budgetLevel;
-  final List<String> interestTags;
-}
-
 const mockUserProfile = UserProfile(
   name: '旅行者小明',
   avatarUrl: '',
@@ -170,44 +103,6 @@ const mockUserProfile = UserProfile(
 );
 
 // ── 出行规划 ──────────────────────────────────────────────────
-
-class TripPlan {
-  const TripPlan({
-    required this.title,
-    required this.dateRange,
-    required this.destination,
-    required this.days,
-    required this.risks,
-  });
-
-  final String title;
-  final String dateRange;
-  final String destination;
-  final List<TripDay> days;
-  final List<String> risks;
-}
-
-class TripDay {
-  const TripDay({required this.dayLabel, required this.items});
-  final String dayLabel;
-  final List<TripItem> items;
-}
-
-class TripItem {
-  const TripItem({
-    required this.time,
-    required this.location,
-    required this.activity,
-    required this.reason,
-    this.isCurrent = false,
-  });
-
-  final String time;
-  final String location;
-  final String activity;
-  final String reason;
-  final bool isCurrent;
-}
 
 const mockTripPlan = TripPlan(
   title: '杭州两日深度游',
@@ -274,32 +169,10 @@ const mockTripPlan = TripPlan(
       ],
     ),
   ],
-  risks: [
-    '6月12日下午可能有阵雨，建议携带雨具',
-    '灵隐寺周末人流量大，建议早到',
-    '龙井村山路较多，建议穿舒适运动鞋',
-  ],
+  risks: ['6月12日下午可能有阵雨，建议携带雨具', '灵隐寺周末人流量大，建议早到', '龙井村山路较多，建议穿舒适运动鞋'],
 );
 
 // ── 主动提醒 ──────────────────────────────────────────────────
-
-class Reminder {
-  const Reminder({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.triggerReason,
-    required this.actionLabel,
-    this.iconName = 'notifications_active_outlined',
-  });
-
-  final String id;
-  final String title;
-  final String description;
-  final String triggerReason;
-  final String actionLabel;
-  final String iconName;
-}
 
 final List<Reminder> mockReminders = [
   const Reminder(
@@ -329,20 +202,6 @@ final List<Reminder> mockReminders = [
 ];
 
 // ── 旅拍候选 ──────────────────────────────────────────────────
-
-class PhotoCandidate {
-  const PhotoCandidate({
-    required this.id,
-    required this.location,
-    required this.score,
-    required this.description,
-  });
-
-  final String id;
-  final String location;
-  final double score;
-  final String description;
-}
 
 final List<PhotoCandidate> mockPhotoCandidates = [
   const PhotoCandidate(
@@ -385,40 +244,13 @@ final List<PhotoCandidate> mockPhotoCandidates = [
 
 // ── 旅行复盘 ──────────────────────────────────────────────────
 
-class TripReview {
-  const TripReview({
-    required this.title,
-    required this.dateRange,
-    required this.route,
-    required this.highlightPhotoCount,
-    required this.newMemoryCount,
-    required this.highlightPhotos,
-    required this.newMemories,
-    required this.nextTripSuggestions,
-  });
-
-  final String title;
-  final String dateRange;
-  final String route;
-  final int highlightPhotoCount;
-  final int newMemoryCount;
-  final List<String> highlightPhotos;
-  final List<String> newMemories;
-  final List<String> nextTripSuggestions;
-}
-
 const mockTripReview = TripReview(
   title: '杭州两日深度游',
   dateRange: '2026年6月11日 - 6月12日',
   route: '断桥残雪 → 楼外楼 → 雷峰塔 → 南山路 → 灵隐寺 → 龙井村 → 九溪烟树',
   highlightPhotoCount: 12,
   newMemoryCount: 5,
-  highlightPhotos: [
-    '断桥晨曦剪影',
-    '雷峰塔夕阳倒影',
-    '龙井茶园漫步',
-    '九溪林间小径',
-  ],
+  highlightPhotos: ['断桥晨曦剪影', '雷峰塔夕阳倒影', '龙井茶园漫步', '九溪林间小径'],
   newMemories: [
     '你特别喜欢清晨的西湖，说"人少的时候最有味道"',
     '在龙井村你学会了区分明前龙井和雨前龙井',

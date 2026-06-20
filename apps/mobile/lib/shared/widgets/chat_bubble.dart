@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/mock_data.dart';
+import '../models/travelmate_models.dart';
 import 'glass_box.dart';
 
 /// 聊天气泡组件

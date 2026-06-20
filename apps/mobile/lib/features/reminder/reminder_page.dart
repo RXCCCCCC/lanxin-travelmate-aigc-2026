@@ -3,9 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/demo_agent_state.dart';
-import '../../data/mock_data.dart';
 import '../../shared/widgets/glass_box.dart';
-import '../../shared/widgets/reminder_card.dart';
 import '../profile/data/profile_service.dart';
 import '../trip/data/trip_dashboard_service.dart';
 import 'data/reminder_trigger_service.dart';
@@ -202,15 +200,7 @@ class _ReminderPageState extends State<ReminderPage> {
                 ),
                 Expanded(
                   child: activeAgentReminders.isEmpty
-                      ? ListView.builder(
-                          padding: EdgeInsets.only(
-                            top: AppTheme.spacingSm,
-                            bottom: metrics.listBottomPadding,
-                          ),
-                          itemCount: mockReminders.length,
-                          itemBuilder: (_, i) =>
-                              ReminderCard(reminder: mockReminders[i]),
-                        )
+                      ? _EmptyReminderState(onRetry: _loadProfileAndEvaluate)
                       : ListView(
                           padding: EdgeInsets.only(
                             top: AppTheme.spacingSm,
@@ -229,6 +219,73 @@ class _ReminderPageState extends State<ReminderPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _EmptyReminderState extends StatelessWidget {
+  const _EmptyReminderState({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return ListView(
+      padding: EdgeInsets.only(
+        left: metrics.horizontalPadding,
+        right: metrics.horizontalPadding,
+        top: AppTheme.spacingSm,
+        bottom: metrics.listBottomPadding,
+      ),
+      children: [
+        GlassBox(
+          opacity: 0.18,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(
+                    Icons.notifications_none_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '暂无主动提醒',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingSm),
+              const Text(
+                '当前画像、时间和情境没有触发提醒。你可以使用上方触发按钮走后端评估，也可以稍后重试。',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingMd),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('reminder-retry-evaluate'),
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('重试评估'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

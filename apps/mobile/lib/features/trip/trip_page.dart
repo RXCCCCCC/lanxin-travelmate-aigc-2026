@@ -3,9 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/demo_agent_state.dart';
-import '../../data/mock_data.dart';
 import '../../shared/widgets/glass_box.dart';
-import '../../shared/widgets/trip_plan_card.dart';
 import '../profile/data/profile_service.dart';
 import 'data/trip_dashboard_service.dart';
 import 'data/trip_plan_service.dart';
@@ -134,13 +132,13 @@ class _TripPageState extends State<TripPage> {
       ...?_profile?.interestTags,
       ...?_profile?.dietaryPreferences,
     };
-    return values.where((item) => item.trim().isNotEmpty).toList(growable: false);
+    return values
+        .where((item) => item.trim().isNotEmpty)
+        .toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final plan = mockTripPlan;
-
     return ValueListenableBuilder(
       valueListenable: latestAgentResponse,
       builder: (context, response, _) {
@@ -214,170 +212,7 @@ class _TripPageState extends State<TripPage> {
                               },
                               onCreatePlan: _createPlan,
                             ),
-                            // 当前行程信息卡
-                            GlassBox(
-                              margin: EdgeInsets.symmetric(
-                                horizontal: metrics.horizontalPadding,
-                                vertical: AppTheme.spacingSm,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.primary.withOpacity(
-                                            0.15,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          '当前行程',
-                                          style: TextStyle(
-                                            color: AppTheme.primary,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: AppTheme.spacingSm),
-                                  Text(
-                                    plan.title,
-                                    style: const TextStyle(
-                                      color: AppTheme.textPrimary,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppTheme.spacingXs),
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.calendar_today_rounded,
-                                        size: 14,
-                                        color: AppTheme.textMuted,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        plan.dateRange,
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      const SizedBox(width: AppTheme.spacingLg),
-                                      const Icon(
-                                        Icons.place_rounded,
-                                        size: 14,
-                                        color: AppTheme.textMuted,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        plan.destination,
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // 每日行程时间线
-                            ...plan.days.map(
-                              (day) => Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      24,
-                                      16,
-                                      24,
-                                      8,
-                                    ),
-                                    child: Text(
-                                      day.dayLabel,
-                                      style: const TextStyle(
-                                        color: AppTheme.textPrimary,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  ...List.generate(
-                                    day.items.length,
-                                    (i) => TripPlanCard(
-                                      item: day.items[i],
-                                      index: i,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // 风险提示
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.warning_amber_rounded,
-                                    size: 18,
-                                    color: Colors.orange,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    '风险提示',
-                                    style: TextStyle(
-                                      color: AppTheme.textPrimary,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ...plan.risks.map(
-                              (risk) => GlassBox(
-                                margin: EdgeInsets.symmetric(
-                                  horizontal: metrics.horizontalPadding,
-                                  vertical: AppTheme.spacingXs,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppTheme.spacingLg,
-                                  vertical: AppTheme.spacingMd,
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.info_outline,
-                                      size: 16,
-                                      color: Colors.orange,
-                                    ),
-                                    const SizedBox(width: AppTheme.spacingSm),
-                                    Expanded(
-                                      child: Text(
-                                        risk,
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 14,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            _NoPlanStateCard(onRetry: _loadDashboardPlan),
                           ],
                         )
                       : _AgentTripPlanView(
@@ -395,6 +230,64 @@ class _TripPageState extends State<TripPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _NoPlanStateCard extends StatelessWidget {
+  const _NoPlanStateCard({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return GlassBox(
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
+        vertical: AppTheme.spacingSm,
+      ),
+      opacity: 0.18,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.route_outlined, color: AppTheme.primary, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '尚未生成真实行程',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          const Text(
+            '输入目的地、日期和偏好后，蓝小心会调用后端规划接口生成行程；如果你已经在其他页面创建过行程，可以重试加载后端数据。',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingMd),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              key: const ValueKey('trip-retry-dashboard-plan'),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('重试加载'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -441,100 +334,96 @@ class _TripPlanInputCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          const Text(
-            '创建真实行程',
-            style: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: AppTheme.spacingSm),
-          _PlanTextField(
-            keyValue: 'trip-destination-input',
-            controller: destinationController,
-            label: '目的地',
-            hint: '例如 Hangzhou',
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: _PlanTextField(
-                  keyValue: 'trip-start-date-input',
-                  controller: startDateController,
-                  label: '开始日期',
-                  hint: '2026-07-01',
-                ),
+            const Text(
+              '创建真实行程',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
               ),
-              const SizedBox(width: AppTheme.spacingSm),
-              Expanded(
-                child: _PlanTextField(
-                  keyValue: 'trip-end-date-input',
-                  controller: endDateController,
-                  label: '结束日期',
-                  hint: '2026-07-03',
+            ),
+            const SizedBox(height: AppTheme.spacingSm),
+            _PlanTextField(
+              keyValue: 'trip-destination-input',
+              controller: destinationController,
+              label: '目的地',
+              hint: '例如 Hangzhou',
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _PlanTextField(
+                    keyValue: 'trip-start-date-input',
+                    controller: startDateController,
+                    label: '开始日期',
+                    hint: '2026-07-01',
+                  ),
                 ),
+                const SizedBox(width: AppTheme.spacingSm),
+                Expanded(
+                  child: _PlanTextField(
+                    keyValue: 'trip-end-date-input',
+                    controller: endDateController,
+                    label: '结束日期',
+                    hint: '2026-07-03',
+                  ),
+                ),
+              ],
+            ),
+            _PlanTextField(
+              keyValue: 'trip-companions-input',
+              controller: companionsController,
+              label: '同行人',
+              hint: 'mother, child',
+            ),
+            _PlanTextField(
+              keyValue: 'trip-preferences-input',
+              controller: preferencesController,
+              label: '偏好',
+              hint: 'night view, less walking',
+            ),
+            _OptionRow(
+              label: '预算',
+              selected: budget,
+              options: const {'light': '轻量', 'medium': '适中', 'premium': '舒适'},
+              keyPrefix: 'trip-budget',
+              onChanged: onBudgetChanged,
+            ),
+            const SizedBox(height: AppTheme.spacingXs),
+            _OptionRow(
+              label: '交通',
+              selected: transportMode,
+              options: const {
+                'walking': '步行',
+                'transit': '公交',
+                'driving': '驾车',
+              },
+              keyPrefix: 'trip-transport',
+              onChanged: onTransportChanged,
+            ),
+            if (errorText != null) ...[
+              const SizedBox(height: AppTheme.spacingXs),
+              Text(
+                errorText!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               ),
             ],
-          ),
-          _PlanTextField(
-            keyValue: 'trip-companions-input',
-            controller: companionsController,
-            label: '同行人',
-            hint: 'mother, child',
-          ),
-          _PlanTextField(
-            keyValue: 'trip-preferences-input',
-            controller: preferencesController,
-            label: '偏好',
-            hint: 'night view, less walking',
-          ),
-          _OptionRow(
-            label: '预算',
-            selected: budget,
-            options: const {
-              'light': '轻量',
-              'medium': '适中',
-              'premium': '舒适',
-            },
-            keyPrefix: 'trip-budget',
-            onChanged: onBudgetChanged,
-          ),
-          const SizedBox(height: AppTheme.spacingXs),
-          _OptionRow(
-            label: '交通',
-            selected: transportMode,
-            options: const {
-              'walking': '步行',
-              'transit': '公交',
-              'driving': '驾车',
-            },
-            keyPrefix: 'trip-transport',
-            onChanged: onTransportChanged,
-          ),
-          if (errorText != null) ...[
-            const SizedBox(height: AppTheme.spacingXs),
-            Text(
-              errorText!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            const SizedBox(height: AppTheme.spacingMd),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('trip-create-plan-button'),
+                onPressed: loading ? null : onCreatePlan,
+                icon: loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded),
+                label: Text(loading ? '生成中' : '生成行程'),
+              ),
             ),
-          ],
-          const SizedBox(height: AppTheme.spacingMd),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              key: const ValueKey('trip-create-plan-button'),
-              onPressed: loading ? null : onCreatePlan,
-              icon: loading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome_rounded),
-              label: Text(loading ? '生成中' : '生成行程'),
-            ),
-          ),
           ],
         ),
       ),
@@ -650,10 +539,14 @@ String _normalizeBudget(String value) {
 
 String _normalizeTransport(List<String> values) {
   final joined = values.join(' ').toLowerCase();
-  if (joined.contains('driving') || joined.contains('drive') || joined.contains('car')) {
+  if (joined.contains('driving') ||
+      joined.contains('drive') ||
+      joined.contains('car')) {
     return 'driving';
   }
-  if (joined.contains('transit') || joined.contains('bus') || joined.contains('metro')) {
+  if (joined.contains('transit') ||
+      joined.contains('bus') ||
+      joined.contains('metro')) {
     return 'transit';
   }
   return 'walking';

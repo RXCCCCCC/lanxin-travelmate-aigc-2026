@@ -3,8 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/local/app_database.dart' as local_db;
-import '../../data/mock_data.dart';
 import '../../data/repositories/memory_repository.dart';
+import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../../shared/widgets/memory_capsule_card.dart';
 import '../settings/data/settings_data_service.dart';
@@ -94,11 +94,7 @@ class _MemoryPageState extends State<MemoryPage> {
     final dashboardItems = _dashboardMemories
         .where((memory) => !localIds.contains(memory['id']?.toString()))
         .map(_memoryFromDashboard);
-    final realItems = [...storedItems, ...dashboardItems];
-    if (realItems.isNotEmpty) return realItems;
-    return mockMemoryCapsules
-        .map((capsule) => _MemoryDisplayItem(capsule: capsule))
-        .toList();
+    return [...storedItems, ...dashboardItems];
   }
 
   _MemoryDisplayItem _memoryFromDashboard(Map<String, dynamic> memory) {
@@ -359,80 +355,158 @@ class _MemoryPageState extends State<MemoryPage> {
             ),
             // 记忆胶囊列表
             Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.only(
-                  bottom: metrics.listBottomPadding + 48,
-                ),
-                itemCount: _filtered.length,
-                itemBuilder: (_, i) {
-                  final item = _filtered[i];
-                  if (item.storedId == null) {
-                    return MemoryCapsuleCard(capsule: item.capsule);
-                  }
-                  return Column(
-                    children: [
-                      MemoryCapsuleCard(capsule: item.capsule),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spacingLg,
-                        ),
-                        child: Row(
+              child: _filtered.isEmpty
+                  ? _EmptyMemoryState(
+                      onRetry: () {
+                        _loadStoredMemories();
+                        _loadDashboardMemories();
+                      },
+                    )
+                  : ListView.builder(
+                      padding: EdgeInsets.only(
+                        bottom: metrics.listBottomPadding + 48,
+                      ),
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) {
+                        final item = _filtered[i];
+                        if (item.storedId == null) {
+                          return MemoryCapsuleCard(capsule: item.capsule);
+                        }
+                        return Column(
                           children: [
-                            Material(
-                              type: MaterialType.transparency,
-                              child: Checkbox(
-                                key: ValueKey(
-                                  'select-memory-${item.storedId}',
-                                ),
-                                value: _selectedMemoryIds.contains(
-                                  item.storedId,
-                                ),
-                                onChanged: (selected) {
-                                  setState(() {
-                                    if (selected == true) {
-                                      _selectedMemoryIds.add(item.storedId!);
-                                    } else {
-                                      _selectedMemoryIds.remove(item.storedId);
-                                    }
-                                  });
-                                },
-                                visualDensity: VisualDensity.compact,
+                            MemoryCapsuleCard(capsule: item.capsule),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spacingLg,
                               ),
-                            ),
-                            const Text(
-                              '选择同步',
-                              style: TextStyle(
-                                color: AppTheme.textMuted,
-                                fontSize: 12,
+                              child: Row(
+                                children: [
+                                  Material(
+                                    type: MaterialType.transparency,
+                                    child: Checkbox(
+                                      key: ValueKey(
+                                        'select-memory-${item.storedId}',
+                                      ),
+                                      value: _selectedMemoryIds.contains(
+                                        item.storedId,
+                                      ),
+                                      onChanged: (selected) {
+                                        setState(() {
+                                          if (selected == true) {
+                                            _selectedMemoryIds.add(
+                                              item.storedId!,
+                                            );
+                                          } else {
+                                            _selectedMemoryIds.remove(
+                                              item.storedId,
+                                            );
+                                          }
+                                        });
+                                      },
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const Text(
+                                    '选择同步',
+                                    style: TextStyle(
+                                      color: AppTheme.textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () => _editStoredMemory(item),
+                                    icon: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text('编辑'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                        _deleteStoredMemory(item.storedId!),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text('删除'),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const Spacer(),
-                            TextButton.icon(
-                              onPressed: () => _editStoredMemory(item),
-                              icon: const Icon(Icons.edit_rounded, size: 16),
-                              label: const Text('编辑'),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton.icon(
-                              onPressed: () =>
-                                  _deleteStoredMemory(item.storedId!),
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                size: 16,
-                              ),
-                              label: const Text('删除'),
                             ),
                           ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _EmptyMemoryState extends StatelessWidget {
+  const _EmptyMemoryState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return ListView(
+      padding: EdgeInsets.only(
+        left: metrics.horizontalPadding,
+        right: metrics.horizontalPadding,
+        top: AppTheme.spacingLg,
+        bottom: metrics.listBottomPadding + 48,
+      ),
+      children: [
+        GlassBox(
+          opacity: 0.18,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.bubble_chart_outlined, color: AppTheme.primary),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '暂无记忆胶囊',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingSm),
+              const Text(
+                '和蓝小心聊天并确认记忆后，这里会展示真实保存的偏好；如果你已在云端保存过记忆，可以重试加载。',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingMd),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('memory-retry-load'),
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('重试加载'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
