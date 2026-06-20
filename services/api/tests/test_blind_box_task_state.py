@@ -30,6 +30,7 @@ def test_blind_box_task_status_persists_and_completed_tasks_enter_review():
     assert completed["status"] == "completed"
     assert completed["completedAt"] is not None
     assert completed["rewardApplied"] is True
+    assert completed["rewardDeltas"] == {"affection": 2, "rapport": 1}
     assert completed["note"] == "拍到了江边夜景"
 
     tasks = client.get("/api/trip/blind-box/tasks", params={"userId": user_id, "tripId": trip_id})

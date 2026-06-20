@@ -569,6 +569,19 @@ String _taskStatusNotice(String status) {
   };
 }
 
+String _formatRewardDeltas(Map<String, dynamic> deltas) {
+  final labels = <String>[];
+  final affection = deltas['affection'];
+  final rapport = deltas['rapport'];
+  if (affection is num && affection != 0) {
+    labels.add('好感 +${affection.toInt()}');
+  }
+  if (rapport is num && rapport != 0) {
+    labels.add('默契 +${rapport.toInt()}');
+  }
+  return labels.isEmpty ? '蓝小心状态已奖励' : labels.join(' / ');
+}
+
 class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.task,
@@ -587,6 +600,8 @@ class _TaskCard extends StatelessWidget {
     final isAccepted = status == 'accepted';
     final isCompleted = status == 'completed';
     final isSkipped = status == 'skipped';
+    final rewardDeltas =
+        task['rewardDeltas'] as Map<String, dynamic>? ?? const {};
     return GlassBox(
       opacity: 0.16,
       margin: const EdgeInsets.only(bottom: AppTheme.spacingSm),
@@ -623,6 +638,17 @@ class _TaskCard extends StatelessWidget {
                 color: AppTheme.textSecondary,
                 fontSize: 12,
                 height: 1.35,
+              ),
+            ),
+          ],
+          if (rewardDeltas.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              _formatRewardDeltas(rewardDeltas),
+              style: const TextStyle(
+                color: AppTheme.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],

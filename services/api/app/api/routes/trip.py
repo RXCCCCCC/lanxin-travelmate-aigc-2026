@@ -903,6 +903,7 @@ def _blind_box_response(record: BlindBoxTaskRecord) -> dict[str, object]:
         "status": record.status,
         "note": record.note,
         "rewardApplied": record.reward_applied,
+        "rewardDeltas": {"affection": 2, "rapport": 1} if record.reward_applied else {},
         "acceptedAt": record.accepted_at.isoformat() if record.accepted_at else None,
         "completedAt": record.completed_at.isoformat() if record.completed_at else None,
         "createdAt": record.created_at.isoformat(),
