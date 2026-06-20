@@ -204,6 +204,8 @@ P1 增强状态：规划页已展示备选方案和高德外部导航入口，�
 
 - 2026-06-20: Flutter 主页面固定样例依赖继续收敛。`shared/models/travelmate_models.dart` 承载聊天、记忆、规划、提醒、旅拍和复盘 UI 类型；`data/mock_data.dart` 只保留离线样例/测试 fixture。聊天页只保留真实 Agent 欢迎态；记忆、规划、提醒和复盘页在无真实数据时展示空状态、加载、错误或重试入口，不再渲染固定杭州行程、样例记忆、样例提醒或样例复盘。画像页空值显示“未设置”，不再套用固定样例用户画像。
 - 本次验证：`flutter analyze` 通过；短测试通过：`$env:NO_PROXY='localhost,127.0.0.1,::1'; flutter test test\memory_page_dashboard_test.dart test\profile_page_service_test.dart test\reminder_page_integration_test.dart test\trip_page_integration_test.dart`。不要运行此前耗时的 `test\review_page_integration_test.dart`，除非用户明确要求。
+- 2026-06-20 follow-up: HomePage no longer labels the first screen as demo mode or shows the fixed Chongqing prompt; it now presents a real-integration entry state, dashboard-derived trip/memory/reminder summary, and shortened weather/tool placeholder copy to avoid small-screen overflow. `PhotoExperienceService.fetchCandidates()` and `fetchBlindBoxTasks()` now return empty lists on unavailable/invalid backend responses instead of fixed Chongqing candidates/tasks; only explicit user candidate registration keeps an offline local result marked `offline=true`.
+- Additional validation: `flutter analyze` passed; short tests passed with NO_PROXY: `flutter test test\photo_experience_service_test.dart test\photo_page_integration_test.dart test\home_dashboard_test.dart`.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

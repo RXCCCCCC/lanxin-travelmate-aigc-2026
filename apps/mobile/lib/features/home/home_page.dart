@@ -102,14 +102,14 @@ class _HomePageState extends State<HomePage>
                   child: _BrandBlock(compact: compact),
                 ),
 
-                // ── 演示模式 + 消息（右上）──
+                // ── 联调状态 + 消息（右上）──
                 Positioned(
                   top: topSafe + 8,
                   right: sidePadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      _DemoButton(compact: compact),
+                      _IntegrationButton(compact: compact),
                       const SizedBox(height: 8),
                       if (!compact) const _NoticePill(),
                     ],
@@ -264,7 +264,7 @@ class _BrandBlock extends StatelessWidget {
 
 class _HomeDashboardSummary {
   const _HomeDashboardSummary({
-    this.tripLabel = '重庆周末游',
+    this.tripLabel = '等待真实旅程',
     this.memoryCount = 0,
     this.reminderCount = 0,
   });
@@ -355,7 +355,7 @@ class _WeatherCard extends StatelessWidget {
                       colors: [Color(0xFF4A83FF), Color(0xFFA7CBFF)],
                     ).createShader(r),
                     child: const Text(
-                      '24°C 多云',
+                      '等待天气',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
@@ -377,7 +377,7 @@ class _WeatherCard extends StatelessWidget {
               ),
               const SizedBox(width: 5),
               Text(
-                '适合夜景',
+                '等待工具数据',
                 style: TextStyle(
                   color: const Color(0xFF2F64BF).withOpacity(0.70),
                   fontWeight: FontWeight.w800,
@@ -392,8 +392,8 @@ class _WeatherCard extends StatelessWidget {
   }
 }
 
-class _DemoButton extends StatelessWidget {
-  const _DemoButton({this.compact = false});
+class _IntegrationButton extends StatelessWidget {
+  const _IntegrationButton({this.compact = false});
   final bool compact;
   @override
   Widget build(BuildContext context) {
@@ -406,7 +406,7 @@ class _DemoButton extends StatelessWidget {
           const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 20),
           if (!compact) const SizedBox(width: 7),
           Text(
-            '演示模式',
+            '真实联调',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
@@ -632,7 +632,7 @@ class _PlanningBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '正在帮你规划',
+            '等待真实行程',
             style: TextStyle(
               color: Colors.white.withOpacity(0.90),
               fontWeight: FontWeight.w900,
@@ -695,7 +695,7 @@ class _MemoryCapsuleBadge extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                '发现了新的旅行偏好',
+                '记忆胶囊同步',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -703,7 +703,7 @@ class _MemoryCapsuleBadge extends StatelessWidget {
                 ),
               ),
               Text(
-                '点击查看 ›',
+                '由真实数据更新 ›',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.65),
                   fontSize: 10.5,
@@ -752,15 +752,7 @@ class _ChatGlassPanel extends StatelessWidget {
               children: [
                 _ChatBubble(
                   isUser: false,
-                  text: '嗨嗨！我想去哪儿玩呢？我来帮你规划吧！',
-                  avatarPath: AvatarState.hello.assetPath,
-                ),
-                const SizedBox(height: 8),
-                _ChatBubble(isUser: true, text: '周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜。'),
-                const SizedBox(height: 8),
-                _ChatBubble(
-                  isUser: false,
-                  text: '收到！我先帮你抓几个会影响旅行体验的小偏好，保存前会让你自己决定哦～',
+                  text: '告诉我你的目的地、时间和偏好，我会调用后端 Agent 生成真实规划。',
                   avatarPath: AvatarState.hello.assetPath,
                 ),
               ],
@@ -778,7 +770,7 @@ class _ChatGlassPanel extends StatelessWidget {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '说点什么吧...',
+                    '去聊天页联调 Agent...',
                     style: TextStyle(color: Color(0xFF8FABC4), fontSize: 14),
                   ),
                 ),
