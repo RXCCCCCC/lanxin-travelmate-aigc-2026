@@ -5,6 +5,7 @@ import 'package:lanxin_travelmate/data/demo_agent_state.dart';
 import 'package:lanxin_travelmate/features/chat/data/agent_chat_models.dart';
 import 'package:lanxin_travelmate/features/profile/data/profile_service.dart';
 import 'package:lanxin_travelmate/features/trip/data/trip_dashboard_service.dart';
+import 'package:lanxin_travelmate/features/trip/data/trip_group_service.dart';
 import 'package:lanxin_travelmate/features/trip/data/trip_plan_service.dart';
 import 'package:lanxin_travelmate/features/trip/trip_page.dart';
 
@@ -69,6 +70,33 @@ class StubTripPlanService extends TripPlanService {
       'profileMatches': ['${draft.budget} budget applied'],
       'days': const [],
       'risks': const [],
+    });
+  }
+}
+
+class StubTripGroupService extends TripGroupService {
+  StubTripGroupService() : super();
+
+  GroupCoordinationDraft? capturedDraft;
+
+  @override
+  Future<GroupCoordinationResult> coordinate(
+    GroupCoordinationDraft draft,
+  ) async {
+    capturedDraft = draft;
+    return GroupCoordinationResult.ok({
+      'coordinationId': 'group-test',
+      'tripId': draft.tripId,
+      'destination': draft.destination,
+      'conflicts': const [
+        {'type': 'pace', 'title': '节奏冲突'},
+      ],
+      'compromisePlan': const {
+        'pace': 'balanced_slow',
+        'budget': 'low_first',
+        'sharedInterests': ['夜景'],
+      },
+      'privacySummary': const {'publicRule': '多人模式默认只展示汇总后的协调依据。'},
     });
   }
 }
@@ -260,6 +288,59 @@ void main() {
     expect(planService.requests, hasLength(2));
     expect(planService.requests.last.replanReason, 'weather_risk');
     expect(planService.requests.last.destination, 'Hangzhou');
+  });
+  testWidgets('TripPage coordinates group preferences before planning', (
+    tester,
+  ) async {
+    final groupService = StubTripGroupService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TripPage(
+          dashboardService: EmptyTripDashboardService(),
+          groupService: groupService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-destination-input')),
+      '重庆',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('group-member-a-name-input')),
+      '小林',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('group-member-a-preferences-input')),
+      '慢节奏, 夜景, 不吃香菜',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('group-member-b-name-input')),
+      '阿远',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('group-member-b-preferences-input')),
+      '预算低, 夜景, 山城步道',
+    );
+    final coordinateButton = find.byKey(
+      const ValueKey('trip-coordinate-group-button'),
+    );
+    await tester.ensureVisible(coordinateButton);
+    await tester.pumpAndSettle();
+    await tester.tap(coordinateButton);
+    await tester.pumpAndSettle();
+
+    expect(groupService.capturedDraft?.destination, '重庆');
+    expect(groupService.capturedDraft?.members, hasLength(2));
+    expect(groupService.capturedDraft?.members.first.displayName, '小林');
+    expect(
+      groupService.capturedDraft?.members.first.preferences['interests'],
+      contains('夜景'),
+    );
+    expect(find.textContaining('折中节奏：balanced_slow'), findsOneWidget);
+    expect(find.textContaining('冲突：节奏冲突'), findsOneWidget);
+    expect(find.textContaining('只展示汇总后的协调依据'), findsOneWidget);
   });
 }
 

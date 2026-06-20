@@ -6,6 +6,7 @@ import '../../data/demo_agent_state.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../profile/data/profile_service.dart';
 import 'data/trip_dashboard_service.dart';
+import 'data/trip_group_service.dart';
 import 'data/trip_plan_service.dart';
 
 /// 出行规划页面
@@ -15,11 +16,13 @@ class TripPage extends StatefulWidget {
     this.dashboardService,
     this.planService,
     this.profileService,
+    this.groupService,
   });
 
   final TripDashboardService? dashboardService;
   final TripPlanService? planService;
   final ProfileService? profileService;
+  final TripGroupService? groupService;
 
   @override
   State<TripPage> createState() => _TripPageState();
@@ -29,19 +32,27 @@ class _TripPageState extends State<TripPage> {
   late final TripDashboardService _dashboardService;
   late final TripPlanService _planService;
   late final ProfileService _profileService;
+  late final TripGroupService _groupService;
   final _destinationController = TextEditingController();
   final _startDateController = TextEditingController();
   final _endDateController = TextEditingController();
   final _companionsController = TextEditingController();
   final _preferencesController = TextEditingController();
+  final _memberANameController = TextEditingController(text: '成员A');
+  final _memberAPreferencesController = TextEditingController();
+  final _memberBNameController = TextEditingController(text: '成员B');
+  final _memberBPreferencesController = TextEditingController();
   Map<String, dynamic>? _dashboardPlan;
   Map<String, dynamic>? _createdPlan;
+  Map<String, dynamic>? _groupCoordination;
   ProfilePayload? _profile;
   Map<String, dynamic> _dashboardRoutePoints = const {};
   String _budget = 'medium';
   String _transportMode = 'walking';
   bool _creatingPlan = false;
+  bool _coordinatingGroup = false;
   String? _planError;
+  String? _groupError;
 
   @override
   void initState() {
@@ -49,6 +60,7 @@ class _TripPageState extends State<TripPage> {
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _planService = widget.planService ?? TripPlanService();
     _profileService = widget.profileService ?? ProfileService();
+    _groupService = widget.groupService ?? TripGroupService();
     _loadDashboardPlan();
     if (agentCardPayload(latestAgentResponse.value, 'tripPlan') == null) {
       _loadProfile();
@@ -62,6 +74,10 @@ class _TripPageState extends State<TripPage> {
     _endDateController.dispose();
     _companionsController.dispose();
     _preferencesController.dispose();
+    _memberANameController.dispose();
+    _memberAPreferencesController.dispose();
+    _memberBNameController.dispose();
+    _memberBPreferencesController.dispose();
     super.dispose();
   }
 
@@ -122,6 +138,81 @@ class _TripPageState extends State<TripPage> {
         _planError = '规划失败，请检查网络后重试';
       }
     });
+  }
+
+  Future<void> _coordinateGroup() async {
+    final destination = _destinationController.text.trim();
+    if (destination.isEmpty) {
+      setState(() => _groupError = '请先填写目的地');
+      return;
+    }
+    final memberA = _groupMemberDraft(
+      id: 'member-a',
+      nameController: _memberANameController,
+      preferencesController: _memberAPreferencesController,
+    );
+    final memberB = _groupMemberDraft(
+      id: 'member-b',
+      nameController: _memberBNameController,
+      preferencesController: _memberBPreferencesController,
+    );
+    if (memberA == null || memberB == null) {
+      setState(() => _groupError = '请至少填写两名成员的偏好');
+      return;
+    }
+    setState(() {
+      _coordinatingGroup = true;
+      _groupError = null;
+    });
+    final result = await _groupService.coordinate(
+      GroupCoordinationDraft(
+        tripId: 'group-${destination.hashCode.abs()}',
+        destination: destination,
+        members: [memberA, memberB],
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _coordinatingGroup = false;
+      if (result.status == 'ok') {
+        _groupCoordination = result.payload;
+        _groupError = null;
+      } else {
+        _groupError = '多人协调失败，请检查网络后重试';
+      }
+    });
+  }
+
+  GroupMemberDraft? _groupMemberDraft({
+    required String id,
+    required TextEditingController nameController,
+    required TextEditingController preferencesController,
+  }) {
+    final displayName = nameController.text.trim();
+    final preferences = _splitCsv(preferencesController.text);
+    if (displayName.isEmpty || preferences.isEmpty) return null;
+    return GroupMemberDraft(
+      memberId: id,
+      displayName: displayName,
+      preferences: {
+        'interests': preferences,
+        'pace':
+            preferences.any(
+              (item) => item.contains('慢') || item.contains('slow'),
+            )
+            ? 'slow'
+            : 'balanced',
+        'budget':
+            preferences.any(
+              (item) => item.contains('预算') || item.contains('low'),
+            )
+            ? 'low'
+            : 'medium',
+        'dietary': preferences
+            .where((item) => item.contains('不吃') || item.contains('忌口'))
+            .toList(),
+      },
+    );
   }
 
   List<String> _combinedPreferences() {
@@ -212,6 +303,18 @@ class _TripPageState extends State<TripPage> {
                               },
                               onCreatePlan: _createPlan,
                             ),
+                            _GroupCoordinationCard(
+                              memberANameController: _memberANameController,
+                              memberAPreferencesController:
+                                  _memberAPreferencesController,
+                              memberBNameController: _memberBNameController,
+                              memberBPreferencesController:
+                                  _memberBPreferencesController,
+                              loading: _coordinatingGroup,
+                              errorText: _groupError,
+                              coordination: _groupCoordination,
+                              onCoordinate: _coordinateGroup,
+                            ),
                             _NoPlanStateCard(onRetry: _loadDashboardPlan),
                           ],
                         )
@@ -286,6 +389,200 @@ class _NoPlanStateCard extends StatelessWidget {
               label: const Text('重试加载'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupCoordinationCard extends StatelessWidget {
+  const _GroupCoordinationCard({
+    required this.memberANameController,
+    required this.memberAPreferencesController,
+    required this.memberBNameController,
+    required this.memberBPreferencesController,
+    required this.loading,
+    required this.onCoordinate,
+    this.errorText,
+    this.coordination,
+  });
+
+  final TextEditingController memberANameController;
+  final TextEditingController memberAPreferencesController;
+  final TextEditingController memberBNameController;
+  final TextEditingController memberBPreferencesController;
+  final bool loading;
+  final String? errorText;
+  final Map<String, dynamic>? coordination;
+  final VoidCallback onCoordinate;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return GlassBox(
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
+        vertical: AppTheme.spacingSm,
+      ),
+      opacity: 0.18,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.groups_rounded, color: AppTheme.primary, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '多人偏好协调',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spacingSm),
+            Row(
+              children: [
+                Expanded(
+                  child: _PlanTextField(
+                    keyValue: 'group-member-a-name-input',
+                    controller: memberANameController,
+                    label: '成员A',
+                    hint: '小林',
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingSm),
+                Expanded(
+                  child: _PlanTextField(
+                    keyValue: 'group-member-b-name-input',
+                    controller: memberBNameController,
+                    label: '成员B',
+                    hint: '阿远',
+                  ),
+                ),
+              ],
+            ),
+            _PlanTextField(
+              keyValue: 'group-member-a-preferences-input',
+              controller: memberAPreferencesController,
+              label: '成员A偏好',
+              hint: '慢节奏, 夜景, 不吃香菜',
+            ),
+            _PlanTextField(
+              keyValue: 'group-member-b-preferences-input',
+              controller: memberBPreferencesController,
+              label: '成员B偏好',
+              hint: '预算低, 山城步道, 想吃火锅',
+            ),
+            if (errorText != null) ...[
+              const SizedBox(height: AppTheme.spacingXs),
+              Text(
+                errorText!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ],
+            if (coordination != null) ...[
+              const SizedBox(height: AppTheme.spacingSm),
+              _GroupCoordinationResultCard(coordination: coordination!),
+            ],
+            const SizedBox(height: AppTheme.spacingSm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: const ValueKey('trip-coordinate-group-button'),
+                onPressed: loading ? null : onCoordinate,
+                icon: loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.balance_rounded),
+                label: Text(loading ? '协调中' : '生成折中方案'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupCoordinationResultCard extends StatelessWidget {
+  const _GroupCoordinationResultCard({required this.coordination});
+
+  final Map<String, dynamic> coordination;
+
+  @override
+  Widget build(BuildContext context) {
+    final conflicts = (coordination['conflicts'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final compromise =
+        coordination['compromisePlan'] as Map<String, dynamic>? ?? const {};
+    final privacy =
+        coordination['privacySummary'] as Map<String, dynamic>? ?? const {};
+    final sharedInterests =
+        (compromise['sharedInterests'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString())
+            .where((item) => item.isNotEmpty)
+            .join(' / ');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '折中节奏：${compromise['pace'] ?? 'balanced'} · 预算：${compromise['budget'] ?? 'balanced'}',
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (sharedInterests.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '共同兴趣：$sharedInterests',
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          if (conflicts.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            ...conflicts
+                .take(2)
+                .map(
+                  (item) => Text(
+                    '冲突：${item['title'] ?? item['type']}',
+                    style: const TextStyle(
+                      color: AppTheme.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+          ],
+          if (privacy.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              privacy['publicRule']?.toString() ?? '多人模式只展示汇总依据。',
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+            ),
+          ],
         ],
       ),
     );
