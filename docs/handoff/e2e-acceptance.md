@@ -26,7 +26,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 3. `POST /api/trip/route-points` 写入真实或人工录制的轨迹点。
 4. `POST /api/photo/candidates` 写入用户选择的照片候选元数据。
 5. `POST /api/trip/reminders/trigger` 写入一次提醒历史。
-6. `POST /api/trip/blind-box/tasks/{taskId}/status` 将盲盒任务标记为 `completed`。
+6. `POST /api/trip/blind-box/tasks/{taskId}/status` 将盲盒任务标记为 `completed`，响应包含 `rewardApplied=true` 和 `rewardDeltas={affection:2, rapport:1}`。
 7. `POST /api/trip/review` 生成复盘。
 
 复盘响应应包含：

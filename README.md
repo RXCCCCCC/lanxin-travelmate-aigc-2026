@@ -106,7 +106,7 @@ docker compose -f infra/docker-compose.yml up --build
 6. 聊天页出现记忆候选，点击“确认记忆胶囊”后写入本地 Drift SQLite。
 7. 记忆页可看到已确认胶囊，并支持编辑/删除。
 8. 规划、提醒、复盘页优先展示本次 Agent Mock 响应。
-9. P1 演示可继续验证：规划页备选方案/高德导航入口、提醒页三类模拟触发、旅拍页文案生成/盲盒任务、复盘页独立生成。
+9. P1 演示可继续验证：规划页备选方案/高德导航入口、多人偏好协调并带入规划、提醒页三类模拟触发、旅拍页文案生成/盲盒任务接受-完成-跳过、盲盒完成奖励数值、复盘页独立生成。
 10. `uv run pytest`、`flutter analyze`、`flutter test --concurrency=1` 可作为基础验收命令；本机有 Android SDK 35 时再执行 `flutter build apk --debug`。
 
 ## 分支协作

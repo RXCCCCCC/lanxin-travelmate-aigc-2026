@@ -182,7 +182,7 @@
 
 响应会包含 `planningInputs`，并把预算、交通方式、同行人、偏好和重规划原因写入 `profileMatches/risks`，便于端侧解释规划依据。
 
-规划卡 P1 字段：`externalContext` 会汇总天气、POI 和路线工具结果；后端会把天气提示、POI 营业时间和路线耗时写入 `profileMatches` 或 `risks`，方便端侧解释规划为什么这样安排。
+规划卡 P1 字段：`externalContext` 会汇总天气、POI 和路线工具结果；后端会把天气提示、POI 营业时间和路线耗时写入 `profileMatches` 或 `risks`，方便端侧解释规划为什么这样安排。多人出游协调完成后，端侧可在 `POST /api/trip/plan` 中传入 `groupCoordination`，后端会把该结构写入 `planningInputs.groupCoordination`，并将折中节奏/预算摘要写入 `profileMatches`，但不展示成员敏感偏好原文。
 
 ```json
 {
@@ -335,7 +335,7 @@ P1 支持的 `triggerType`：
 
 ## `POST /api/trip/blind-box/tasks/{taskId}/status`
 
-写入盲盒任务状态到 `blind_box_task_records`。支持 `accepted`、`skipped`、`completed`；`completed` 会应用奖励并可在后续 `POST /api/trip/review` 中自动进入 `completedTasks`。
+写入盲盒任务状态到 `blind_box_task_records`。支持 `accepted`、`skipped`、`completed`；`completed` 会应用奖励并可在后续 `POST /api/trip/review` 中自动进入 `completedTasks`。响应包含 `rewardApplied` 和 `rewardDeltas`，当前完成奖励为 `{ "affection": 2, "rapport": 1 }`，端侧可即时展示蓝小心状态数值变化。
 
 ```json
 {
