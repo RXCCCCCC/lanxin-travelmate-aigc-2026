@@ -16,6 +16,7 @@ class TripPlanRequestDraft {
     this.transportMode,
     this.tripStyle,
     this.replanReason,
+    this.groupCoordination,
   });
 
   final String userId;
@@ -30,6 +31,7 @@ class TripPlanRequestDraft {
   final String? transportMode;
   final String? tripStyle;
   final String? replanReason;
+  final Map<String, dynamic>? groupCoordination;
 
   Map<String, dynamic> toJson() {
     return {
@@ -45,6 +47,8 @@ class TripPlanRequestDraft {
       if (_hasText(transportMode)) 'transportMode': transportMode,
       if (_hasText(tripStyle)) 'tripStyle': tripStyle,
       if (_hasText(replanReason)) 'replanReason': replanReason,
+      if (groupCoordination != null && groupCoordination!.isNotEmpty)
+        'groupCoordination': groupCoordination,
     };
   }
 }

@@ -289,6 +289,53 @@ void main() {
     expect(planService.requests.last.replanReason, 'weather_risk');
     expect(planService.requests.last.destination, 'Hangzhou');
   });
+  testWidgets('TripPage includes group coordination in plan request', (
+    tester,
+  ) async {
+    final groupService = StubTripGroupService();
+    final planService = StubTripPlanService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TripPage(
+          dashboardService: EmptyTripDashboardService(),
+          groupService: groupService,
+          planService: planService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-destination-input')),
+      '重庆',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('group-member-a-preferences-input')),
+      '慢节奏, 夜景',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('group-member-b-preferences-input')),
+      '预算低, 夜景',
+    );
+    final coordinateButton = find.byKey(
+      const ValueKey('trip-coordinate-group-button'),
+    );
+    await tester.ensureVisible(coordinateButton);
+    await tester.pumpAndSettle();
+    await tester.tap(coordinateButton);
+    await tester.pumpAndSettle();
+
+    final createButton = find.byKey(const ValueKey('trip-create-plan-button'));
+    await tester.ensureVisible(createButton);
+    await tester.pumpAndSettle();
+    await tester.tap(createButton);
+    await tester.pumpAndSettle();
+
+    final coordination = planService.capturedDraft?.groupCoordination;
+    expect(coordination?['coordinationId'], 'group-test');
+    expect(coordination?['compromisePlan'], isA<Map<String, dynamic>>());
+    expect(coordination?['conflicts'], isA<List<dynamic>>());
+  });
   testWidgets('TripPage coordinates group preferences before planning', (
     tester,
   ) async {

@@ -73,3 +73,35 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
     assert current_payload["companions"] == ["mother", "child"]
     assert current_payload["tripStyle"] == "family_relaxed"
     assert current_payload["plan"]["planningInputs"]["preferences"] == ["indoor", "less walking"]
+
+
+def test_trip_plan_keeps_group_coordination_context_in_planning_inputs():
+    user_id = f"plan-group-user-{uuid4().hex}"
+    trip_id = f"plan-group-trip-{uuid4().hex}"
+
+    response = client.post(
+        "/api/trip/plan",
+        json={
+            "userId": user_id,
+            "tripId": trip_id,
+            "message": "Plan a group trip with compromise context.",
+            "destination": "Chongqing",
+            "groupCoordination": {
+                "coordinationId": "group-test",
+                "conflicts": [{"type": "pace", "title": "pace conflict"}],
+                "compromisePlan": {
+                    "pace": "balanced_slow",
+                    "budget": "low_first",
+                    "sharedInterests": ["night view"],
+                },
+                "privacySummary": {"publicRule": "show aggregate only"},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    plan = response.json()
+    coordination = plan["planningInputs"]["groupCoordination"]
+    assert coordination["coordinationId"] == "group-test"
+    assert coordination["compromisePlan"]["pace"] == "balanced_slow"
+    assert coordination["conflicts"][0]["type"] == "pace"

@@ -27,6 +27,7 @@ class TripPlanRequest(BaseModel):
     transportMode: str | None = None
     tripStyle: str | None = None
     replanReason: str | None = None
+    groupCoordination: dict[str, object] = Field(default_factory=dict)
 
 
 class TripReviewRequest(BaseModel):
@@ -365,6 +366,7 @@ def _apply_planning_input_explanations(plan: dict[str, object], planning_inputs:
     companions = planning_inputs.get("companions") or []
     preferences = planning_inputs.get("preferences") or []
     replan_reason = planning_inputs.get("replanReason")
+    group_coordination = planning_inputs.get("groupCoordination")
     if budget:
         profile_matches.append(f"Budget preference considered: {budget}.")
     if transport_mode:
@@ -375,6 +377,15 @@ def _apply_planning_input_explanations(plan: dict[str, object], planning_inputs:
         profile_matches.append(f"Current trip preferences considered: {', '.join(str(item) for item in preferences)}.")
     if replan_reason:
         risks.append(f"Replan reason applied: {replan_reason}.")
+    if isinstance(group_coordination, dict) and group_coordination:
+        compromise = group_coordination.get("compromisePlan")
+        coordination_id = group_coordination.get("coordinationId")
+        if isinstance(compromise, dict):
+            pace = compromise.get("pace") or "balanced"
+            budget_hint = compromise.get("budget") or "balanced"
+            profile_matches.append(
+                f"Group coordination {coordination_id or 'current'} applied: pace={pace}, budget={budget_hint}."
+            )
     plan["profileMatches"] = profile_matches
     plan["risks"] = risks
 
@@ -391,6 +402,7 @@ def create_trip_plan(payload: TripPlanRequest, session: Session = Depends(get_se
         "transportMode": payload.transportMode,
         "tripStyle": payload.tripStyle,
         "replanReason": payload.replanReason,
+        "groupCoordination": payload.groupCoordination,
     }
     state = create_initial_state(
         message=payload.message,

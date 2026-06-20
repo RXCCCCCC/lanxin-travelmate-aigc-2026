@@ -126,6 +126,7 @@ class _TripPageState extends State<TripPage> {
         transportMode: _transportMode,
         tripStyle: 'custom',
         replanReason: replanReason,
+        groupCoordination: _groupCoordination,
         message: 'Create a travel plan for $destination.',
       ),
     );
