@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/agent_response_cache.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../profile/data/profile_service.dart';
+import 'data/location_selection_service.dart';
 import 'data/trip_dashboard_service.dart';
 import 'data/trip_group_service.dart';
 import 'data/trip_plan_service.dart';
@@ -17,12 +18,14 @@ class TripPage extends StatefulWidget {
     this.planService,
     this.profileService,
     this.groupService,
+    this.locationService,
   });
 
   final TripDashboardService? dashboardService;
   final TripPlanService? planService;
   final ProfileService? profileService;
   final TripGroupService? groupService;
+  final LocationSelectionService? locationService;
 
   @override
   State<TripPage> createState() => _TripPageState();
@@ -33,6 +36,7 @@ class _TripPageState extends State<TripPage> {
   late final TripPlanService _planService;
   late final ProfileService _profileService;
   late final TripGroupService _groupService;
+  late final LocationSelectionService _locationService;
   final _destinationController = TextEditingController();
   final _originCoordinateController = TextEditingController();
   final _destinationCoordinateController = TextEditingController();
@@ -56,6 +60,8 @@ class _TripPageState extends State<TripPage> {
   bool _editingPlan = false;
   String? _planError;
   String? _groupError;
+  String? _locationNotice;
+  bool _locatingOrigin = false;
 
   @override
   void initState() {
@@ -64,6 +70,7 @@ class _TripPageState extends State<TripPage> {
     _planService = widget.planService ?? TripPlanService();
     _profileService = widget.profileService ?? ProfileService();
     _groupService = widget.groupService ?? TripGroupService();
+    _locationService = widget.locationService ?? LocationSelectionService();
     _loadDashboardPlan();
     if (agentCardPayload(latestAgentResponse.value, 'tripPlan') == null) {
       _loadProfile();
@@ -148,6 +155,28 @@ class _TripPageState extends State<TripPage> {
       } else {
         _planError = '规划失败，请检查网络后重试';
       }
+    });
+  }
+
+  Future<void> _fillOriginFromCurrentLocation() async {
+    if (_locatingOrigin) return;
+    setState(() {
+      _locatingOrigin = true;
+      _locationNotice = null;
+    });
+    final location = await _locationService.currentLocation();
+    if (!mounted) return;
+    setState(() {
+      _locatingOrigin = false;
+      if (location == null) {
+        _locationNotice = '无法获取真实定位，请确认系统定位权限或手动输入坐标';
+        return;
+      }
+      _originCoordinateController.text = location.coordinateText;
+      final accuracy = location.accuracyMeters;
+      _locationNotice = accuracy == null
+          ? '已填入真实定位坐标'
+          : '已填入真实定位坐标，精度约 ${accuracy.toStringAsFixed(0)} 米';
     });
   }
 
@@ -354,6 +383,8 @@ class _TripPageState extends State<TripPage> {
                               transportMode: _transportMode,
                               loading: _creatingPlan,
                               errorText: _planError,
+                              locationNotice: _locationNotice,
+                              locatingOrigin: _locatingOrigin,
                               onBudgetChanged: (value) {
                                 setState(() => _budget = value);
                               },
@@ -361,6 +392,8 @@ class _TripPageState extends State<TripPage> {
                                 setState(() => _transportMode = value);
                               },
                               onCreatePlan: _createPlan,
+                              onUseCurrentLocation:
+                                  _fillOriginFromCurrentLocation,
                             ),
                             _GroupCoordinationCard(
                               memberANameController: _memberANameController,
@@ -473,6 +506,7 @@ class _GroupCoordinationCard extends StatelessWidget {
   final TextEditingController memberBPreferencesController;
   final bool loading;
   final String? errorText;
+
   final Map<String, dynamic>? coordination;
   final VoidCallback onCoordinate;
 
@@ -680,6 +714,9 @@ class _TripPlanInputCard extends StatelessWidget {
     required this.onBudgetChanged,
     required this.onTransportChanged,
     required this.onCreatePlan,
+    required this.onUseCurrentLocation,
+    required this.locatingOrigin,
+    this.locationNotice,
     this.errorText,
   });
 
@@ -694,9 +731,12 @@ class _TripPlanInputCard extends StatelessWidget {
   final String transportMode;
   final bool loading;
   final String? errorText;
+  final String? locationNotice;
   final ValueChanged<String> onBudgetChanged;
   final ValueChanged<String> onTransportChanged;
   final VoidCallback onCreatePlan;
+  final VoidCallback onUseCurrentLocation;
+  final bool locatingOrigin;
 
   @override
   Widget build(BuildContext context) {
@@ -727,6 +767,7 @@ class _TripPlanInputCard extends StatelessWidget {
               hint: '例如 Hangzhou',
             ),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: _PlanTextField(
@@ -734,6 +775,34 @@ class _TripPlanInputCard extends StatelessWidget {
                     controller: originCoordinateController,
                     label: '当前位置坐标',
                     hint: '30.245,120.165',
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingSm),
+                SizedBox(
+                  width: metrics.minTouchTarget,
+                  height: metrics.minTouchTarget,
+                  child: Tooltip(
+                    message: '使用真实定位',
+                    child: OutlinedButton(
+                      key: const ValueKey('trip-use-current-location'),
+                      onPressed: locatingOrigin ? null : onUseCurrentLocation,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        padding: EdgeInsets.zero,
+                        side: const BorderSide(color: AppTheme.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMd,
+                          ),
+                        ),
+                      ),
+                      child: Icon(
+                        locatingOrigin
+                            ? Icons.more_horiz_rounded
+                            : Icons.my_location_rounded,
+                        size: 20,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppTheme.spacingSm),
@@ -747,6 +816,17 @@ class _TripPlanInputCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (locationNotice != null && locationNotice!.isNotEmpty) ...[
+              const SizedBox(height: AppTheme.spacingXs),
+              Text(
+                locationNotice!,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             Row(
               children: [
                 Expanded(

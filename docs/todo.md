@@ -41,7 +41,7 @@
 
 - 🚧 使用真实高德 Key 完成天气、POI、步行路线联调；代码已接入高德 Provider 和无 Key 明确降级，待人工提供 Key 后验收真实数据。
 - 🚧 扩展路线能力到公交、驾车或混合路线；后端高德 Provider 已支持 `mode=driving/transit/mixed`，可输出换乘、费用、拥堵段、红绿灯和备选方案；真实 Key 联调、端侧选择出行方式和生产数据验收待继续。
-- 🚧 前端传入真实定位坐标、目的地坐标和用户选择的出行方式，避免后端只能按城市/关键词粗查；规划页已支持手动输入当前位置/目的地坐标并随 `/api/trip/plan` 传入 `originCoordinate`、`destinationCoordinate`，后端已写入 `planningInputs`，Agent 工具规划会将坐标转换为 `route_tool.originLocation/destinationLocation` 并带入所选 `transportMode`。剩余为接入真实定位/地图选点和真机权限验收。
+- 🚧 前端传入真实定位坐标、目的地坐标和用户选择的出行方式，避免后端只能按城市/关键词粗查；规划页已支持手动输入当前位置/目的地坐标并随 `/api/trip/plan` 传入 `originCoordinate`、`destinationCoordinate`，后端已写入 `planningInputs`，Agent 工具规划会将坐标转换为 `route_tool.originLocation/destinationLocation` 并带入所选 `transportMode`。Android/vivo 真实定位入口已通过 `MethodChannel('lanxin_travelmate/location')` 接入，规划页可一键把系统定位填入当前位置坐标；剩余为地图选点、定位实时精度和真机权限验收。
 - 🚧 增加工具熔断、限流、持久缓存和 toolTrace 错误可视化；高德 Provider 已有进程内缓存、SQLite 持久缓存、一次 HTTP 重试、连续失败熔断、本地限流和 `retryCount/cacheHit/circuitOpen/errorType/rateLimited/retryAfterSeconds` 元数据，Agent `toolTrace` 已展开错误可视化字段，规划页已展示外部数据状态、降级原因、缓存命中、熔断和限流信息；fallback 工具已改为输入驱动或空结构，不再默认返回固定城市/景点样例；真实 Key 联调与生产级分布式限流待继续。
 - 🚧 将天气预警、营业时间、POI 坐标和路线耗时真正写入规划解释、主动提醒和复盘；后端规划卡已汇总 `toolTrace` 中的天气、POI 和路线结果到 `externalContext`，并把天气提示、营业时间和路线耗时写入画像匹配/风险提示；规划页已消费 `externalContext/toolTrace` 展示外部数据状态和工具降级原因；提醒页已调用 `/api/trip/reminders/evaluate` 并带入画像主动程度/偏好，复盘生成已可接收并展示画像上下文；真实 Key 数据验收待继续。
 
@@ -55,8 +55,8 @@
 - 🚧 少量离线降级继续清理；首页改为真实联调入口态，聊天页改为真实 Agent 欢迎态，记忆/规划/提醒/复盘页在无真实数据时展示加载、空状态、错误或重试入口，不再渲染固定杭州/重庆复盘/样例提醒，复盘降级已改为空结构，后端复盘 fallback 在没有真实路线/照片/任务/记忆/建议上下文时不再注入固定重庆样例，fallback 工具默认空 payload 不再注入固定城市/景点/语音/照片标签，且提醒页不再硬编码固定地点；画像页真实读取和编辑 `/api/profile/me`，设置页的人格、主动程度、同步策略、通知、语音/文字偏好、自定义 Prompt、隐私摘要、记忆导出、清空记忆、清空当前旅行和撤销云端画像同步已接入真实后端接口。
 - 🚧 画像变更后影响规划、提醒和复盘的端到端展示已完成基础链路：规划页会把预算、交通偏好、兴趣、饮食忌口和节奏画像带入 `/api/trip/plan`；提醒页会把主动程度、节奏、兴趣和饮食偏好带入 `/api/trip/reminders/evaluate` 并展示画像上下文；复盘页会把画像上下文带入 `/api/trip/review` 并展示引用画像。剩余为真实模型/真实 Key/真机环境下的端到端验收。
 - 🚧 规划页支持任意目的地、日期、预算、同行人和偏好，不再固定演示路线；后端 `/api/trip/plan` 已接收并持久化 `destination/startDate/endDate/budget/companions/preferences/transportMode/tripStyle/replanReason`，计划响应包含 `planningInputs`；端侧已新增真实规划表单和 `TripPlanService`，可提交目的地、日期、预算、同行人、偏好、交通方式和画像偏好并展示返回计划；已生成方案可点击修改回填 `planningInputs` 后再次提交，天气变化重规划入口已接入并传 `replanReason=weather_risk`。规划页已支持坐标字段传入，后端路线工具计划已消费坐标，剩余为真实定位/地图选点、真实 Key 环境验收。
-- 🚧 接入定位、照片选择、相机、通知、麦克风、语音播放、权限拒绝处理；后端 ASR/TTS 任务接口和日志已完成；旅拍页已可通过真实后端登记上传元数据和照片候选，且明确不保存设备本地路径；Android release Manifest 已声明网络、定位、相机、麦克风、通知和图片读取权限，iOS Info.plist 已补相机/相册/麦克风/定位用途说明。Android/vivo 系统相册与相机入口已通过 `MethodChannel('lanxin_travelmate/photo_picker')` 接入，旅拍页会先取得真实 `content://` 选择结果，再仅登记文件名/MIME 和候选元数据，不上传本地 URI；端侧通知/定位/语音运行时请求、权限拒绝分支、iOS 照片入口和真机相册/相机行为验收待继续。
-- 🚧 补齐加载、空状态、权限拒绝、网络失败、降级说明和重试入口；规划/记忆/提醒/复盘已补真实空状态、加载/错误提示和重试入口，旅拍已有空状态/重试，移动端权限声明静态测试已覆盖 Android/iOS 配置，剩余为设备权限拒绝、通知/定位/相机/麦克风真实运行时失败分支。
+- 🚧 接入定位、照片选择、相机、通知、麦克风、语音播放、权限拒绝处理；后端 ASR/TTS 任务接口和日志已完成；旅拍页已可通过真实后端登记上传元数据和照片候选，且明确不保存设备本地路径；Android release Manifest 已声明网络、定位、相机、麦克风、通知和图片读取权限，iOS Info.plist 已补相机/相册/麦克风/定位用途说明。Android/vivo 系统相册与相机入口已通过 `MethodChannel('lanxin_travelmate/photo_picker')` 接入，旅拍页会先取得真实 `content://` 选择结果，再仅登记文件名/MIME 和候选元数据，不上传本地 URI；Android/vivo 定位运行时请求已接入并可回填规划当前位置；端侧通知/语音运行时请求、权限拒绝分支完善、iOS 照片/定位入口和真机相册/相机/定位行为验收待继续。
+- 🚧 补齐加载、空状态、权限拒绝、网络失败、降级说明和重试入口；规划/记忆/提醒/复盘已补真实空状态、加载/错误提示和重试入口，旅拍已有空状态/重试，移动端权限声明静态测试已覆盖 Android/iOS 配置，剩余为设备权限拒绝提示细化、通知/麦克风真实运行时失败分支，以及相机/定位真机验收。
 
 人工介入：Android/vivo 真机或稳定模拟器权限测试；提供真实照片素材；确认通知、定位、相册、相机、麦克风权限文案。
 

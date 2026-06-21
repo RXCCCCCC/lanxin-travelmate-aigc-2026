@@ -1,31 +1,97 @@
 package com.lanxin.lanxin_travelmate
 
+import android.Manifest
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val channelName = "lanxin_travelmate/photo_picker"
+    private val photoChannelName = "lanxin_travelmate/photo_picker"
+    private val locationChannelName = "lanxin_travelmate/location"
     private val galleryRequestCode = 4201
     private val cameraRequestCode = 4202
+    private val locationPermissionRequestCode = 4301
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraUri: Uri? = null
+    private var pendingLocationResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, photoChannelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "pickFromGallery" -> launchGallery(result)
                 "takePhoto" -> launchCamera(result)
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, locationChannelName).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getCurrentLocation" -> getCurrentLocation(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun getCurrentLocation(result: MethodChannel.Result) {
+        if (!hasLocationPermission()) {
+            pendingLocationResult = result
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                locationPermissionRequestCode,
+            )
+            return
+        }
+        resolveCurrentLocation(result)
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun resolveCurrentLocation(result: MethodChannel.Result) {
+        val manager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        val location = providers
+            .filter { provider -> manager.isProviderEnabled(provider) }
+            .mapNotNull { provider -> latestLocation(manager, provider) }
+            .maxByOrNull { it.time }
+        if (location == null) {
+            result.success(null)
+            return
+        }
+        result.success(locationPayload(location))
+    }
+
+    private fun latestLocation(manager: LocationManager, provider: String): Location? {
+        return try {
+            if (!hasLocationPermission()) null else manager.getLastKnownLocation(provider)
+        } catch (_: SecurityException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
+    private fun locationPayload(location: Location): Map<String, Any> {
+        return mapOf(
+            "latitude" to location.latitude,
+            "longitude" to location.longitude,
+            "accuracyMeters" to location.accuracy,
+            "provider" to (location.provider ?: "unknown"),
+        )
     }
 
     private fun launchGallery(result: MethodChannel.Result) {
@@ -88,6 +154,18 @@ class MainActivity : FlutterActivity() {
         when (requestCode) {
             galleryRequestCode -> handlePickerResult(resultCode, data?.data, "gallery")
             cameraRequestCode -> handlePickerResult(resultCode, pendingCameraUri, "camera")
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != locationPermissionRequestCode) return
+        val result = pendingLocationResult ?: return
+        pendingLocationResult = null
+        if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
+            resolveCurrentLocation(result)
+        } else {
+            result.success(null)
         }
     }
 
