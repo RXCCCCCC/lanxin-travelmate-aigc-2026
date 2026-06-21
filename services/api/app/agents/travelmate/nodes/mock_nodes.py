@@ -213,15 +213,43 @@ def trip_context_builder(state: TravelMateState) -> TravelMateState:
     return next_state
 
 
+def _coordinate_to_location(value: object) -> str | None:
+    if not isinstance(value, dict):
+        return None
+    latitude = value.get("latitude")
+    longitude = value.get("longitude")
+    if latitude is None or longitude is None:
+        return None
+    return f"{longitude},{latitude}"
+
+
 def tool_planner(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "tool_planner")
+    planning_inputs = next_state.get("context", {}).get("planningInputs") or {}
+    destination = str(
+        planning_inputs.get("destination")
+        or next_state.get("trip_context", {}).get("destination")
+        or "重庆"
+    )
+    transport_mode = str(planning_inputs.get("transportMode") or "walking")
+    origin_location = _coordinate_to_location(planning_inputs.get("originCoordinate"))
+    destination_location = _coordinate_to_location(planning_inputs.get("destinationCoordinate"))
+    route_input = {
+        "city": destination,
+        "destination": destination,
+        "pace": next_state.get("trip_context", {}).get("pace") or "轻松",
+        "mode": transport_mode,
+    }
+    if origin_location and destination_location:
+        route_input["originLocation"] = origin_location
+        route_input["destinationLocation"] = destination_location
+
     next_state["tool_plan"] = [
-        {"tool": "weather_tool", "input": {"city": "重庆"}},
-        {"tool": "poi_tool", "input": {"city": "重庆", "keyword": "夜景"}},
-        {"tool": "route_tool", "input": {"city": "重庆", "pace": "轻松"}},
+        {"tool": "weather_tool", "input": {"city": destination}},
+        {"tool": "poi_tool", "input": {"city": destination, "keyword": "夜景"}},
+        {"tool": "route_tool", "input": route_input},
     ]
     return next_state
-
 
 def tool_executor(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "tool_executor")
