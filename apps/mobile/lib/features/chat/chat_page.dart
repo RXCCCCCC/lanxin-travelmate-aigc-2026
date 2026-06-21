@@ -236,6 +236,7 @@ class _ChatPageState extends State<ChatPage> {
                     _memoryStatusText != null)
                   _MemoryCandidatePanel(
                     count: _pendingMemoryCandidates.length,
+                    candidates: _pendingMemoryCandidates,
                     statusText: _memoryStatusText,
                     onConfirm: _pendingMemoryCandidates.isEmpty
                         ? null
@@ -346,17 +347,33 @@ class _ChatPageState extends State<ChatPage> {
 class _MemoryCandidatePanel extends StatelessWidget {
   const _MemoryCandidatePanel({
     required this.count,
+    required this.candidates,
     required this.statusText,
     required this.onConfirm,
   });
 
   final int count;
+  final List<MemoryCandidate> candidates;
   final String? statusText;
   final Future<void> Function()? onConfirm;
 
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
+    final sensitiveCount = candidates
+        .where((candidate) => candidate.sensitivity == 'sensitive')
+        .length;
+    final personalCount = candidates
+        .where((candidate) => candidate.sensitivity == 'personal')
+        .length;
+    final requiresExplicitConsent = candidates.any(
+      (candidate) => candidate.requiresExplicitConsent,
+    );
+    final privacyText = _memoryPrivacyText(
+      sensitiveCount: sensitiveCount,
+      personalCount: personalCount,
+      requiresExplicitConsent: requiresExplicitConsent,
+    );
     return GlassBox(
       margin: EdgeInsets.fromLTRB(
         metrics.horizontalPadding,
@@ -375,13 +392,29 @@ class _MemoryCandidatePanel extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              statusText ?? '发现 $count 条记忆候选',
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusText ?? '发现 $count 条记忆候选',
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (privacyText != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    privacyText,
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           if (onConfirm != null)
@@ -413,6 +446,21 @@ class _MemoryCandidatePanel extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _memoryPrivacyText({
+  required int sensitiveCount,
+  required int personalCount,
+  required bool requiresExplicitConsent,
+}) {
+  if (!requiresExplicitConsent && sensitiveCount == 0 && personalCount == 0) {
+    return null;
+  }
+  final parts = <String>[];
+  if (sensitiveCount > 0) parts.add('$sensitiveCount 条敏感信息');
+  if (personalCount > 0) parts.add('$personalCount 条个人偏好');
+  final prefix = parts.isEmpty ? '这些候选' : parts.join('、');
+  return '$prefix 需要你显式确认保存范围。';
 }
 
 class _MemoryConflictPanel extends StatelessWidget {

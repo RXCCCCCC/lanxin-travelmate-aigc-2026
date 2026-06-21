@@ -13,6 +13,8 @@
 
 ## 端侧展示要求
 
+- 聊天页记忆候选必须读取 `sensitivity/requiresExplicitConsent`，当候选包含 `personal` 或 `sensitive` 时展示显式确认提示，再允许保存。
+
 - 所有记忆候选保存前必须展示保存范围：长期记忆、本次旅行、当前会话、不记忆。
 - `sensitivity=personal` 需要明确提示“会影响后续个性化推荐”。
 - `sensitivity=sensitive` 需要独立提示，不得默认勾选长期记忆。

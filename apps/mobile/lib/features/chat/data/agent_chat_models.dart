@@ -8,6 +8,9 @@ class MemoryCandidate {
     required this.scopeOptions,
     required this.recommendedScope,
     required this.reason,
+    this.category = 'travel_preference',
+    this.sensitivity = 'normal',
+    this.requiresExplicitConsent = true,
   });
 
   final String id;
@@ -16,6 +19,9 @@ class MemoryCandidate {
   final List<String> scopeOptions;
   final String recommendedScope;
   final String reason;
+  final String category;
+  final String sensitivity;
+  final bool requiresExplicitConsent;
 
   factory MemoryCandidate.fromJson(Map<String, dynamic> json) {
     return MemoryCandidate(
@@ -27,6 +33,10 @@ class MemoryCandidate {
           .toList(),
       recommendedScope: json['recommendedScope'] as String? ?? 'currentTrip',
       reason: json['reason'] as String? ?? '',
+      category: json['category'] as String? ?? 'travel_preference',
+      sensitivity: json['sensitivity'] as String? ?? 'normal',
+      requiresExplicitConsent:
+          json['requiresExplicitConsent'] as bool? ?? true,
     );
   }
 }
