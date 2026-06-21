@@ -2,14 +2,14 @@
 
 更新时间：2026-06-21
 
-本清单只做交接与人工确认，不执行删除。删除素材、样例或生成文件前必须由负责人确认用途和可恢复来源。
+本清单用于交接与清理记录。按负责人最新要求，仓库只保留 Android/vivo 原生平台壳；非 Android Flutter 平台壳已可删除并不再作为保留项。删除素材、样例或生成文件前仍必须由负责人确认用途和可恢复来源。
 
 ## 当前扫描结论
 
 - 未发现已跟踪的 `build/`、`.dart_tool/`、`.venv/`、`node_modules/`、`.pytest_cache/`、`coverage/` 等构建缓存目录。
 - 根目录和 Flutter/后端 `.gitignore` 已覆盖常见本地缓存、日志、数据库文件和压缩包。
 - 仓库体积主要来自蓝小心 PNG/PSD 素材；其中 `project/img/lanxiaoxin/` 与 `apps/mobile/assets/avatars/` 存在同名 PNG 资产重复。
-- 当前不建议删除 Flutter 平台目录下的 `generated_plugin_registrant.*`、`generated_plugins.cmake`、`pubspec.lock`、`services/api/uv.lock`、`app_database.g.dart`，这些会影响跨平台构建或可重复安装。
+- 当前仅保留 Android 平台目录下的生成/配置文件；`pubspec.lock`、`services/api/uv.lock`、`app_database.g.dart` 仍保留以保证 Android 交接可复现。
 
 ## 高优先级人工确认候选
 
@@ -34,8 +34,7 @@
 | `apps/mobile/lib/data/local/app_database.g.dart` | Drift 生成代码；当前仓库未要求队友每次先跑 build_runner，保留可降低交接成本。 |
 | `apps/mobile/pubspec.lock` | Flutter 应用锁定依赖版本，保证队友可复现。 |
 | `services/api/uv.lock` | 后端 uv 锁文件，保证依赖可复现。 |
-| `apps/mobile/*/generated_plugin_registrant.*`、`generated_plugins.cmake` | Flutter 多平台工程生成文件，平台构建依赖。 |
-| `apps/mobile/android/`、`ios/`、`windows/`、`macos/`、`linux/` | Flutter 平台工程；即使比赛只交 Android，也不建议在未确认提交要求前删除。 |
+| `apps/mobile/android/` | Android/vivo 原生平台壳，当前唯一保留的 Flutter 平台工程。 |
 
 ## 后续人工动作
 
@@ -43,3 +42,7 @@
 2. 若决定瘦身，先把源 PSD/PNG 归档到外部素材仓库或网盘，再由维护者执行删除并单独提交。
 3. 删除后必须运行：`flutter analyze`、头像状态相关检查、后端 mock-boundary 测试。
 4. 不要运行 `git prune` 作为常规清理；当前仓库自动打包提示的 unreachable loose objects 属于本地 Git 维护项，不应混入产品交接提交。
+
+## 已确认清理
+
+- `apps/mobile/ios/`、`apps/mobile/macos/`、`apps/mobile/windows/`、`apps/mobile/linux/`、`apps/mobile/web/`：负责人已确认远端仓库无需保留其他端平台壳，当前项目后续只维护 Android/vivo 原生侧。
