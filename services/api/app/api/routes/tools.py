@@ -18,11 +18,12 @@ class ToolCallRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
 
 
-def _log_tool_call(session: Session, tool_name: str, result: dict[str, object]) -> str:
+def _log_tool_call(session: Session, user_id: str, tool_name: str, result: dict[str, object]) -> str:
     provider = result.get("provider")
     fallback = bool(result.get("fallback", False))
     trace = ToolCallLog(
         id=f"tool-{uuid4().hex}",
+        user_id=user_id,
         tool_name=tool_name,
         mock=fallback and provider in {"fallback", "unconfigured", None},
         provider=str(provider) if provider is not None else None,
@@ -50,7 +51,7 @@ def call_tool(
         raise HTTPException(status_code=404, detail="Tool not registered")
     effective_user_id = resolve_effective_user_id(request.userId, current_user)
     result = registry.call(tool_name, dict(request.payload))
-    trace_id = _log_tool_call(session, tool_name, result)
+    trace_id = _log_tool_call(session, effective_user_id, tool_name, result)
     return {
         "toolTraceId": trace_id,
         "toolName": tool_name,

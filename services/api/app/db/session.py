@@ -31,10 +31,27 @@ def _add_column_if_missing(table_name: str, column_name: str, ddl: str) -> None:
         connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {ddl}"))
 
 
+def _add_index_if_missing(table_name: str, index_name: str, ddl: str) -> None:
+    inspector = inspect(engine)
+    if table_name not in inspector.get_table_names():
+        return
+    existing_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+    if index_name in existing_indexes:
+        return
+    with engine.begin() as connection:
+        connection.execute(text(ddl))
+
+
 def _run_lightweight_migrations() -> None:
     if not settings.database_url.startswith("sqlite"):
         return
     _add_column_if_missing("auth_credentials", "password_hash", "password_hash VARCHAR")
+    _add_column_if_missing("tool_call_logs", "user_id", "user_id VARCHAR DEFAULT 'guest' NOT NULL")
+    _add_index_if_missing(
+        "tool_call_logs",
+        "ix_tool_call_logs_user_id",
+        "CREATE INDEX ix_tool_call_logs_user_id ON tool_call_logs (user_id)",
+    )
 
 
 def create_db_and_tables() -> None:

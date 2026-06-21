@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import ToolCallLog, utc_now
 from app.db.session import get_session
 from app.tools.registry import build_mock_tool_registry
@@ -26,9 +27,10 @@ class TtsRequest(BaseModel):
     format: str = "mp3"
 
 
-def _log_tool_call(session: Session, tool_name: str, provider: str, mock: bool) -> str:
+def _log_tool_call(session: Session, user_id: str, tool_name: str, provider: str, mock: bool) -> str:
     record = ToolCallLog(
         id=f"tool-{uuid4().hex}",
+        user_id=user_id,
         tool_name=tool_name,
         provider=provider,
         mock=mock,
@@ -49,12 +51,18 @@ def read_audio_status() -> dict[str, object]:
 
 
 @router.post("/asr")
-def transcribe_audio(payload: AsrRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+def transcribe_audio(
+    payload: AsrRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
     registry = build_mock_tool_registry()
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     result = registry.call("asr_tool", {"mockText": payload.mockText or ""})
-    trace_id = _log_tool_call(session, "asr_tool", "fallback", True)
+    trace_id = _log_tool_call(session, effective_user_id, "asr_tool", "fallback", True)
     text = result.get("text") or ""
     return {
+        "userId": effective_user_id,
         "text": text,
         "language": payload.language,
         "audioRef": payload.audioRef,
@@ -66,11 +74,17 @@ def transcribe_audio(payload: AsrRequest, session: Session = Depends(get_session
 
 
 @router.post("/tts")
-def synthesize_speech(payload: TtsRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+def synthesize_speech(
+    payload: TtsRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
     registry = build_mock_tool_registry()
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     result = registry.call("tts_tool", {"text": payload.text})
-    trace_id = _log_tool_call(session, "tts_tool", "fallback", True)
+    trace_id = _log_tool_call(session, effective_user_id, "tts_tool", "fallback", True)
     return {
+        "userId": effective_user_id,
         "voiceText": result.get("voiceText", payload.text),
         "audioUrl": None,
         "voice": payload.voice,

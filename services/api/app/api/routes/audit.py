@@ -13,6 +13,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 def _tool_call_response(record: ToolCallLog) -> dict[str, object]:
     return {
         "toolTraceId": record.id,
+        "userId": record.user_id,
         "toolName": record.tool_name,
         "provider": record.provider,
         "mock": record.mock,

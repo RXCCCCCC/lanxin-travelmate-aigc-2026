@@ -117,6 +117,7 @@ class ToolCallLog(SQLModel, table=True):
     __tablename__ = "tool_call_logs"
 
     id: str = Field(primary_key=True)
+    user_id: str = Field(default="guest", index=True)
     tool_name: str
     mock: bool = True
     provider: str | None = None
