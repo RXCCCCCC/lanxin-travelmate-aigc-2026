@@ -31,6 +31,7 @@ class _ReviewPageState extends State<ReviewPage> {
   late final TripDashboardService _dashboardService;
   late final ProfileService _profileService;
   late final Future<TripReviewPayload> _generatedReview;
+  late final String _localReviewTripId;
 
   @override
   void initState() {
@@ -38,16 +39,20 @@ class _ReviewPageState extends State<ReviewPage> {
     _tripReviewService = widget.tripReviewService ?? TripReviewService();
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _profileService = widget.profileService ?? ProfileService();
+    _localReviewTripId = 'review-trip-${DateTime.now().millisecondsSinceEpoch}';
     _generatedReview = _loadReview();
   }
 
   Future<TripReviewPayload> _loadReview() async {
     final shouldReadDashboard =
         widget.dashboardService != null || widget.tripReviewService == null;
+    String? dashboardTripId;
     if (shouldReadDashboard) {
+      final requestedTripId = _tripIdFromAgentResponse();
       final dashboard = await _dashboardService.fetchDashboard(
-        tripId: 'demo-chongqing-weekend',
+        tripId: requestedTripId,
       );
+      dashboardTripId = _tripIdFromDashboard(dashboard);
       final dashboardReview = _reviewFromDashboard(dashboard.latestReview);
       if (dashboardReview != null) return dashboardReview;
       final dashboardStateReview = _reviewFromDashboardStateEvents(dashboard);
@@ -55,8 +60,10 @@ class _ReviewPageState extends State<ReviewPage> {
     }
 
     final profile = await _profileService.fetchProfile();
+    final reviewTripId =
+        _tripIdFromAgentResponse() ?? dashboardTripId ?? _localReviewTripId;
     return _tripReviewService.generateReview(
-      tripId: 'demo-chongqing-weekend',
+      tripId: reviewTripId,
       completedTasks: const [
         {
           'id': 'task-night-photo',
@@ -73,6 +80,32 @@ class _ReviewPageState extends State<ReviewPage> {
       ],
       profileContext: _reviewProfileContext(profile),
     );
+  }
+
+  String? _tripIdFromAgentResponse() {
+    final plan = agentCardPayload(latestAgentResponse.value, 'tripPlan');
+    return _firstTextValue([
+      plan?['tripId'],
+      plan?['trip_id'],
+      plan?['id'],
+      (plan?['planningInputs'] as Map<String, dynamic>?)?['tripId'],
+    ]);
+  }
+
+  String? _tripIdFromDashboard(TripDashboardPayload dashboard) {
+    return _firstTextValue([
+      dashboard.tripId,
+      dashboard.currentTrip['tripId'],
+      dashboard.currentTrip['id'],
+    ]);
+  }
+
+  String? _firstTextValue(List<Object?> values) {
+    for (final value in values) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty && text != 'null') return text;
+    }
+    return null;
   }
 
   TripReviewPayload? _reviewFromDashboard(Map<String, dynamic> latestReview) {

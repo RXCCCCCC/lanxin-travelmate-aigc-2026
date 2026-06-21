@@ -44,6 +44,7 @@ class CapturingReviewService extends TripReviewService {
   CapturingReviewService() : super(dio: Dio());
 
   Map<String, dynamic>? capturedProfileContext;
+  String? capturedTripId;
 
   @override
   Future<TripReviewPayload> generateReview({
@@ -53,6 +54,7 @@ class CapturingReviewService extends TripReviewService {
     List<Map<String, dynamic>> temporaryMemories = const [],
     Map<String, dynamic> profileContext = const {},
   }) async {
+    capturedTripId = tripId;
     capturedProfileContext = profileContext;
     return const TripReviewPayload(
       route: '画像复盘路线',
@@ -142,6 +144,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('画像复盘路线'), findsOneWidget);
+    expect(reviewService.capturedTripId, startsWith('review-trip-'));
+    expect(reviewService.capturedTripId, isNot('demo-chongqing-weekend'));
     expect(find.textContaining('夜景'), findsOneWidget);
     expect(reviewService.capturedProfileContext?['travelPace'], 'light');
     expect(reviewService.capturedProfileContext?['interestTags'], ['夜景']);
