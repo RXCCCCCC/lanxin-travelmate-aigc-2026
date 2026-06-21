@@ -11,13 +11,20 @@ import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
 import 'data/agent_chat_models.dart';
 import 'data/agent_chat_service.dart';
+import 'data/voice_interaction_service.dart';
 
 /// 聊天页面
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, this.agentChatService, this.memoryRepository});
+  const ChatPage({
+    super.key,
+    this.agentChatService,
+    this.memoryRepository,
+    this.voiceInteractionService,
+  });
 
   final AgentChatService? agentChatService;
   final MemoryRepository? memoryRepository;
+  final VoiceInteractionService? voiceInteractionService;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -37,10 +44,13 @@ class _ChatPageState extends State<ChatPage> {
   ];
   late final AgentChatService _agentChatService;
   late final MemoryRepository _memoryRepository;
+  late final VoiceInteractionService _voiceInteractionService;
   AppDatabase? _ownedDatabase;
   List<MemoryCandidate> _pendingMemoryCandidates = [];
   Map<String, dynamic>? _memoryConflictSuggestion;
   String? _memoryStatusText;
+  String? _voiceNotice;
+  bool _isListening = false;
   bool _isSending = false;
   late final String _sessionId;
   late final String _tripId;
@@ -52,6 +62,8 @@ class _ChatPageState extends State<ChatPage> {
     _sessionId = 'chat-session-$now';
     _tripId = 'chat-trip-$now';
     _agentChatService = widget.agentChatService ?? AgentChatService();
+    _voiceInteractionService =
+        widget.voiceInteractionService ?? VoiceInteractionService();
     if (widget.memoryRepository == null) {
       _ownedDatabase = AppDatabase();
       _memoryRepository = MemoryRepository(_ownedDatabase!);
@@ -110,6 +122,34 @@ class _ChatPageState extends State<ChatPage> {
       );
     });
     _scrollToBottom();
+    final voiceText = response.voiceText.trim().isNotEmpty
+        ? response.voiceText
+        : response.replyText;
+    final spoken = await _voiceInteractionService.speak(voiceText);
+    if (!mounted) return;
+    setState(() {
+      _voiceNotice = spoken ? null : '系统语音播报暂不可用，已保留文字回复';
+    });
+  }
+
+  Future<void> _listenAndFillInput() async {
+    if (_isListening || _isSending) return;
+    setState(() {
+      _isListening = true;
+      _voiceNotice = null;
+    });
+    final text = await _voiceInteractionService.listenOnce();
+    if (!mounted) return;
+    setState(() {
+      _isListening = false;
+      if (text == null || text.isEmpty) {
+        _voiceNotice = '未识别到语音内容，请确认麦克风权限或使用文字输入';
+        return;
+      }
+      _controller.text = text;
+      _controller.selection = TextSelection.collapsed(offset: text.length);
+      _voiceNotice = '已填入语音识别文本，可编辑后发送';
+    });
   }
 
   Map<String, dynamic>? _firstSyncSuggestion(
@@ -278,6 +318,35 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 ),
                 // 输入栏
+                if (_voiceNotice != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      metrics.horizontalPadding,
+                      0,
+                      metrics.horizontalPadding,
+                      AppTheme.spacingXs,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.volume_up_rounded,
+                          color: AppTheme.primary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _voiceNotice!,
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 GlassBox(
                   margin: EdgeInsets.fromLTRB(
                     metrics.horizontalPadding,
@@ -291,6 +360,26 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   child: Row(
                     children: [
+                      SizedBox(
+                        width: metrics.minTouchTarget,
+                        height: metrics.minTouchTarget,
+                        child: Tooltip(
+                          message: '语音输入',
+                          child: IconButton(
+                            onPressed: _isListening || _isSending
+                                ? null
+                                : _listenAndFillInput,
+                            icon: Icon(
+                              _isListening
+                                  ? Icons.more_horiz_rounded
+                                  : Icons.mic_rounded,
+                              color: AppTheme.primary,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spacingXs),
                       Expanded(
                         child: TextField(
                           controller: _controller,
