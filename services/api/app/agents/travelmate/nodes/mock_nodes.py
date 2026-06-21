@@ -588,6 +588,12 @@ def _model_review_payload(next_state: TravelMateState) -> dict[str, Any]:
     result["provider"] = provider.name
     result["fallback"] = False
     result["errorType"] = None
+    next_state.setdefault("tool_trace", []).append({
+        "tool": "model_provider",
+        "provider": provider.name,
+        "scenario": "trip_review",
+        "fallback": False,
+    })
     return result
 
 

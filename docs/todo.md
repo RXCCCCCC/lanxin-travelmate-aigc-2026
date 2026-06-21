@@ -91,7 +91,7 @@
 
 目标：可构建、可测试、可部署、可交接。
 
-- ⬜ 为真实 Provider、工具服务、数据库同步、端侧权限和核心闭环补单元/集成测试。
+- 🚧 为真实 Provider、工具服务、数据库同步、端侧权限和核心闭环补单元/集成测试；已新增结构化 Provider 覆盖记忆抽取、规划、复盘、聊天四个 Agent 场景的后端集成测试，剩余为真实密钥 smoke、工具服务真实 Key、数据库同步真实环境、端侧权限和完整端到端闭环测试。
 - 🚧 Docker Compose 已配置 API 指向 Postgres、Postgres healthcheck、API 启动前 `alembic upgrade head`；待人工/CI 环境执行 `docker compose up` 验证真实容器初始化。
 - 🚧 GitHub Actions 已接入真实 Provider 可选 smoke job 与密钥泄露静态检查；待人工配置 GitHub secrets 后在 CI 环境验收真实模型/高德连通性。
 - ⬜ Android APK 构建通过，确认 SDK、包名、签名、版本号和安装测试。

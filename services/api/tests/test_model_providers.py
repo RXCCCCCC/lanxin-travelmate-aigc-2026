@@ -250,6 +250,89 @@ def test_graph_falls_back_when_model_chat_schema_is_invalid(monkeypatch):
     assert model_trace[-1]["errorType"] == "schema_validation"
 
 
+def test_graph_runs_structured_provider_across_core_agent_loop(monkeypatch):
+    class StructuredProvider:
+        name = "structured-provider"
+
+        def plan_trip(self, state):
+            return {
+                "tripPlanning": {
+                    "title": "Structured weekend",
+                    "destination": "Chengdu",
+                    "summary": "A validated provider-created plan.",
+                    "profileMatches": ["quiet gardens"],
+                    "risks": ["rain backup needed"],
+                },
+                "days": [],
+            }
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {
+                    "memoryExtraction": {
+                        "candidates": [
+                            {
+                                "title": "Quiet gardens",
+                                "content": "Traveler prefers quiet gardens.",
+                                "category": "travel_preference",
+                                "recommendedScope": "longTerm",
+                                "confidence": 0.9,
+                                "reason": "The request mentions quiet gardens.",
+                            }
+                        ]
+                    }
+                }
+            if scenario == "trip_review":
+                return {
+                    "tripReview": {
+                        "route": "Garden gate -> Tea house",
+                        "highlightPhotos": ["garden gate"],
+                        "completedTasks": [{"id": "task-garden", "title": "Quiet garden photo"}],
+                        "reminderHighlights": [],
+                        "avatarStatusChanges": ["rapport +1"],
+                        "newMemories": ["Quiet gardens"],
+                        "nextTripSuggestions": ["Try another garden route"],
+                        "temporaryMemoryPromotions": [],
+                        "profileContext": {"pace": "slow"},
+                    }
+                }
+            if scenario == "companion_chat":
+                return {
+                    "chat": {
+                        "replyText": "Structured provider reply",
+                        "voiceText": "Structured provider reply",
+                        "avatarState": "planning",
+                        "emotion": "curious",
+                        "cards": [],
+                        "memoryCandidates": [],
+                        "toolTrace": [],
+                        "nextActions": [],
+                        "syncSuggestions": [],
+                        "errors": [],
+                    }
+                }
+            raise AssertionError(f"unexpected scenario {scenario}")
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: StructuredProvider())
+    state = create_initial_state(message="Plan a slow weekend around quiet gardens")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["memory_candidates"][0]["provider"] == "structured-provider"
+    assert result["trip_plan"]["destination"] == "Chengdu"
+    assert result["review"]["route"] == "Garden gate -> Tea house"
+    assert result["response"]["replyText"] == "Structured provider reply"
+    scenarios = {
+        item.get("scenario"): item
+        for item in result["response"]["toolTrace"]
+        if item.get("tool") == "model_provider"
+    }
+    assert scenarios["memory_extraction"]["fallback"] is False
+    assert scenarios["trip_planning"]["fallback"] is False
+    assert scenarios["trip_review"]["fallback"] is False
+    assert scenarios["companion_chat"]["fallback"] is False
+
+
 def test_openai_compatible_provider_parses_json_response(monkeypatch):
     def fake_post(self, url, headers, json):
         return httpx.Response(
