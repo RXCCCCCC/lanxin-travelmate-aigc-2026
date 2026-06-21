@@ -1,6 +1,6 @@
 # 蓝心同行 Todo：真实产品完善计划
 
-> 更新时间：2026-06-20
+> 更新时间：2026-06-21
 > 依据：`docs/product/PRD.md`、`docs/product/开发路线(ai看).md`、当前仓库实现状态。
 > 口径：本文件只保留未完成事项；现有 Flutter/FastAPI/LangGraph 骨架、演示闭环、移动端适配和基础文档不再重复记录。
 
@@ -16,7 +16,7 @@
 
 - 🚧 接入真实 `LanxinModelProvider`，并保留 OpenAI 兼容 Provider 作为可选后备；代码接口已接入，待真实密钥联调。
 - ✅ 为聊天、记忆抽取、规划、旅拍文案、复盘生成建立中文 Prompt 与 JSON Schema 校验；已新增通用 Prompt/模型输出 schema，解析层已覆盖 `ChatOutput`、`MemoryExtractionOutput`、`TripPlanningOutput`、`PhotoCopywritingOutput` 和 `TripReviewOutput`，聊天节点、记忆抽取节点、规划节点、`/api/photo/copywriting` 和复盘节点均已接入真实 Provider 输出校验并在 Provider 未配置或 schema 无效时明确降级记录。
-- 🚧 将 `mock_nodes.py` 拆为真实节点、降级节点和共享 schema，节点输出必须可验证；已先接入 Provider 工厂、规划节点 schema 校验和降级日志。
+- ✅ 将 `mock_nodes.py` 拆为真实节点、降级节点和节点注册：运行时主实现位于 `real_nodes.py`，规则/复盘降级位于 `fallback_nodes.py`，LangGraph 注册位于 `registry.py`；`mock_nodes.py` 仅保留兼容导出，Provider/schema 降级路径已通过定向测试验证。
 - ✅ 增加模型调用日志：provider、耗时、错误码、降级原因、脱敏请求摘要。
 - ⬜ 完成真实蓝心模型效果验证记录：记忆抽取、规划推理、角色化对话、文案生成、多模态理解。
 

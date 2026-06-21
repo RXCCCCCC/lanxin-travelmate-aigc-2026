@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from langgraph.graph import END, START, StateGraph
 
-from app.agents.travelmate.nodes.mock_nodes import NODE_SEQUENCE, NODE_TABLE
+from app.agents.travelmate.nodes.registry import NODE_SEQUENCE, NODE_TABLE
 from app.agents.travelmate.state import TravelMateState
 
 

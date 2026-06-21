@@ -1,7 +1,7 @@
 import httpx
 
 from app.agents.travelmate.graph import TravelMateGraph
-from app.agents.travelmate.nodes import mock_nodes
+from app.agents.travelmate.nodes import real_nodes
 from app.agents.travelmate.state import create_initial_state
 from app.core.config import Settings
 from app.services.model_providers.call_log import ModelCallLogger
@@ -46,7 +46,7 @@ def test_graph_falls_back_when_model_trip_plan_schema_is_invalid(monkeypatch):
                 }
             }
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidTripPlanProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: InvalidTripPlanProvider())
     state = create_initial_state(message="plan a slow trip")
 
     result = TravelMateGraph().invoke(state)
@@ -85,7 +85,7 @@ def test_graph_uses_valid_model_memory_extraction_output(monkeypatch):
                 raise ModelProviderError("review not configured")
             return {}
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: MemoryProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: MemoryProvider())
     state = create_initial_state(message="I prefer quiet gardens and slow walks")
 
     result = TravelMateGraph().invoke(state)
@@ -112,7 +112,7 @@ def test_graph_falls_back_when_model_memory_extraction_schema_is_invalid(monkeyp
                 raise ModelProviderError("review not configured")
             return {}
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidMemoryProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: InvalidMemoryProvider())
     state = create_initial_state(message="\u6211\u4e0d\u5403\u9999\u83dc\uff0c\u4e5f\u559c\u6b22\u591c\u666f")
 
     result = TravelMateGraph().invoke(state)
@@ -152,7 +152,7 @@ def test_graph_uses_valid_model_trip_review_output(monkeypatch):
                 }
             }
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: ReviewProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: ReviewProvider())
     state = create_initial_state(message="Create a review")
 
     result = TravelMateGraph().invoke(state)
@@ -174,7 +174,7 @@ def test_graph_falls_back_when_model_trip_review_schema_is_invalid(monkeypatch):
                 raise ModelProviderError(f"{scenario} not configured")
             return {"tripReview": {"completedTasks": "not-a-list"}}
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidReviewProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: InvalidReviewProvider())
     state = create_initial_state(message="Create a review")
 
     result = TravelMateGraph().invoke(state)
@@ -213,7 +213,7 @@ def test_graph_uses_valid_model_chat_output(monkeypatch):
                 }
             }
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: ChatProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: ChatProvider())
     state = create_initial_state(message="Plan a calm weekend")
 
     result = TravelMateGraph().invoke(state)
@@ -238,7 +238,7 @@ def test_graph_falls_back_when_model_chat_schema_is_invalid(monkeypatch):
             assert scenario == "companion_chat"
             return {"chat": {"replyText": "missing required fields"}}
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidChatProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: InvalidChatProvider())
     state = create_initial_state(message="Plan a calm weekend")
 
     result = TravelMateGraph().invoke(state)
@@ -313,7 +313,7 @@ def test_graph_runs_structured_provider_across_core_agent_loop(monkeypatch):
                 }
             raise AssertionError(f"unexpected scenario {scenario}")
 
-    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: StructuredProvider())
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: StructuredProvider())
     state = create_initial_state(message="Plan a slow weekend around quiet gardens")
 
     result = TravelMateGraph().invoke(state)
