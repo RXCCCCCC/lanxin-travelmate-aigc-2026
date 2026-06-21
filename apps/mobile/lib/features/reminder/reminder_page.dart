@@ -6,6 +6,7 @@ import '../../data/agent_response_cache.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../profile/data/profile_service.dart';
 import '../trip/data/trip_dashboard_service.dart';
+import 'data/notification_delivery_service.dart';
 import 'data/reminder_trigger_service.dart';
 
 /// 主动提醒页面
@@ -15,11 +16,13 @@ class ReminderPage extends StatefulWidget {
     this.reminderTriggerService,
     this.dashboardService,
     this.profileService,
+    this.notificationDeliveryService,
   });
 
   final ReminderTriggerService? reminderTriggerService;
   final TripDashboardService? dashboardService;
   final ProfileService? profileService;
+  final NotificationDeliveryService? notificationDeliveryService;
 
   @override
   State<ReminderPage> createState() => _ReminderPageState();
@@ -29,11 +32,13 @@ class _ReminderPageState extends State<ReminderPage> {
   late final ReminderTriggerService _reminderTriggerService;
   late final TripDashboardService _dashboardService;
   late final ProfileService _profileService;
+  late final NotificationDeliveryService _notificationDeliveryService;
   ProfilePayload? _profile;
   List<Map<String, dynamic>> _simulatedReminders = const [];
   List<Map<String, dynamic>> _dashboardReminders = const [];
   List<Map<String, dynamic>> _evaluatedReminders = const [];
   String? _suppressedReason;
+  String? _notificationStatus;
   int _cooldownRemainingSeconds = 0;
 
   @override
@@ -43,6 +48,8 @@ class _ReminderPageState extends State<ReminderPage> {
         widget.reminderTriggerService ?? ReminderTriggerService();
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _profileService = widget.profileService ?? ProfileService();
+    _notificationDeliveryService =
+        widget.notificationDeliveryService ?? NotificationDeliveryService();
     _loadDashboardReminders();
     _loadProfileAndEvaluate();
   }
@@ -88,6 +95,9 @@ class _ReminderPageState extends State<ReminderPage> {
       _suppressedReason = result.suppressedReason;
       _cooldownRemainingSeconds = result.cooldownRemainingSeconds;
     });
+    if (result.triggered && result.items.isNotEmpty) {
+      await _deliverReminderNotification(result.items.first, source: '自动评估');
+    }
   }
 
   Future<void> _simulateTrigger(
@@ -100,6 +110,27 @@ class _ReminderPageState extends State<ReminderPage> {
     );
     if (!mounted) return;
     setState(() => _simulatedReminders = reminders);
+    if (reminders.isNotEmpty) {
+      await _deliverReminderNotification(reminders.first, source: '手动触发');
+    }
+  }
+
+  Future<void> _deliverReminderNotification(
+    Map<String, dynamic> reminder, {
+    required String source,
+  }) async {
+    final title = reminder['title']?.toString() ?? '蓝心同行提醒';
+    final body = reminder['description']?.toString() ?? '';
+    final delivered = await _notificationDeliveryService.showReminder(
+      title: title,
+      body: body,
+    );
+    if (!mounted) return;
+    setState(() {
+      _notificationStatus = delivered
+          ? '$source提醒已发送到系统通知'
+          : '系统通知暂不可用，已保留应用内提醒';
+    });
   }
 
   @override
@@ -162,6 +193,8 @@ class _ReminderPageState extends State<ReminderPage> {
                     suppressedReason: _suppressedReason,
                     cooldownRemainingSeconds: _cooldownRemainingSeconds,
                   ),
+                if (_notificationStatus != null)
+                  _NotificationStatusBanner(message: _notificationStatus!),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     metrics.horizontalPadding,
@@ -217,6 +250,47 @@ class _ReminderPageState extends State<ReminderPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _NotificationStatusBanner extends StatelessWidget {
+  const _NotificationStatusBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return GlassBox(
+      opacity: 0.18,
+      margin: EdgeInsets.fromLTRB(
+        metrics.horizontalPadding,
+        0,
+        metrics.horizontalPadding,
+        AppTheme.spacingSm,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.notifications_active_rounded,
+            color: AppTheme.primary,
+            size: 18,
+          ),
+          const SizedBox(width: AppTheme.spacingSm),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -2,6 +2,9 @@ package com.lanxin.lanxin_travelmate
 
 import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,6 +16,7 @@ import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -23,20 +27,27 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private val photoChannelName = "lanxin_travelmate/photo_picker"
     private val locationChannelName = "lanxin_travelmate/location"
     private val voiceChannelName = "lanxin_travelmate/voice"
+    private val notificationChannelName = "lanxin_travelmate/notifications"
+    private val reminderNotificationChannelId = "lanxin_reminders"
     private val galleryRequestCode = 4201
     private val cameraRequestCode = 4202
     private val locationPermissionRequestCode = 4301
     private val speechRequestCode = 4401
     private val recordAudioPermissionRequestCode = 4402
+    private val notificationPermissionRequestCode = 4501
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraUri: Uri? = null
     private var pendingLocationResult: MethodChannel.Result? = null
     private var pendingVoiceResult: MethodChannel.Result? = null
+    private var pendingNotificationResult: MethodChannel.Result? = null
+    private var pendingNotificationPayload: Map<String, String>? = null
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
+    private var nextNotificationId = 5100
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        createReminderNotificationChannel()
         textToSpeech = TextToSpeech(this, this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, photoChannelName).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -55,6 +66,16 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             when (call.method) {
                 "startVoiceInput" -> startVoiceInput(result)
                 "speakText" -> speakText(call.argument<String>("text") ?: "", result)
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, notificationChannelName).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "showReminderNotification" -> showReminderNotification(
+                    call.argument<String>("title") ?: "蓝心同行提醒",
+                    call.argument<String>("body") ?: "",
+                    result,
+                )
                 else -> result.notImplemented()
             }
         }
@@ -116,6 +137,78 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             textToSpeech?.speak(value, TextToSpeech.QUEUE_FLUSH, null)
         }
         result.success(status == TextToSpeech.SUCCESS)
+    }
+
+    private fun showReminderNotification(title: String, body: String, result: MethodChannel.Result) {
+        val payload = mapOf(
+            "title" to title.trim().ifEmpty { "蓝心同行提醒" },
+            "body" to body.trim(),
+        )
+        if (payload["body"].isNullOrEmpty()) {
+            result.success(false)
+            return
+        }
+        if (needsNotificationPermission()) {
+            if (pendingNotificationResult != null) {
+                result.error("notification_busy", "Another notification permission request is already running", null)
+                return
+            }
+            pendingNotificationResult = result
+            pendingNotificationPayload = payload
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                notificationPermissionRequestCode,
+            )
+            return
+        }
+        result.success(deliverReminderNotification(payload))
+    }
+
+    private fun needsNotificationPermission(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun createReminderNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            reminderNotificationChannelId,
+            "蓝心同行主动提醒",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "旅行过程中的主动提醒和情境建议"
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun deliverReminderNotification(payload: Map<String, String>): Boolean {
+        return try {
+            val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            val launchIntent = (packageManager.getLaunchIntentForPackage(packageName) ?: Intent(this, MainActivity::class.java)).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            val notification = NotificationCompat.Builder(this, reminderNotificationChannelId)
+                .setSmallIcon(applicationInfo.icon)
+                .setContentTitle(payload["title"] ?: "蓝心同行提醒")
+                .setContentText(payload["body"] ?: "")
+                .setStyle(NotificationCompat.BigTextStyle().bigText(payload["body"] ?: ""))
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true)
+                .build()
+            manager.notify(nextNotificationId++, notification)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun getCurrentLocation(result: MethodChannel.Result) {
@@ -252,6 +345,17 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                     launchSpeechRecognizer(result)
                 } else {
                     result.success(null)
+                }
+            }
+            notificationPermissionRequestCode -> {
+                val result = pendingNotificationResult ?: return
+                val payload = pendingNotificationPayload
+                pendingNotificationResult = null
+                pendingNotificationPayload = null
+                if (grantResults.any { it == PackageManager.PERMISSION_GRANTED } && payload != null) {
+                    result.success(deliverReminderNotification(payload))
+                } else {
+                    result.success(false)
                 }
             }
         }
