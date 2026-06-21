@@ -5,6 +5,7 @@ import '../../shared/widgets/adaptive_chrome.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../trip/data/trip_dashboard_service.dart';
 import 'data/photo_experience_service.dart';
+import 'data/photo_selection_service.dart';
 
 /// 旅拍候选页面
 class PhotoPage extends StatefulWidget {
@@ -12,10 +13,12 @@ class PhotoPage extends StatefulWidget {
     super.key,
     this.photoExperienceService,
     this.dashboardService,
+    this.photoSelectionService,
   });
 
   final PhotoExperienceService? photoExperienceService;
   final TripDashboardService? dashboardService;
+  final PhotoSelectionService? photoSelectionService;
 
   @override
   State<PhotoPage> createState() => _PhotoPageState();
@@ -24,6 +27,7 @@ class PhotoPage extends StatefulWidget {
 class _PhotoPageState extends State<PhotoPage> {
   late final PhotoExperienceService _photoExperienceService;
   late final TripDashboardService _dashboardService;
+  late final PhotoSelectionService _photoSelectionService;
   late Future<void> _loadFuture;
   List<Map<String, dynamic>> _candidates = const [];
   List<Map<String, dynamic>> _tasks = const [];
@@ -40,6 +44,8 @@ class _PhotoPageState extends State<PhotoPage> {
     _photoExperienceService =
         widget.photoExperienceService ?? PhotoExperienceService();
     _dashboardService = widget.dashboardService ?? TripDashboardService();
+    _photoSelectionService =
+        widget.photoSelectionService ?? PhotoSelectionService();
     _loadFuture = _load();
   }
 
@@ -79,23 +85,34 @@ class _PhotoPageState extends State<PhotoPage> {
       _isRegistering = true;
       _photoNotice = null;
     });
+
+    final selected = await _photoSelectionService.pickFromGallery();
+    if (!mounted) return;
+    if (selected == null || selected.localUri.isEmpty) {
+      setState(() {
+        _photoNotice = '未选择照片，或当前平台暂不支持系统相册入口';
+        _isRegistering = false;
+      });
+      return;
+    }
+
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final upload = await _photoExperienceService.createUploadMetadata(
-      filename: 'user-import-$timestamp.jpg',
-      contentType: 'image/jpeg',
+      filename: selected.filename,
+      contentType: selected.mimeType,
     );
     final candidate = await _photoExperienceService.createCandidate(
-      id: 'manual-photo-$timestamp',
+      id: 'selected-photo-$timestamp',
       remoteUrl: upload['remoteUrl']?.toString(),
-      location: '手动导入照片',
+      location: selected.source == 'camera' ? '相机拍摄照片' : '系统相册照片',
       score: 8.6,
-      description: '已登记为旅拍候选，本地路径不会上传保存。',
-      tags: const ['手动导入', '待分析'],
+      description: '已登记为旅拍候选，本地照片 URI 仅在设备端用于选择确认，不上传保存。',
+      tags: [selected.source == 'camera' ? '相机拍摄' : '相册导入', '待分析'],
     );
     if (!mounted) return;
     setState(() {
       _candidates = [candidate, ..._candidates];
-      _photoNotice = '已登记候选照片，本地路径不会上传保存';
+      _photoNotice = '已登记 ${selected.filename}，本地路径不会上传保存';
       _isRegistering = false;
     });
   }
