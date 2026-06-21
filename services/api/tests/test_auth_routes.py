@@ -2,6 +2,7 @@ import base64
 import hmac
 import json
 from time import time
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -110,3 +111,74 @@ def test_legacy_access_token_remains_accepted_for_existing_sessions():
     assert me.status_code == 200
     assert me.json()["userId"] == user_id
     assert me.json()["isGuest"] is True
+
+
+def test_guest_can_upgrade_to_password_account_without_losing_owned_data():
+    suffix = uuid4().hex
+    guest = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"upgrade-device-{suffix}", "displayName": "Guest Upgrade"},
+    )
+    assert guest.status_code == 200
+    guest_payload = guest.json()
+    guest_user_id = guest_payload["userId"]
+
+    memory = client.post(
+        "/api/memory/capsules",
+        json={
+            "id": f"mem-upgrade-device-{suffix}",
+            "userId": guest_user_id,
+            "title": "Night view",
+            "content": "Keep night-view spots in plans.",
+            "scope": "longTerm",
+        },
+    )
+    assert memory.status_code == 200
+    trip = client.post(
+        "/api/trip/plan",
+        json={
+            "userId": guest_user_id,
+            "tripId": f"trip-upgrade-device-{suffix}",
+            "destination": "Chongqing",
+            "message": "Plan two relaxed days.",
+        },
+    )
+    assert trip.status_code == 200
+
+    upgraded = client.post(
+        "/api/auth/upgrade-guest",
+        headers={"Authorization": f"Bearer {guest_payload['accessToken']}"},
+        json={
+            "account": f"upgrade-device-{suffix}@example.com",
+            "password": "secret123",
+            "displayName": "Upgraded User",
+        },
+    )
+
+    assert upgraded.status_code == 200
+    upgraded_payload = upgraded.json()
+    assert upgraded_payload["userId"] == guest_user_id
+    assert upgraded_payload["isGuest"] is False
+    assert upgraded_payload["authMode"] == "password"
+    assert upgraded_payload["migrationSummary"]["memories"] >= 1
+    assert upgraded_payload["migrationSummary"]["trips"] >= 1
+
+    me = client.get(
+        "/api/users/me",
+        headers={"Authorization": f"Bearer {upgraded_payload['accessToken']}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["isGuest"] is False
+    assert me.json()["authMode"] == "password"
+
+    login = client.post(
+        "/api/auth/login",
+        json={"account": f"upgrade-device-{suffix}@example.com", "password": "secret123"},
+    )
+    assert login.status_code == 200
+    assert login.json()["userId"] == guest_user_id
+
+    memories = client.get("/api/memory/capsules", params={"userId": guest_user_id})
+    current_trip = client.get("/api/trip/current", params={"userId": guest_user_id})
+    assert any(item["id"] == f"mem-upgrade-device-{suffix}" for item in memories.json()["items"])
+    assert current_trip.json()["tripId"] == f"trip-upgrade-device-{suffix}"

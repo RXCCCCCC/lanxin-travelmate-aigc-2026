@@ -488,6 +488,42 @@ P1 支持的 `triggerType`：
 }
 ```
 
+### `POST /api/auth/upgrade-guest`
+
+需要 `Authorization: Bearer <guestAccessToken>`。将当前游客原地升级为密码账号，不改变 `userId`，因此该游客名下已经持久化的记忆、画像、旅程、照片候选、提醒历史、路线点、蓝小心状态事件和同步记录继续按同一用户归属读取。请求账号已存在时返回 `409`。
+
+请求：
+```json
+{
+  "account": "user@example.com",
+  "password": "secret123",
+  "displayName": "蓝心用户"
+}
+```
+
+响应包含新的非游客 JWT、迁移策略和归属数据摘要：
+```json
+{
+  "userId": "guest-device-a",
+  "displayName": "蓝心用户",
+  "authMode": "password",
+  "isGuest": false,
+  "accessToken": "<jwt>",
+  "migrationStrategy": "in_place_guest_upgrade",
+  "migrationSummary": {
+    "memories": 1,
+    "profiles": 1,
+    "trips": 1,
+    "photoCandidates": 0,
+    "reminders": 0,
+    "groupCoordinations": 0,
+    "blindBoxTasks": 0,
+    "routePoints": 0,
+    "avatarStateEvents": 0,
+    "syncRecords": 0
+  }
+}
+```
 ### `POST /api/auth/login`
 
 账号密码登录，返回 `accessToken`。token 为三段式 JWT，payload 至少包含 `sub`、`isGuest`、`iat`、`exp`。
