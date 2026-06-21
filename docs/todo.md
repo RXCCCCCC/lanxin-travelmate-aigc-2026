@@ -1,6 +1,6 @@
 # 蓝心同行 Todo：真实产品完善计划
 
-> 更新时间：2026-06-20
+> 更新时间：2026-06-21
 > 依据：`docs/product/PRD.md`、`docs/product/开发路线(ai看).md`、当前仓库实现状态。
 > 口径：本文件只保留未完成事项；现有 Flutter/FastAPI/LangGraph 骨架、演示闭环、移动端适配和基础文档不再重复记录。
 
@@ -15,9 +15,10 @@
 目标：把当前 Mock Agent 升级为真实模型驱动的结构化 Agent。
 
 - 🚧 接入真实 `LanxinModelProvider`，并保留 OpenAI 兼容 Provider 作为可选后备；代码接口已接入，待真实密钥联调。
-- 🚧 为聊天、记忆抽取、规划、旅拍文案、复盘生成建立中文 Prompt 与 JSON Schema 校验；已新增通用 Prompt/模型输出 schema，待扩展到全部节点。
-- 🚧 将 `mock_nodes.py` 拆为真实节点、降级节点和共享 schema，节点输出必须可验证；已先接入 Provider 工厂和规划节点降级日志。
+- ✅ 为全部 11 个节点场景建立中文 Prompt 模板与 JSON Schema 校验（intent_router, memory_extractor, memory_writer, trip_context_builder, tool_planner, trip_planner, trip_adjuster, reminder_checker, photo_analyzer, copywriter, review_generator）。
+- ✅ 将 `mock_nodes.py` 拆为 `common.py`（7 个机械节点）、`fallback_nodes.py`（12 个规则节点）、`real_nodes.py`（12 个 LLM 节点，自动降级），`mock_nodes.py` 保留为向后兼容层。
 - ✅ 增加模型调用日志：provider、耗时、错误码、降级原因、脱敏请求摘要。
+- ✅ `graph.py` 支持 `TravelMateGraph(use_real=True/False)` 动态选择节点实现。
 - ⬜ 完成真实蓝心模型效果验证记录：记忆抽取、规划推理、角色化对话、文案生成、多模态理解。
 
 人工介入：蓝心 API 地址、鉴权方式、密钥、模型名、额度；如使用 OpenAI 兼容服务，也需提供 base URL、模型名和密钥。
@@ -91,7 +92,7 @@
 
 目标：可构建、可测试、可部署、可交接。
 
-- ⬜ 为真实 Provider、工具服务、数据库同步、端侧权限和核心闭环补单元/集成测试。
+- 🚧 为真实 Provider、工具服务、数据库同步、端侧权限和核心闭环补单元/集成测试；已补 34 个新测试（E2E 闭环 8 个、模型 Provider 错误路径 13 个、持久化边界 7 个、同步冲突 6 个、工具 Provider 边界 2 个），总计 116 个测试。
 - 🚧 Docker Compose 已配置 API 指向 Postgres、Postgres healthcheck、API 启动前 `alembic upgrade head`；待人工/CI 环境执行 `docker compose up` 验证真实容器初始化。
 - ⬜ GitHub Actions 增加真实 secrets 下的可选 smoke test，并避免密钥泄露。
 - ⬜ Android APK 构建通过，确认 SDK、包名、签名、版本号和安装测试。

@@ -312,3 +312,73 @@ def test_amap_provider_rate_limits_before_http(monkeypatch):
 
     monkeypatch.delenv("LANXIN_TOOL_RATE_LIMIT_PER_MINUTE", raising=False)
     get_settings.cache_clear()
+
+
+# ── 3.5 工具 Provider 边界场景 ──────────────────────────────────────────────
+
+
+def test_amap_cached_result_skips_http(monkeypatch):
+    """缓存命中时不再发起 HTTP 请求。"""
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "test-key")
+    get_settings.cache_clear()
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "status": "1",
+                "pois": [{"name": "西湖", "type": "风景", "address": "杭州", "location": "120.14,30.23"}],
+            }
+
+    import httpx
+    calls = {"count": 0}
+
+    def counting_get(self, url, params=None):
+        calls["count"] += 1
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx.Client, "get", counting_get)
+
+    keyword = f"CacheSkip-{uuid4().hex}"
+    registry = build_tool_registry()
+    registry.call("poi_tool", {"city": "Hangzhou", "keyword": keyword})
+    registry.call("poi_tool", {"city": "Hangzhou", "keyword": keyword})
+    assert calls["count"] == 1
+    get_settings.cache_clear()
+
+
+def test_amap_provider_mixed_partial_results(monkeypatch):
+    """天气成功但 POI 失败时各自返回独立结果。"""
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "test-key")
+    get_settings.cache_clear()
+
+    class WeatherResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "status": "1",
+                "lives": [{"city": "杭州市", "weather": "多云", "temperature": "22",
+                           "reporttime": "2026-06-19 10:00:00"}],
+            }
+
+    import httpx as _httpx
+
+    def mixed_get(self, url, params=None):
+        if "weather" in url:
+            return WeatherResponse()
+        raise _httpx.ConnectTimeout("poi timeout")
+
+    monkeypatch.setattr(_httpx.Client, "get", mixed_get)
+    registry = build_tool_registry()
+
+    weather = registry.call("weather_tool", {"city": "Hangzhou"})
+    poi = registry.call("poi_tool", {"city": "Hangzhou", "keyword": "西湖"})
+
+    assert weather["fallback"] is False
+    assert weather["condition"] == "多云"
+    assert poi["fallback"] is True
+    get_settings.cache_clear()

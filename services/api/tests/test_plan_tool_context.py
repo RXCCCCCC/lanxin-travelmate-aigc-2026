@@ -1,6 +1,6 @@
 from app.agents.travelmate.graph import TravelMateGraph
 from app.agents.travelmate.state import create_initial_state
-from app.agents.travelmate.nodes import mock_nodes
+from app.agents.travelmate.nodes import common
 
 
 class FakeRegistry:
@@ -42,7 +42,7 @@ class FakeRegistry:
 
 
 def test_trip_plan_includes_real_tool_context(monkeypatch):
-    monkeypatch.setattr(mock_nodes, 'build_tool_registry', lambda: FakeRegistry())
+    monkeypatch.setattr(common, 'build_tool_registry', lambda: FakeRegistry())
     state = create_initial_state(
         message='plan a relaxed Chongqing weekend with night views',
         session_id='tool-context-session',
