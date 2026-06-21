@@ -31,6 +31,8 @@ def test_flutter_notification_delivery_service_uses_platform_channel():
     assert "showReminderNotification" in text
     assert "title" in text
     assert "body" in text
+    assert "lastFailureMessage" in text
+    assert "notification_permission_denied" in text
 
 
 def test_reminder_page_delivers_system_notification_for_reminders():
@@ -40,6 +42,7 @@ def test_reminder_page_delivers_system_notification_for_reminders():
     assert "showReminder(" in text
     assert "_notificationStatus" in text
     assert "Icons.notifications_active_rounded" in text
+    assert "_notificationDeliveryService.lastFailureMessage" in text
 
 
 def test_android_main_activity_handles_notification_channel():
@@ -51,3 +54,4 @@ def test_android_main_activity_handles_notification_channel():
     assert "NotificationCompat.Builder" in text
     assert "POST_NOTIFICATIONS" in text
     assert "notificationPermissionRequestCode" in text
+    assert "notification_permission_denied" in text

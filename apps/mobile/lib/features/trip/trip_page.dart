@@ -169,7 +169,8 @@ class _TripPageState extends State<TripPage> {
     setState(() {
       _locatingOrigin = false;
       if (location == null) {
-        _locationNotice = '无法获取真实定位，请确认系统定位权限或手动输入坐标';
+        _locationNotice =
+            _locationService.lastFailureMessage ?? '无法获取真实定位，请确认系统定位权限或手动输入坐标';
         return;
       }
       _originCoordinateController.text = location.coordinateText;

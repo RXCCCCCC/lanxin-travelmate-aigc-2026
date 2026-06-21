@@ -28,6 +28,9 @@ def test_flutter_photo_selection_service_uses_platform_channel():
     assert "Future<SelectedPhoto?> pickFromGallery()" in text
     assert "Future<SelectedPhoto?> takePhoto()" in text
     assert "localUri" in text
+    assert "lastFailureMessage" in text
+    assert "gallery_unavailable" in text
+    assert "camera_unavailable" in text
 
 
 def test_photo_page_registers_real_selected_photo_without_uploading_local_path():
@@ -38,6 +41,7 @@ def test_photo_page_registers_real_selected_photo_without_uploading_local_path()
     assert "takePhoto()" in text
     assert "Icons.photo_camera_rounded" in text
     assert "selected.localUri" in text
+    assert "_photoSelectionService.lastFailureMessage" in text
     assert "localPath:" not in text
 
 

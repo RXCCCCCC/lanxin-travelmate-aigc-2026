@@ -120,14 +120,18 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             startActivityForResult(intent, speechRequestCode)
         } catch (_: Exception) {
             pendingVoiceResult = null
-            result.success(null)
+            result.error("voice_unavailable", "No speech recognizer can handle voice input", null)
         }
     }
 
     private fun speakText(text: String, result: MethodChannel.Result) {
         val value = text.trim()
-        if (value.isEmpty() || !ttsReady) {
+        if (value.isEmpty()) {
             result.success(false)
+            return
+        }
+        if (!ttsReady) {
+            result.error("tts_unavailable", "TextToSpeech is not ready", null)
             return
         }
         val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -335,7 +339,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                 if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
                     resolveCurrentLocation(result)
                 } else {
-                    result.success(null)
+                    result.error("location_permission_denied", "Location permission was denied", null)
                 }
             }
             recordAudioPermissionRequestCode -> {
@@ -344,7 +348,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                 if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
                     launchSpeechRecognizer(result)
                 } else {
-                    result.success(null)
+                    result.error("microphone_permission_denied", "Microphone permission was denied", null)
                 }
             }
             notificationPermissionRequestCode -> {
@@ -355,7 +359,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                 if (grantResults.any { it == PackageManager.PERMISSION_GRANTED } && payload != null) {
                     result.success(deliverReminderNotification(payload))
                 } else {
-                    result.success(false)
+                    result.error("notification_permission_denied", "Notification permission was denied", null)
                 }
             }
         }

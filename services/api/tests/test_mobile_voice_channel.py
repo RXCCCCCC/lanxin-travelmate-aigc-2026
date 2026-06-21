@@ -29,6 +29,10 @@ def test_flutter_voice_interaction_service_uses_platform_channel():
     assert "Future<bool> speak(String text)" in text
     assert "startVoiceInput" in text
     assert "speakText" in text
+    assert "lastFailureMessage" in text
+    assert "microphone_permission_denied" in text
+    assert "voice_unavailable" in text
+    assert "tts_unavailable" in text
 
 
 def test_chat_page_exposes_voice_input_and_reply_speech():
@@ -41,6 +45,7 @@ def test_chat_page_exposes_voice_input_and_reply_speech():
     assert "Icons.mic_rounded" in text
     assert "Icons.volume_up_rounded" in text
     assert "_voiceNotice" in text
+    assert "_voiceInteractionService.lastFailureMessage" in text
 
 
 def test_android_main_activity_handles_voice_channel():
@@ -53,3 +58,6 @@ def test_android_main_activity_handles_voice_channel():
     assert "TextToSpeech" in text
     assert "RECORD_AUDIO" in text
     assert "onInit" in text
+    assert "microphone_permission_denied" in text
+    assert "voice_unavailable" in text
+    assert "tts_unavailable" in text

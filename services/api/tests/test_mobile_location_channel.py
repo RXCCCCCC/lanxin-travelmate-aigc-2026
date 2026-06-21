@@ -29,6 +29,9 @@ def test_flutter_location_selection_service_uses_platform_channel():
     assert "latitude" in text
     assert "longitude" in text
     assert "accuracyMeters" in text
+    assert "lastFailureMessage" in text
+    assert "location_permission_denied" in text
+    assert "location_unavailable" in text
 
 
 def test_trip_page_can_fill_origin_coordinate_from_current_location():
@@ -39,6 +42,7 @@ def test_trip_page_can_fill_origin_coordinate_from_current_location():
     assert "originCoordinateController.text" in text
     assert "Icons.my_location_rounded" in text
     assert "真实定位" in text
+    assert "_locationService.lastFailureMessage" in text
 
 
 def test_android_main_activity_handles_location_channel():
@@ -50,3 +54,4 @@ def test_android_main_activity_handles_location_channel():
     assert "ACCESS_FINE_LOCATION" in text
     assert "requestPermissions" in text
     assert "onRequestPermissionsResult" in text
+    assert "location_permission_denied" in text

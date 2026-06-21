@@ -92,9 +92,9 @@ class _PhotoPageState extends State<PhotoPage> {
     if (!mounted) return;
     if (selected == null || selected.localUri.isEmpty) {
       setState(() {
-        _photoNotice = fromCamera
-            ? '未完成拍摄，或当前平台暂不支持系统相机入口'
-            : '未选择照片，或当前平台暂不支持系统相册入口';
+        _photoNotice =
+            _photoSelectionService.lastFailureMessage ??
+            (fromCamera ? '未完成拍摄' : '未选择照片');
         _isRegistering = false;
       });
       return;

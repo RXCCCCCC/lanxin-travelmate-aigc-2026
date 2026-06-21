@@ -128,7 +128,10 @@ class _ChatPageState extends State<ChatPage> {
     final spoken = await _voiceInteractionService.speak(voiceText);
     if (!mounted) return;
     setState(() {
-      _voiceNotice = spoken ? null : '系统语音播报暂不可用，已保留文字回复';
+      _voiceNotice = spoken
+          ? null
+          : (_voiceInteractionService.lastFailureMessage ??
+                '系统语音播报暂不可用，已保留文字回复');
     });
   }
 
@@ -143,7 +146,9 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _isListening = false;
       if (text == null || text.isEmpty) {
-        _voiceNotice = '未识别到语音内容，请确认麦克风权限或使用文字输入';
+        _voiceNotice =
+            _voiceInteractionService.lastFailureMessage ??
+            '未识别到语音内容，请确认麦克风权限或使用文字输入';
         return;
       }
       _controller.text = text;

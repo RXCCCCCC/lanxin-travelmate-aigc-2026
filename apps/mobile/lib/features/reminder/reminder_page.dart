@@ -129,7 +129,8 @@ class _ReminderPageState extends State<ReminderPage> {
     setState(() {
       _notificationStatus = delivered
           ? '$source提醒已发送到系统通知'
-          : '系统通知暂不可用，已保留应用内提醒';
+          : (_notificationDeliveryService.lastFailureMessage ??
+                '系统通知暂不可用，已保留应用内提醒');
     });
   }
 
