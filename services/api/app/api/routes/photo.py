@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from app.agents.travelmate.schemas import PhotoCopywritingOutput
 from app.core.config import get_settings
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import PhotoCandidateRecord, UploadedFile, utc_now
 from app.db.session import get_session
 from app.services.model_providers import ModelProviderError, build_model_provider
@@ -141,27 +142,30 @@ def _copywriting_fallback(
 
 @router.get("/candidates")
 def list_photo_candidates(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
     tripId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, list[dict[str, object]]]:
-    statement = select(PhotoCandidateRecord).where(PhotoCandidateRecord.user_id == userId)
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    statement = select(PhotoCandidateRecord).where(PhotoCandidateRecord.user_id == effective_user_id)
     if tripId:
         statement = statement.where(PhotoCandidateRecord.trip_id == tripId)
     items = session.exec(statement.order_by(PhotoCandidateRecord.updated_at.desc())).all()
     return {"items": [_candidate_response(item) for item in items]}
 
-
 @router.post("/candidates")
 def create_photo_candidate(
     payload: PhotoCandidatePayload,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     now = utc_now()
     candidate_id = payload.id or f"photo-{uuid4().hex}"
     item = session.get(PhotoCandidateRecord, candidate_id)
     if item:
-        item.user_id = payload.userId
+        item.user_id = effective_user_id
         item.trip_id = payload.tripId
         item.local_uri = None
         item.remote_url = payload.remoteUrl
@@ -174,7 +178,7 @@ def create_photo_candidate(
     else:
         item = PhotoCandidateRecord(
             id=candidate_id,
-            user_id=payload.userId,
+            user_id=effective_user_id,
             trip_id=payload.tripId,
             local_uri=None,
             remote_url=payload.remoteUrl,
@@ -191,15 +195,16 @@ def create_photo_candidate(
     session.refresh(item)
     return _candidate_response(item)
 
-
 @router.post("/upload-metadata")
 def create_upload_metadata(
     payload: PhotoUploadMetadataRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     item = UploadedFile(
         id=f"file-{uuid4().hex}",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         filename=payload.filename,
         content_type=payload.contentType,
         local_path=None,
@@ -220,19 +225,25 @@ def create_upload_metadata(
         "createdAt": item.created_at.isoformat(),
     }
 
-
 @router.post("/copywriting")
-def create_photo_copywriting(payload: CopywritingRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+def create_photo_copywriting(
+    payload: CopywritingRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     if payload.photoIds:
         candidates = session.exec(
             select(PhotoCandidateRecord).where(
-                PhotoCandidateRecord.user_id == payload.userId,
+                PhotoCandidateRecord.user_id == effective_user_id,
                 PhotoCandidateRecord.id.in_(payload.photoIds),
             )
         ).all()
     else:
         candidates = session.exec(
-            select(PhotoCandidateRecord).where(PhotoCandidateRecord.user_id == payload.userId).order_by(PhotoCandidateRecord.updated_at.desc())
+            select(PhotoCandidateRecord)
+            .where(PhotoCandidateRecord.user_id == effective_user_id)
+            .order_by(PhotoCandidateRecord.updated_at.desc())
         ).all()
     try:
         copywriting = _copywriting_with_model(candidates, payload.persona, payload.style)

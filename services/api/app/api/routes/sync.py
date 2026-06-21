@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import CloudMemory, CloudTrip, CloudUserProfile, SyncRecord, utc_now
 from app.db.session import get_session
 
@@ -116,7 +117,12 @@ def _memory_response(memory: CloudMemory) -> dict[str, object]:
 
 
 @router.post("/push")
-def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+def push_sync(
+    payload: SyncPushRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     now = utc_now()
     pushed = {"memories": 0, "profile": 0, "trips": 0}
     conflicts: list[dict[str, object]] = []
@@ -126,7 +132,7 @@ def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session))
         has_conflict = memory is not None and client_updated_at is not None and _timestamp(client_updated_at) < _timestamp(memory.updated_at)
         if memory and has_conflict and payload.conflictStrategy != "clientWins":
             conflicts.append(_memory_conflict(memory, item, "serverWins"))
-            _record_sync(session, payload.userId, "memory", item.id, "conflict_server_wins")
+            _record_sync(session, effective_user_id, "memory", item.id, "conflict_server_wins")
             continue
         if memory:
             if has_conflict:
@@ -141,7 +147,7 @@ def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session))
         else:
             memory = CloudMemory(
                 id=item.id,
-                user_id=payload.userId,
+                user_id=effective_user_id,
                 title=item.title,
                 content=item.content,
                 scope=item.scope,
@@ -152,11 +158,11 @@ def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session))
                 updated_at=client_updated_at or now,
             )
         session.add(memory)
-        _record_sync(session, payload.userId, "memory", item.id, "pushed")
+        _record_sync(session, effective_user_id, "memory", item.id, "pushed")
         pushed["memories"] += 1
 
     if payload.profile:
-        profile = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == payload.userId)).first()
+        profile = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == effective_user_id)).first()
         profile_json = json.dumps(payload.profile.model_dump(), ensure_ascii=False)
         if profile:
             profile.profile_json = profile_json
@@ -164,12 +170,12 @@ def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session))
         else:
             profile = CloudUserProfile(
                 id=f"profile-{uuid4().hex}",
-                user_id=payload.userId,
+                user_id=effective_user_id,
                 profile_json=profile_json,
                 updated_at=now,
             )
         session.add(profile)
-        _record_sync(session, payload.userId, "profile", profile.id, "pushed")
+        _record_sync(session, effective_user_id, "profile", profile.id, "pushed")
         pushed["profile"] = 1
 
     for item in payload.trips:
@@ -182,7 +188,7 @@ def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session))
         else:
             trip = CloudTrip(
                 id=item.id,
-                user_id=payload.userId,
+                user_id=effective_user_id,
                 destination=item.destination,
                 status=item.status,
                 plan_json=json.dumps(item.plan, ensure_ascii=False),
@@ -190,20 +196,24 @@ def push_sync(payload: SyncPushRequest, session: Session = Depends(get_session))
                 updated_at=now,
             )
         session.add(trip)
-        _record_sync(session, payload.userId, "trip", item.id, "pushed")
+        _record_sync(session, effective_user_id, "trip", item.id, "pushed")
         pushed["trips"] += 1
 
     session.commit()
     return {"status": "ok", "pushed": pushed, "conflicts": conflicts}
 
-
 @router.get("/pull")
-def pull_sync(userId: str = Query(default="guest"), session: Session = Depends(get_session)) -> dict[str, object]:
-    memories = session.exec(select(CloudMemory).where(CloudMemory.user_id == userId)).all()
-    profile = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == userId)).first()
-    trips = session.exec(select(CloudTrip).where(CloudTrip.user_id == userId)).all()
+def pull_sync(
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    memories = session.exec(select(CloudMemory).where(CloudMemory.user_id == effective_user_id)).all()
+    profile = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == effective_user_id)).first()
+    trips = session.exec(select(CloudTrip).where(CloudTrip.user_id == effective_user_id)).all()
     return {
-        "userId": userId,
+        "userId": effective_user_id,
         "memories": [_memory_response(memory) for memory in memories],
         "profile": json.loads(profile.profile_json) if profile else None,
         "trips": [
@@ -218,43 +228,52 @@ def pull_sync(userId: str = Query(default="guest"), session: Session = Depends(g
         ],
     }
 
-
 @router.post("/selected-memory")
-def sync_selected_memory(payload: SelectedMemorySyncRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+def sync_selected_memory(
+    payload: SelectedMemorySyncRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     memories = session.exec(
-        select(CloudMemory).where(CloudMemory.user_id == payload.userId, CloudMemory.id.in_(payload.memoryIds))
+        select(CloudMemory).where(CloudMemory.user_id == effective_user_id, CloudMemory.id.in_(payload.memoryIds))
     ).all()
     for memory in memories:
-        _record_sync(session, payload.userId, "memory", memory.id, "selected")
+        _record_sync(session, effective_user_id, "memory", memory.id, "selected")
     session.commit()
     return {"status": "ok", "selected": [_memory_response(memory) for memory in memories]}
 
 @router.post("/revoke")
-def revoke_sync(payload: RevokeSyncRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+def revoke_sync(
+    payload: RevokeSyncRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     revoked = {"memories": 0, "profile": 0, "trips": 0}
     records: list[dict[str, object]] = []
 
     for memory_id in payload.memories:
         memory = session.get(CloudMemory, memory_id)
-        if memory and memory.user_id == payload.userId:
+        if memory and memory.user_id == effective_user_id:
             session.delete(memory)
-            _record_sync(session, payload.userId, "memory", memory_id, "revoked")
+            _record_sync(session, effective_user_id, "memory", memory_id, "revoked")
             records.append({"entityType": "memory", "entityId": memory_id, "status": "revoked"})
             revoked["memories"] += 1
 
     if payload.profile:
-        profiles = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == payload.userId)).all()
+        profiles = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == effective_user_id)).all()
         for profile in profiles:
             session.delete(profile)
-            _record_sync(session, payload.userId, "profile", profile.id, "revoked")
+            _record_sync(session, effective_user_id, "profile", profile.id, "revoked")
             records.append({"entityType": "profile", "entityId": profile.id, "status": "revoked"})
             revoked["profile"] += 1
 
     for trip_id in payload.trips:
         trip = session.get(CloudTrip, trip_id)
-        if trip and trip.user_id == payload.userId:
+        if trip and trip.user_id == effective_user_id:
             session.delete(trip)
-            _record_sync(session, payload.userId, "trip", trip_id, "revoked")
+            _record_sync(session, effective_user_id, "trip", trip_id, "revoked")
             records.append({"entityType": "trip", "entityId": trip_id, "status": "revoked"})
             revoked["trips"] += 1
 

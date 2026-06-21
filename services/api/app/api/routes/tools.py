@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import ToolCallLog, utc_now
 from app.db.session import get_session
 from app.tools.registry import build_tool_registry
@@ -41,16 +42,18 @@ def list_tools() -> dict[str, list[str]]:
 def call_tool(
     tool_name: str,
     request: ToolCallRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
     registry = build_tool_registry()
     if tool_name not in registry.tool_names():
         raise HTTPException(status_code=404, detail="Tool not registered")
+    effective_user_id = resolve_effective_user_id(request.userId, current_user)
     result = registry.call(tool_name, dict(request.payload))
     trace_id = _log_tool_call(session, tool_name, result)
     return {
         "toolTraceId": trace_id,
         "toolName": tool_name,
-        "userId": request.userId,
+        "userId": effective_user_id,
         "result": result,
     }
