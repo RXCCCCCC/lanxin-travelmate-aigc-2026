@@ -109,7 +109,7 @@ def default_temporary_memories() -> list[dict[str, Any]]:
 
 def build_fallback_review_payload(next_state: TravelMateState) -> dict[str, Any]:
     return {
-        "route": next_state["context"].get("route") or "解放碑 -> 山城步道 -> 洪崖洞 -> 南山一棵树",
+        "route": next_state["context"].get("route") or "解放碑 \u2192 山城步道 \u2192 洪崖洞 \u2192 南山一棵树",
         "highlightPhotos": next_state["context"].get("highlightPhotos") or ["洪崖洞夜景"],
         "newMemories": next_state["context"].get("newMemories") or [
             item["title"] for item in next_state["memory_candidates"]

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.agents.travelmate.graph import TravelMateGraph
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.agents.travelmate.state import create_initial_state
 from app.db.models import AvatarStateEventRecord, BlindBoxTaskRecord, CloudMemory, CloudTrip, CloudTripReview, GroupCoordinationRecord, PhotoCandidateRecord, ReminderEvent, TripRoutePointRecord, utc_now
 from app.db.session import get_session
@@ -268,43 +269,46 @@ def _group_coordination_response(record: GroupCoordinationRecord) -> dict[str, o
 
 @router.get("/current")
 def read_current_trip(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(userId, current_user)
     trip = session.exec(
-        select(CloudTrip).where(CloudTrip.user_id == userId).order_by(CloudTrip.updated_at.desc())
+        select(CloudTrip).where(CloudTrip.user_id == effective_user_id).order_by(CloudTrip.updated_at.desc())
     ).first()
     if not trip:
-        return {"tripId": None, "userId": userId, "status": "empty", "plan": {}}
+        return {"tripId": None, "userId": effective_user_id, "status": "empty", "plan": {}}
     return _trip_response(trip)
-
 
 @router.get('/dashboard')
 def read_trip_dashboard(
-    userId: str = Query(default='guest'),
+    userId: str | None = Query(default=None),
     tripId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(userId, current_user)
     trip = None
     if tripId:
         candidate = session.get(CloudTrip, tripId)
-        if candidate and candidate.user_id == userId:
+        if candidate and candidate.user_id == effective_user_id:
             trip = candidate
     if trip is None:
         trip = session.exec(
-            select(CloudTrip).where(CloudTrip.user_id == userId).order_by(CloudTrip.updated_at.desc())
+            select(CloudTrip).where(CloudTrip.user_id == effective_user_id).order_by(CloudTrip.updated_at.desc())
         ).first()
 
     resolved_trip_id = trip.id if trip else tripId
     current_trip: dict[str, object] = _trip_response(trip) if trip else {
         'tripId': resolved_trip_id,
-        'userId': userId,
+        'userId': effective_user_id,
         'status': 'empty',
         'plan': {},
     }
-    route_points = _route_points_payload(_stored_route_points(session, userId, resolved_trip_id)) if resolved_trip_id else {'points': [], 'route': ''}
+    route_points = _route_points_payload(_stored_route_points(session, effective_user_id, resolved_trip_id)) if resolved_trip_id else {'points': [], 'route': ''}
 
-    reminder_statement = select(ReminderEvent).where(ReminderEvent.user_id == userId)
+    reminder_statement = select(ReminderEvent).where(ReminderEvent.user_id == effective_user_id)
     if resolved_trip_id:
         reminder_statement = reminder_statement.where(ReminderEvent.trip_id == resolved_trip_id)
     reminders = session.exec(reminder_statement.order_by(ReminderEvent.created_at.desc())).all()
@@ -312,13 +316,13 @@ def read_trip_dashboard(
     reviews = session.exec(select(CloudTripReview).where(CloudTripReview.trip_id == resolved_trip_id)).all() if resolved_trip_id else []
     photos = session.exec(
         select(PhotoCandidateRecord)
-        .where(PhotoCandidateRecord.user_id == userId)
+        .where(PhotoCandidateRecord.user_id == effective_user_id)
         .where(PhotoCandidateRecord.trip_id == resolved_trip_id)
         .order_by(PhotoCandidateRecord.updated_at.desc())
     ).all() if resolved_trip_id else []
     memories = session.exec(
         select(CloudMemory)
-        .where(CloudMemory.user_id == userId)
+        .where(CloudMemory.user_id == effective_user_id)
         .where(CloudMemory.source_text == resolved_trip_id)
         .order_by(CloudMemory.updated_at.desc())
     ).all() if resolved_trip_id else []
@@ -327,7 +331,7 @@ def read_trip_dashboard(
     if resolved_trip_id:
         task_records = session.exec(
             select(BlindBoxTaskRecord)
-            .where(BlindBoxTaskRecord.user_id == userId)
+            .where(BlindBoxTaskRecord.user_id == effective_user_id)
             .where(BlindBoxTaskRecord.trip_id == resolved_trip_id)
             .order_by(BlindBoxTaskRecord.updated_at.desc())
         ).all()
@@ -345,9 +349,9 @@ def read_trip_dashboard(
         })
         blind_box_tasks.append(item)
 
-    avatar_events = _stored_avatar_state_events(session, userId, resolved_trip_id) if resolved_trip_id else []
+    avatar_events = _stored_avatar_state_events(session, effective_user_id, resolved_trip_id) if resolved_trip_id else []
     return {
-        'userId': userId,
+        'userId': effective_user_id,
         'tripId': resolved_trip_id,
         'currentTrip': current_trip,
         'routePoints': route_points,
@@ -358,7 +362,6 @@ def read_trip_dashboard(
         'photoCandidates': {'items': [_photo_candidate_response(record) for record in photos]},
         'memories': {'items': [_memory_response(memory) for memory in memories]},
     }
-
 
 def _apply_planning_input_explanations(plan: dict[str, object], planning_inputs: dict[str, object]) -> None:
     profile_matches = list(plan.get("profileMatches") or [])
@@ -393,8 +396,13 @@ def _apply_planning_input_explanations(plan: dict[str, object], planning_inputs:
 
 
 @router.post("/plan")
-def create_trip_plan(payload: TripPlanRequest, session: Session = Depends(get_session)) -> dict[str, object]:
-    trip_id = payload.tripId or f"current-{payload.userId}-trip"
+def create_trip_plan(
+    payload: TripPlanRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
+    trip_id = payload.tripId or f"current-{effective_user_id}-trip"
     planning_inputs: dict[str, object] = {
         "destination": payload.destination,
         "originCoordinate": payload.originCoordinate,
@@ -411,7 +419,7 @@ def create_trip_plan(payload: TripPlanRequest, session: Session = Depends(get_se
     state = create_initial_state(
         message=payload.message,
         session_id="demo-session",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=trip_id,
         context={"planningInputs": planning_inputs},
     )
@@ -435,7 +443,7 @@ def create_trip_plan(payload: TripPlanRequest, session: Session = Depends(get_se
     else:
         trip = CloudTrip(
             id=trip_id,
-            user_id=payload.userId,
+            user_id=effective_user_id,
             destination=destination,
             status="planning",
             start_date=payload.startDate,
@@ -454,37 +462,41 @@ def create_trip_plan(payload: TripPlanRequest, session: Session = Depends(get_se
 
 @router.delete("/current")
 def clear_current_trip(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    trips = session.exec(select(CloudTrip).where(CloudTrip.user_id == userId)).all()
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    trips = session.exec(select(CloudTrip).where(CloudTrip.user_id == effective_user_id)).all()
     count = len(trips)
     for trip in trips:
         session.delete(trip)
     session.commit()
-    return {"deleted": count, "userId": userId}
+    return {"deleted": count, "userId": effective_user_id}
 
 
 @router.post("/review")
 def create_trip_review(
     payload: TripReviewRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    trip_id = payload.tripId or f"current-{payload.userId}-trip"
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
+    trip_id = payload.tripId or f"current-{effective_user_id}-trip"
     state = create_initial_state(
         message=payload.message,
         session_id="demo-session",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=trip_id,
         context={
-            "completedTasks": payload.completedTasks or _completed_blind_box_tasks(session, payload.userId, trip_id),
-            "temporaryMemories": payload.temporaryMemories or _review_temporary_memories(session, payload.userId, trip_id),
-            "newMemories": _review_new_memories(session, payload.userId, trip_id),
-            "highlightPhotos": _review_photo_highlights(session, payload.userId, trip_id),
-            "reminderHighlights": _review_reminder_highlights(session, payload.userId, trip_id),
-            "avatarStatusChanges": _review_avatar_status_changes(session, payload.userId, trip_id),
-            "route": _review_route(session, payload.userId, trip_id),
-            "nextTripSuggestions": _review_next_trip_suggestions(session, payload.userId, trip_id),
+            "completedTasks": payload.completedTasks or _completed_blind_box_tasks(session, effective_user_id, trip_id),
+            "temporaryMemories": payload.temporaryMemories or _review_temporary_memories(session, effective_user_id, trip_id),
+            "newMemories": _review_new_memories(session, effective_user_id, trip_id),
+            "highlightPhotos": _review_photo_highlights(session, effective_user_id, trip_id),
+            "reminderHighlights": _review_reminder_highlights(session, effective_user_id, trip_id),
+            "avatarStatusChanges": _review_avatar_status_changes(session, effective_user_id, trip_id),
+            "route": _review_route(session, effective_user_id, trip_id),
+            "nextTripSuggestions": _review_next_trip_suggestions(session, effective_user_id, trip_id),
             "profileContext": payload.profileContext,
         },
     )
@@ -518,12 +530,14 @@ def read_trip_review(
 @router.post("/reminders/trigger")
 def trigger_reminders(
     payload: ReminderTriggerRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     state = create_initial_state(
         message=f"触发提醒：{payload.triggerType} {payload.location or ''}",
         session_id="demo-session",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=payload.tripId,
         context={
             "triggerType": payload.triggerType,
@@ -535,7 +549,7 @@ def trigger_reminders(
     reminders = result["reminders"]
     record = ReminderEvent(
         id=f"reminder-{uuid4().hex}",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=payload.tripId,
         trigger_type=payload.triggerType,
         location=payload.location,
@@ -629,9 +643,11 @@ def _evaluate_reminder_triggers(payload: ReminderEvaluateRequest) -> list[dict[s
 @router.post("/reminders/evaluate")
 def evaluate_reminders(
     payload: ReminderEvaluateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    remaining = _reminder_cooldown_remaining(session, payload.userId, payload.tripId)
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
+    remaining = _reminder_cooldown_remaining(session, effective_user_id, payload.tripId)
     if remaining > 0:
         return {
             "triggered": False,
@@ -653,7 +669,7 @@ def evaluate_reminders(
 
     record = ReminderEvent(
         id=f"reminder-{uuid4().hex}",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=payload.tripId,
         trigger_type="auto",
         location=payload.location,
@@ -680,11 +696,13 @@ def evaluate_reminders(
 
 @router.get("/reminders/history")
 def read_reminder_history(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
     tripId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, list[dict[str, object]]]:
-    statement = select(ReminderEvent).where(ReminderEvent.user_id == userId)
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    statement = select(ReminderEvent).where(ReminderEvent.user_id == effective_user_id)
     if tripId:
         statement = statement.where(ReminderEvent.trip_id == tripId)
     records = session.exec(statement.order_by(ReminderEvent.created_at.desc())).all()
@@ -694,8 +712,10 @@ def read_reminder_history(
 @router.post("/group/coordinate")
 def create_group_coordination(
     payload: GroupCoordinationRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     now = utc_now()
     members = [_member_public_view(member) for member in payload.members]
     conflicts = _detect_group_conflicts(payload.members)
@@ -703,7 +723,7 @@ def create_group_coordination(
     privacy_summary = _privacy_summary(payload.members)
     record = GroupCoordinationRecord(
         id=f"group-{uuid4().hex}",
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=payload.tripId,
         destination=payload.destination,
         members_json=json.dumps(members, ensure_ascii=False),
@@ -816,9 +836,11 @@ def _review_next_trip_suggestions(session: Session, user_id: str, trip_id: str) 
 @router.post("/route-points")
 def create_trip_route_points(
     payload: TripRoutePointsRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    existing = _stored_route_points(session, payload.userId, payload.tripId)
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
+    existing = _stored_route_points(session, effective_user_id, payload.tripId)
     for record in existing:
         session.delete(record)
     now = utc_now()
@@ -826,7 +848,7 @@ def create_trip_route_points(
     for index, point in enumerate(payload.points):
         record = TripRoutePointRecord(
             id=f"route-point-{uuid4().hex}",
-            user_id=payload.userId,
+            user_id=effective_user_id,
             trip_id=payload.tripId,
             sequence=index,
             label=point.label,
@@ -848,11 +870,13 @@ def create_trip_route_points(
 
 @router.get("/route-points")
 def read_trip_route_points(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
     tripId: str = Query(...),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    return _route_points_payload(_stored_route_points(session, userId, tripId))
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    return _route_points_payload(_stored_route_points(session, effective_user_id, tripId))
 BLIND_BOX_TASKS: list[dict[str, object]] = [
     {
         "id": "task-photo-night",
@@ -1057,11 +1081,13 @@ def _review_avatar_status_changes(session: Session, user_id: str, trip_id: str) 
 @router.post("/avatar-state/events")
 def create_avatar_state_event(
     payload: AvatarStateEventRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     record = _create_avatar_state_event(
         session,
-        user_id=payload.userId,
+        user_id=effective_user_id,
         trip_id=payload.tripId,
         event_type=payload.eventType,
         title=payload.title,
@@ -1075,22 +1101,26 @@ def create_avatar_state_event(
 
 @router.get("/avatar-state/events")
 def read_avatar_state_events(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
     tripId: str = Query(...),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, list[dict[str, object]]]:
-    return {"items": [_avatar_state_event_response(record) for record in _stored_avatar_state_events(session, userId, tripId)]}
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    return {"items": [_avatar_state_event_response(record) for record in _stored_avatar_state_events(session, effective_user_id, tripId)]}
 @router.get("/blind-box/tasks")
 def read_blind_box_tasks(
     userId: str | None = Query(default=None),
     tripId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, list[dict[str, object]]]:
+    effective_user_id = resolve_effective_user_id(userId, current_user)
     records_by_task_id: dict[str, BlindBoxTaskRecord] = {}
-    if userId and tripId:
+    if effective_user_id and tripId:
         records = session.exec(
             select(BlindBoxTaskRecord)
-            .where(BlindBoxTaskRecord.user_id == userId)
+            .where(BlindBoxTaskRecord.user_id == effective_user_id)
             .where(BlindBoxTaskRecord.trip_id == tripId)
             .order_by(BlindBoxTaskRecord.updated_at.desc())
         ).all()
@@ -1125,8 +1155,10 @@ def read_blind_box_tasks(
 def update_blind_box_task_status(
     task_id: str,
     payload: BlindBoxTaskStatusRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     if task_id not in {str(task["id"]) for task in BLIND_BOX_TASKS}:
         raise HTTPException(status_code=404, detail="Blind box task not found")
     if payload.status not in _ALLOWED_BLIND_BOX_STATUSES:
@@ -1135,14 +1167,14 @@ def update_blind_box_task_status(
     now = utc_now()
     record = session.exec(
         select(BlindBoxTaskRecord)
-        .where(BlindBoxTaskRecord.user_id == payload.userId)
+        .where(BlindBoxTaskRecord.user_id == effective_user_id)
         .where(BlindBoxTaskRecord.trip_id == payload.tripId)
         .where(BlindBoxTaskRecord.task_id == task_id)
     ).first()
     if record is None:
         record = BlindBoxTaskRecord(
             id=f"blind-box-{uuid4().hex}",
-            user_id=payload.userId,
+            user_id=effective_user_id,
             trip_id=payload.tripId,
             task_id=task_id,
             created_at=now,
@@ -1161,7 +1193,7 @@ def update_blind_box_task_status(
         record.reward_applied = True
         existing_event = session.exec(
             select(AvatarStateEventRecord)
-            .where(AvatarStateEventRecord.user_id == payload.userId)
+            .where(AvatarStateEventRecord.user_id == effective_user_id)
             .where(AvatarStateEventRecord.trip_id == payload.tripId)
             .where(AvatarStateEventRecord.event_type == "blind_box_completed")
             .where(AvatarStateEventRecord.reason == task_id)
@@ -1170,7 +1202,7 @@ def update_blind_box_task_status(
             task = _blind_box_task_definition(task_id) or {}
             _create_avatar_state_event(
                 session,
-                user_id=payload.userId,
+                user_id=effective_user_id,
                 trip_id=payload.tripId,
                 event_type="blind_box_completed",
                 title=f"完成盲盒任务：{task.get('reward', '状态奖励')}",
