@@ -64,20 +64,8 @@ class _ReviewPageState extends State<ReviewPage> {
         _tripIdFromAgentResponse() ?? dashboardTripId ?? _localReviewTripId;
     return _tripReviewService.generateReview(
       tripId: reviewTripId,
-      completedTasks: const [
-        {
-          'id': 'task-night-photo',
-          'title': '拍一张不是游客照的重庆夜景',
-          'status': 'completed',
-        },
-      ],
-      temporaryMemories: const [
-        {
-          'id': 'mem-slow-pace',
-          'title': '本次旅行想轻松一点',
-          'content': '本次行程希望低强度，减少跨区移动和密集景点。',
-        },
-      ],
+      completedTasks: const [],
+      temporaryMemories: const [],
       profileContext: _reviewProfileContext(profile),
     );
   }

@@ -38,27 +38,13 @@ class TripReviewPayload {
 
   factory TripReviewPayload.fallback() {
     return const TripReviewPayload(
-      route: '离线复盘：解放碑 → 山城步道 → 洪崖洞',
-      highlightPhotos: ['洪崖洞夜景'],
-      newMemories: ['喜欢夜景', '本次旅行想轻松一点'],
-      completedTasks: [
-        {
-          'id': 'task-night-photo',
-          'title': '拍一张不是游客照的重庆夜景',
-          'status': 'completed',
-          'reward': '好感度 +2',
-        },
-      ],
-      avatarStatusChanges: ['默契值 +1', '好感度 +2'],
-      nextTripSuggestions: ['成都慢节奏美食线', '长沙夜景与小吃线'],
-      temporaryMemoryPromotions: [
-        {
-          'id': 'mem-slow-pace',
-          'title': '本次旅行想轻松一点',
-          'suggestedScope': 'longTerm',
-          'reason': '这条临时记忆已经影响本次规划，建议转为长期偏好。',
-        },
-      ],
+      route: '暂无可复盘路线',
+      highlightPhotos: [],
+      newMemories: [],
+      completedTasks: [],
+      avatarStatusChanges: [],
+      nextTripSuggestions: [],
+      temporaryMemoryPromotions: [],
     );
   }
 

@@ -73,7 +73,6 @@ class _ReminderPageState extends State<ReminderPage> {
         userId: profile.userId,
         proactivityLevel: profile.proactivityLevel,
         currentTime: DateTime.now().toIso8601String(),
-        location: '洪崖洞',
         status: {'energy': 32, 'travelPace': profile.travelPace},
         external: {
           'interestTags': profile.interestTags,
@@ -97,7 +96,6 @@ class _ReminderPageState extends State<ReminderPage> {
   ) async {
     final reminders = await _reminderTriggerService.trigger(
       triggerType,
-      location: '洪崖洞',
       eventPayload: eventPayload,
     );
     if (!mounted) return;
