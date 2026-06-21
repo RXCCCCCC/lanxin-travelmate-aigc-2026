@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.api.routes import photo
 from app.main import app
 
 
@@ -79,6 +80,83 @@ def test_photo_copywriting_returns_multiple_share_formats():
     assert payload["diary"]
     assert payload["vlogNarration"]
     assert payload["photoIds"] == ["photo-copy-a"]
+
+
+def test_photo_copywriting_uses_valid_model_provider_output(monkeypatch):
+    class CopywritingProvider:
+        name = "copywriting-provider"
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            assert scenario == "photo_copywriting"
+            return {
+                "photoCopywriting": {
+                    "photoIds": ["photo-model-a"],
+                    "persona": "quiet guide",
+                    "style": "warm",
+                    "moments": "Model moments copy",
+                    "xiaohongshu": "Model XHS copy",
+                    "diary": "Model diary copy",
+                    "vlogNarration": "Model vlog copy",
+                    "reviewSuggestion": "Model review suggestion",
+                }
+            }
+
+    monkeypatch.setattr(photo, "build_model_provider", lambda settings: CopywritingProvider())
+    client.post(
+        "/api/photo/candidates",
+        json={
+            "id": "photo-model-a",
+            "userId": "photo-model-user",
+            "location": "River Walk",
+            "score": 9.1,
+            "description": "real model candidate",
+            "tags": ["river"],
+        },
+    )
+
+    response = client.post(
+        "/api/photo/copywriting",
+        json={"userId": "photo-model-user", "photoIds": ["photo-model-a"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["moments"] == "Model moments copy"
+    assert payload["provider"] == "copywriting-provider"
+    assert payload["fallback"] is False
+
+
+def test_photo_copywriting_falls_back_when_model_schema_is_invalid(monkeypatch):
+    class InvalidCopywritingProvider:
+        name = "invalid-copywriting-provider"
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            return {"photoCopywriting": {"photoIds": ["photo-invalid-a"], "moments": "missing fields"}}
+
+    monkeypatch.setattr(photo, "build_model_provider", lambda settings: InvalidCopywritingProvider())
+    client.post(
+        "/api/photo/candidates",
+        json={
+            "id": "photo-invalid-a",
+            "userId": "photo-invalid-user",
+            "location": "Mountain Street",
+            "score": 8.7,
+            "description": "invalid model candidate",
+            "tags": ["street"],
+        },
+    )
+
+    response = client.post(
+        "/api/photo/copywriting",
+        json={"userId": "photo-invalid-user", "photoIds": ["photo-invalid-a"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["fallback"] is True
+    assert payload["provider"] == "invalid-copywriting-provider"
+    assert payload["errorType"] == "schema_validation"
+    assert payload["moments"]
 
 
 def test_blind_box_tasks_return_five_demo_task_types():

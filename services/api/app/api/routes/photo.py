@@ -2,14 +2,23 @@ import json
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlmodel import Session, select
 
+from app.agents.travelmate.schemas import PhotoCopywritingOutput
+from app.core.config import get_settings
 from app.db.models import PhotoCandidateRecord, UploadedFile, utc_now
 from app.db.session import get_session
+from app.services.model_providers import ModelProviderError, build_model_provider
 
 
 router = APIRouter(prefix="/photo", tags=["photo"])
+
+
+class CopywritingSchemaError(ValueError):
+    def __init__(self, provider: str, message: str) -> None:
+        super().__init__(message)
+        self.provider = provider
 
 
 class PhotoCandidatePayload(BaseModel):
@@ -74,6 +83,60 @@ def _copywriting_for(candidates: list[PhotoCandidateRecord], persona: str, style
         "vlogNarration": f"Vlog 旁白：镜头来到{location_text}，蓝小心说，这一段值得放进今日高光。",
         "reviewSuggestion": "建议加入今日复盘的高光照片区。",
     }
+
+
+def _candidate_prompt_context(candidates: list[PhotoCandidateRecord], persona: str, style: str) -> dict[str, object]:
+    return {
+        "persona": persona,
+        "style": style,
+        "photos": [
+            {
+                "id": item.id,
+                "location": item.location_label,
+                "score": item.share_score,
+                "description": item.description,
+                "tags": json.loads(item.content_tags_json),
+            }
+            for item in candidates
+        ],
+    }
+
+
+def _copywriting_with_model(candidates: list[PhotoCandidateRecord], persona: str, style: str) -> dict[str, object]:
+    provider = build_model_provider(get_settings())
+    context = _candidate_prompt_context(candidates, persona, style)
+    payload = provider.generate_json(
+        scenario="photo_copywriting",
+        system_prompt="Return structured travel photo copywriting JSON only.",
+        user_prompt=json.dumps(context, ensure_ascii=False),
+        schema={"task": "photoCopywriting"},
+    )
+    try:
+        output = PhotoCopywritingOutput.model_validate(payload.get("photoCopywriting", payload))
+    except ValidationError as exc:
+        raise CopywritingSchemaError(provider.name, str(exc)) from exc
+    result = output.model_dump()
+    result["provider"] = provider.name
+    result["fallback"] = False
+    result["errorType"] = None
+    return result
+
+
+def _copywriting_fallback(
+    candidates: list[PhotoCandidateRecord],
+    persona: str,
+    style: str,
+    *,
+    provider: str,
+    error_type: str,
+    fallback_reason: str,
+) -> dict[str, object]:
+    copywriting = _copywriting_for(candidates, persona, style)
+    copywriting["provider"] = provider
+    copywriting["fallback"] = True
+    copywriting["errorType"] = error_type
+    copywriting["fallbackReason"] = fallback_reason
+    return copywriting
 
 
 @router.get("/candidates")
@@ -171,7 +234,26 @@ def create_photo_copywriting(payload: CopywritingRequest, session: Session = Dep
         candidates = session.exec(
             select(PhotoCandidateRecord).where(PhotoCandidateRecord.user_id == payload.userId).order_by(PhotoCandidateRecord.updated_at.desc())
         ).all()
-    copywriting = _copywriting_for(candidates, payload.persona, payload.style)
+    try:
+        copywriting = _copywriting_with_model(candidates, payload.persona, payload.style)
+    except ModelProviderError as exc:
+        copywriting = _copywriting_fallback(
+            candidates,
+            payload.persona,
+            payload.style,
+            provider=get_settings().model_provider,
+            error_type="provider_error",
+            fallback_reason=str(exc),
+        )
+    except CopywritingSchemaError as exc:
+        copywriting = _copywriting_fallback(
+            candidates,
+            payload.persona,
+            payload.style,
+            provider=exc.provider,
+            error_type="schema_validation",
+            fallback_reason=str(exc),
+        )
     for item in candidates:
         item.copywriting_json = json.dumps(copywriting, ensure_ascii=False)
         item.updated_at = utc_now()
