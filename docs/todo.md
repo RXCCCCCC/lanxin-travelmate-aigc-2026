@@ -15,8 +15,8 @@
 目标：把当前 Mock Agent 升级为真实模型驱动的结构化 Agent。
 
 - 🚧 接入真实 `LanxinModelProvider`，并保留 OpenAI 兼容 Provider 作为可选后备；代码接口已接入，待真实密钥联调。
-- 🚧 为聊天、记忆抽取、规划、旅拍文案、复盘生成建立中文 Prompt 与 JSON Schema 校验；已新增通用 Prompt/模型输出 schema，待扩展到全部节点。
-- 🚧 将 `mock_nodes.py` 拆为真实节点、降级节点和共享 schema，节点输出必须可验证；已先接入 Provider 工厂和规划节点降级日志。
+- 🚧 为聊天、记忆抽取、规划、旅拍文案、复盘生成建立中文 Prompt 与 JSON Schema 校验；已新增通用 Prompt/模型输出 schema，规划节点已校验 `TripPlanningOutput` 并在 schema 无效时降级记录 `schema_validation`，待扩展到聊天、记忆抽取、旅拍文案和复盘节点。
+- 🚧 将 `mock_nodes.py` 拆为真实节点、降级节点和共享 schema，节点输出必须可验证；已先接入 Provider 工厂、规划节点 schema 校验和降级日志。
 - ✅ 增加模型调用日志：provider、耗时、错误码、降级原因、脱敏请求摘要。
 - ⬜ 完成真实蓝心模型效果验证记录：记忆抽取、规划推理、角色化对话、文案生成、多模态理解。
 

@@ -1,6 +1,9 @@
 from copy import deepcopy
 from typing import Any
 
+from pydantic import ValidationError
+
+from app.agents.travelmate.schemas import TripPlanningOutput
 from app.agents.travelmate.state import TravelMateState
 from app.core.config import get_settings
 from app.services.model_providers import MockModelProvider, ModelProviderError, build_model_provider
@@ -275,6 +278,23 @@ def tool_executor(state: TravelMateState) -> TravelMateState:
     return next_state
 
 
+def _validated_trip_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    payload = plan.get("tripPlanning") if isinstance(plan.get("tripPlanning"), dict) else plan
+    validated = TripPlanningOutput.model_validate(payload)
+    result = validated.model_dump()
+    passthrough_keys = [
+        "days",
+        "dynamicAdjustment",
+        "externalContext",
+        "navigationLinks",
+        "planningInputs",
+    ]
+    for key in passthrough_keys:
+        if key in plan and key not in result:
+            result[key] = plan[key]
+    return result
+
+
 def trip_planner(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_planner")
     settings = get_settings()
@@ -294,14 +314,30 @@ def trip_planner(state: TravelMateState) -> TravelMateState:
     try:
         provider = build_model_provider(settings)
         plan = provider.plan_trip(next_state)
-        if isinstance(plan, dict) and "text" in plan:
+        if not isinstance(plan, dict):
+            raise ModelProviderError("model returned non-dict trip plan")
+        if "text" in plan:
             next_state.setdefault("errors", []).append({
                 "code": "MODEL_JSON_PENDING",
                 "message": "真实模型已返回内容，但结构化规划解析仍待接入，当前使用降级规划。",
             })
             raise ModelProviderError("模型返回结构暂未映射为 TripPlan。")
-        next_state["trip_plan"] = plan
+        next_state["trip_plan"] = _validated_trip_plan(plan)
         timer.finish(fallback=False)
+    except ValidationError as exc:
+        fallback_provider = MockModelProvider()
+        next_state["trip_plan"] = fallback_provider.plan_trip(next_state)
+        timer.finish(fallback=True, error=str(exc))
+        next_state.setdefault("model_call_logs", []).extend(record.__dict__ for record in logger.records)
+        next_state.setdefault("tool_trace", []).append({
+            "tool": "model_provider",
+            "provider": provider_name,
+            "fallback": True,
+            "scenario": "trip_planning",
+            "errorType": "schema_validation",
+            "error": str(exc),
+        })
+        return next_state
     except ModelProviderError as exc:
         fallback_provider = MockModelProvider()
         next_state["trip_plan"] = fallback_provider.plan_trip(next_state)

@@ -1,6 +1,7 @@
 import httpx
 
 from app.agents.travelmate.graph import TravelMateGraph
+from app.agents.travelmate.nodes import mock_nodes
 from app.agents.travelmate.state import create_initial_state
 from app.core.config import Settings
 from app.services.model_providers.call_log import ModelCallLogger
@@ -30,6 +31,29 @@ def test_graph_records_model_provider_fallback_when_real_provider_unconfigured(m
     assert model_trace[-1]["provider"] == "lanxin"
     assert model_trace[-1]["fallback"] is True
     assert "缺少" in model_trace[-1]["error"]
+    assert result["trip_plan"]["title"]
+
+
+def test_graph_falls_back_when_model_trip_plan_schema_is_invalid(monkeypatch):
+    class InvalidTripPlanProvider:
+        def plan_trip(self, state):
+            return {
+                "tripPlanning": {
+                    "title": "Missing destination and summary",
+                    "profileMatches": [],
+                    "risks": [],
+                }
+            }
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidTripPlanProvider())
+    state = create_initial_state(message="plan a slow trip")
+
+    result = TravelMateGraph().invoke(state)
+
+    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider"]
+    assert model_trace
+    assert model_trace[-1]["fallback"] is True
+    assert model_trace[-1]["errorType"] == "schema_validation"
     assert result["trip_plan"]["title"]
 
 
