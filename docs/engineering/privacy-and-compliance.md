@@ -13,6 +13,8 @@
 
 ## 端侧展示要求
 
+- 多人协调结果只能展示 `privacySummary.publicRule`、`sensitiveMemberDetailsHidden` 和 `sensitiveMemberCount` 等汇总信息，不得展示成员 `sensitivePreferences` 原文。
+
 - 聊天页记忆候选必须读取 `sensitivity/requiresExplicitConsent`，当候选包含 `personal` 或 `sensitive` 时展示显式确认提示，再允许保存。
 
 - 所有记忆候选保存前必须展示保存范围：长期记忆、本次旅行、当前会话、不记忆。

@@ -546,6 +546,10 @@ class _GroupCoordinationResultCard extends StatelessWidget {
             .map((item) => item.toString())
             .where((item) => item.isNotEmpty)
             .join(' / ');
+    final sensitiveMemberDetailsHidden =
+        privacy['sensitiveMemberDetailsHidden'] == true;
+    final sensitiveMemberCount = privacy['sensitiveMemberCount'] as int? ?? 0;
+    final publicRule = privacy['publicRule']?.toString();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -576,9 +580,7 @@ class _GroupCoordinationResultCard extends StatelessWidget {
           ],
           if (conflicts.isNotEmpty) ...[
             const SizedBox(height: 6),
-            ...conflicts
-                .take(2)
-                .map(
+            ...conflicts.take(2).map(
                   (item) => Text(
                     '冲突：${item['title'] ?? item['type']}',
                     style: const TextStyle(
@@ -591,17 +593,31 @@ class _GroupCoordinationResultCard extends StatelessWidget {
           ],
           if (privacy.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(
-              privacy['publicRule']?.toString() ?? '多人模式只展示汇总依据。',
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
-            ),
+            if (sensitiveMemberDetailsHidden)
+              Text(
+                '已隐藏 $sensitiveMemberCount 位成员敏感偏好，仅展示汇总后的协调依据。',
+                style: const TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            if (publicRule != null && publicRule.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                publicRule,
+                style: const TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 11,
+                ),
+              ),
+            ],
           ],
         ],
       ),
     );
   }
 }
-
 class _TripPlanInputCard extends StatelessWidget {
   const _TripPlanInputCard({
     required this.destinationController,
