@@ -36,9 +36,10 @@ def test_trip_review_endpoint_returns_p1_review_fields():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["route"] == "解放碑 → 山城步道 → 洪崖洞 → 南山一棵树"
+    assert payload["route"] == ""
+    assert payload["highlightPhotos"] == []
     assert payload["completedTasks"][0]["title"] == "拍一张不是游客照的重庆夜景"
-    assert payload["nextTripSuggestions"]
+    assert payload["nextTripSuggestions"] == []
     assert payload["temporaryMemoryPromotions"][0]["suggestedScope"] == "longTerm"
     assert payload["profileContext"]["travelPace"] == "light"
     assert payload["profileContext"]["interestTags"] == ["夜景"]
@@ -49,5 +50,19 @@ def test_trip_review_endpoint_has_mock_fallback_without_request_context():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["completedTasks"]
-    assert payload["temporaryMemoryPromotions"]
+    assert payload["completedTasks"] == []
+    assert payload["temporaryMemoryPromotions"] == []
+
+
+def test_trip_review_empty_context_does_not_inject_fixed_city_fixtures():
+    response = client.post("/api/trip/review", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    response_text = response.text
+    assert "洪崖洞" not in response_text
+    assert "解放碑" not in response_text
+    assert "南山一棵树" not in response_text
+    assert payload["route"] == ""
+    assert payload["highlightPhotos"] == []
+    assert payload["nextTripSuggestions"] == []

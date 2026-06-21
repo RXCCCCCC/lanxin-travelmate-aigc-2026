@@ -79,38 +79,17 @@ def build_rule_memory_candidates(text: str) -> list[dict[str, Any]]:
 
 
 def default_completed_tasks() -> list[dict[str, Any]]:
-    return [
-        {
-            "id": "task-night-photo",
-            "title": "拍一张不是游客照的重庆夜景",
-            "status": "completed",
-            "reward": "好感度 +2",
-            "impact": "进入今日高光照片与复盘故事线。",
-        },
-        {
-            "id": "task-local-snack",
-            "title": "找一家不用香菜也好吃的小店",
-            "status": "completed",
-            "reward": "默契值 +1",
-            "impact": "强化了餐饮避雷偏好。",
-        },
-    ]
+    return []
 
 
 def default_temporary_memories() -> list[dict[str, Any]]:
-    return [
-        {
-            "id": "mem-slow-pace",
-            "title": "本次旅行想轻松一点",
-            "content": "用户本次行程希望低强度，减少跨区移动和密集景点。",
-        }
-    ]
+    return []
 
 
 def build_fallback_review_payload(next_state: TravelMateState) -> dict[str, Any]:
     return {
-        "route": next_state["context"].get("route") or "解放碑 \u2192 山城步道 \u2192 洪崖洞 \u2192 南山一棵树",
-        "highlightPhotos": next_state["context"].get("highlightPhotos") or ["洪崖洞夜景"],
+        "route": next_state["context"].get("route") or "",
+        "highlightPhotos": next_state["context"].get("highlightPhotos") or [],
         "newMemories": next_state["context"].get("newMemories") or [
             item["title"] for item in next_state["memory_candidates"]
         ],
@@ -118,7 +97,7 @@ def build_fallback_review_payload(next_state: TravelMateState) -> dict[str, Any]
         "reminderHighlights": next_state["context"].get("reminderHighlights") or [],
         "avatarStatusChanges": next_state["context"].get("avatarStatusChanges") or [],
         "nextTripSuggestions": next_state["context"].get("nextTripSuggestions")
-        or ["成都慢节奏美食线", "长沙夜景与小吃线"],
+        or [],
         "temporaryMemoryPromotions": next_state["temporary_memory_promotions"],
         "profileContext": next_state["context"].get("profileContext") or {},
     }

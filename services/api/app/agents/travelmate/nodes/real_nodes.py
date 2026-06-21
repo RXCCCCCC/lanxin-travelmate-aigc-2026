@@ -435,7 +435,7 @@ def review_generator(state: TravelMateState) -> TravelMateState:
         for item in temporary_memories
     ]
     reminder_highlights = next_state["context"].get("reminderHighlights") or []
-    status_changes = next_state["context"].get("avatarStatusChanges") or ["\u9ed8\u5951\u503c +1", "\u597d\u611f\u5ea6 +2", "\u7cbe\u529b -5"]
+    status_changes = next_state["context"].get("avatarStatusChanges") or []
     if next_state["context"].get("completedTasks"):
         status_changes.append("\u76f2\u76d2\u4efb\u52a1\u5b8c\u6210\u5956\u52b1\u5df2\u8fdb\u5165\u590d\u76d8")
     if reminder_highlights:
