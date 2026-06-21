@@ -94,6 +94,15 @@ cd services/api
 uv run pytest
 ```
 
+真实 Provider / CI smoke：
+
+```powershell
+cd services/api
+uv run python scripts/real_provider_smoke.py
+uv run pytest tests/test_ci_real_smoke_workflow.py -q
+```
+
+CI 侧验收需要在 GitHub Secrets 配置高德或模型相关密钥后触发 `Real provider smoke` job；日志中只能出现 provider/scenario/fallback/errorType 和 `[REDACTED]`，不能出现真实密钥。
 Flutter 建议先跑：
 
 ```powershell

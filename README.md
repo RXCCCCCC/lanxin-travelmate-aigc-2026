@@ -95,6 +95,21 @@ Docker：
 docker build -t lanxin-travelmate-api ./services/api
 docker compose -f infra/docker-compose.yml up --build
 ```
+真实 Provider smoke：
+
+```powershell
+cd services/api
+uv run python scripts/real_provider_smoke.py
+uv run pytest tests/test_ci_real_smoke_workflow.py -q
+```
+
+GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时才会调用真实服务：
+- `LANXIN_AMAP_API_KEY`
+- `LANXIN_MODEL_PROVIDER`
+- `LANXIN_LANXIN_BASE_URL` / `LANXIN_LANXIN_API_KEY` / `LANXIN_LANXIN_MODEL`
+- `LANXIN_OPENAI_BASE_URL` / `LANXIN_OPENAI_API_KEY` / `LANXIN_OPENAI_MODEL`
+
+脚本只输出 provider、scenario、fallback、errorType 等摘要，并用 `[REDACTED]` 标记密钥占位，不应在日志中打印真实密钥。
 
 ## 第一阶段验收
 
