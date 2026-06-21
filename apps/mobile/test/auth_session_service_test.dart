@@ -19,7 +19,7 @@ class _AuthAdapter implements HttpClientAdapter {
     if (options.path == '/api/auth/guest') {
       guestRequest = options;
       return ResponseBody.fromString(
-        '{"userId":"guest-device-test","displayName":"vivo demo","authMode":"guest","isGuest":true,"accessToken":"token-abc"}',
+        '{"userId":"guest-device-test","displayName":"蓝心同行游客","authMode":"guest","isGuest":true,"accessToken":"token-abc"}',
         200,
         headers: {
           Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -38,7 +38,7 @@ void main() {
       final adapter = _AuthAdapter();
       final session = AuthSessionService(
         deviceIdProvider: () async => 'device-test',
-        displayName: 'vivo demo',
+        displayName: '蓝心同行游客',
       );
       final dio = buildApiClient(
         baseUrl: 'https://example.test',
@@ -51,7 +51,7 @@ void main() {
       expect(auth.userId, 'guest-device-test');
       expect(adapter.guestRequest?.data, {
         'deviceId': 'device-test',
-        'displayName': 'vivo demo',
+        'displayName': '蓝心同行游客',
       });
       expect(
         adapter.authedRequest?.headers['Authorization'],

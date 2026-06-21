@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanxin_travelmate/core/constants/avatar_states.dart';
-import 'package:lanxin_travelmate/data/demo_agent_state.dart';
+import 'package:lanxin_travelmate/data/agent_response_cache.dart';
 import 'package:lanxin_travelmate/features/chat/data/agent_chat_models.dart';
 import 'package:lanxin_travelmate/features/profile/data/profile_service.dart';
 import 'package:lanxin_travelmate/features/trip/data/trip_dashboard_service.dart';

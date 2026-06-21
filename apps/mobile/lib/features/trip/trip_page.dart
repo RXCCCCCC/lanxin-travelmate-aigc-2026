@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/demo_agent_state.dart';
+import '../../data/agent_response_cache.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../profile/data/profile_service.dart';
 import 'data/trip_dashboard_service.dart';

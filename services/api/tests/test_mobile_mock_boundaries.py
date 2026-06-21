@@ -81,9 +81,30 @@ def test_backend_runtime_has_no_fixed_demo_session_or_trip_ids():
     assert offenders == []
 
 
-def test_demo_agent_state_is_only_cross_page_agent_cache():
-    text = (MOBILE_LIB / "data" / "demo_agent_state.dart").read_text(encoding="utf-8")
+def test_mobile_runtime_uses_neutral_agent_response_cache():
+    text = (MOBILE_LIB / "data" / "agent_response_cache.dart").read_text(encoding="utf-8")
 
     assert "ValueNotifier<AgentChatResponse?>" in text
     assert "mock" not in text.lower()
     assert "demo-chongqing-weekend" not in text
+
+
+def test_mobile_runtime_does_not_import_legacy_demo_agent_state():
+    offenders: list[str] = []
+    for path in _dart_sources():
+        if path.name == "demo_agent_state.dart":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "demo_agent_state.dart" in text:
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    assert offenders == []
+
+
+def test_auth_session_default_display_name_is_not_demo():
+    text = (
+        MOBILE_LIB / "features" / "auth" / "data" / "auth_session_service.dart"
+    ).read_text(encoding="utf-8")
+
+    assert "vivo demo" not in text
+    assert "蓝心同行游客" in text

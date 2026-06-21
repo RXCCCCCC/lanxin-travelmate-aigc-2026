@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/demo_agent_state.dart';
+import '../../data/agent_response_cache.dart';
 import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
 import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/chat_bubble.dart';
