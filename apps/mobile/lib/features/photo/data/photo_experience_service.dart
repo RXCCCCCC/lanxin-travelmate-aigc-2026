@@ -122,7 +122,7 @@ class PhotoExperienceService {
 
   Future<Map<String, dynamic>> updateBlindBoxTaskStatus({
     String userId = 'guest',
-    String tripId = 'current-guest-trip',
+    required String tripId,
     required String taskId,
     required String status,
     String? note,

@@ -28,6 +28,7 @@ class _PhotoPageState extends State<PhotoPage> {
   List<Map<String, dynamic>> _candidates = const [];
   List<Map<String, dynamic>> _tasks = const [];
   Map<String, dynamic>? _copywriting;
+  String? _currentTripId;
   bool _isGenerating = false;
   bool _isRegistering = false;
   final Set<String> _updatingTaskIds = {};
@@ -44,6 +45,7 @@ class _PhotoPageState extends State<PhotoPage> {
 
   Future<void> _load() async {
     final dashboard = await _dashboardService.fetchDashboard();
+    _currentTripId = _tripIdFromDashboard(dashboard);
     _candidates = dashboard.photoCandidates;
     _tasks = dashboard.blindBoxTasks;
     if (_candidates.isNotEmpty && _tasks.isNotEmpty) return;
@@ -108,7 +110,16 @@ class _PhotoPageState extends State<PhotoPage> {
       _updatingTaskIds.add(taskId);
       _photoNotice = null;
     });
+    final tripId = _currentTripId;
+    if (tripId == null || tripId.isEmpty) {
+      setState(() {
+        _updatingTaskIds.remove(taskId);
+        _photoNotice = '请先创建或同步真实旅程后再更新盲盒任务';
+      });
+      return;
+    }
     final updated = await _photoExperienceService.updateBlindBoxTaskStatus(
+      tripId: tripId,
       taskId: taskId,
       status: status,
       note: status == 'completed' ? '用户在旅拍页完成盲盒任务' : null,
@@ -378,6 +389,19 @@ class _LoadingState extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _tripIdFromDashboard(TripDashboardPayload dashboard) {
+  final values = [
+    dashboard.tripId,
+    dashboard.currentTrip['tripId'],
+    dashboard.currentTrip['id'],
+  ];
+  for (final value in values) {
+    final text = value?.toString().trim();
+    if (text != null && text.isNotEmpty && text != 'null') return text;
+  }
+  return null;
 }
 
 class _PhotoEmptyState extends StatelessWidget {

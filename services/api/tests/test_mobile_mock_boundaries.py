@@ -58,6 +58,18 @@ def test_mobile_runtime_has_no_fake_device_photo_uri():
     assert offenders == []
 
 
+def test_mobile_runtime_has_no_fixed_guest_trip_id():
+    offenders: list[str] = []
+    for path in _dart_sources():
+        if path.name == "mock_data.dart":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "current-guest-trip" in text:
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    assert offenders == []
+
+
 def test_demo_agent_state_is_only_cross_page_agent_cache():
     text = (MOBILE_LIB / "data" / "demo_agent_state.dart").read_text(encoding="utf-8")
 
