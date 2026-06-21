@@ -27,7 +27,7 @@ def test_graph_records_model_provider_fallback_when_real_provider_unconfigured(m
     result = TravelMateGraph().invoke(state)
 
     get_settings.cache_clear()
-    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider"]
+    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider" and item.get("scenario") == "trip_planning"]
     assert model_trace
     assert model_trace[-1]["provider"] == "lanxin"
     assert model_trace[-1]["fallback"] is True
@@ -51,7 +51,7 @@ def test_graph_falls_back_when_model_trip_plan_schema_is_invalid(monkeypatch):
 
     result = TravelMateGraph().invoke(state)
 
-    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider"]
+    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider" and item.get("scenario") == "trip_planning"]
     assert model_trace
     assert model_trace[-1]["fallback"] is True
     assert model_trace[-1]["errorType"] == "schema_validation"
@@ -133,8 +133,8 @@ def test_graph_uses_valid_model_trip_review_output(monkeypatch):
             return MockModelProvider().plan_trip(state)
 
         def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
-            if scenario == "memory_extraction":
-                raise ModelProviderError("memory extraction not configured")
+            if scenario in {"memory_extraction", "companion_chat"}:
+                raise ModelProviderError(f"{scenario} not configured")
             assert scenario == "trip_review"
             return {
                 "tripReview": {
@@ -170,8 +170,8 @@ def test_graph_falls_back_when_model_trip_review_schema_is_invalid(monkeypatch):
             return MockModelProvider().plan_trip(state)
 
         def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
-            if scenario == "memory_extraction":
-                raise ModelProviderError("memory extraction not configured")
+            if scenario in {"memory_extraction", "companion_chat"}:
+                raise ModelProviderError(f"{scenario} not configured")
             return {"tripReview": {"completedTasks": "not-a-list"}}
 
     monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidReviewProvider())
@@ -179,10 +179,73 @@ def test_graph_falls_back_when_model_trip_review_schema_is_invalid(monkeypatch):
 
     result = TravelMateGraph().invoke(state)
 
-    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider"]
+    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider" and item.get("scenario") == "trip_review"]
     assert result["review"]["provider"] == "invalid-review-provider"
     assert result["review"]["fallback"] is True
     assert result["review"]["errorType"] == "schema_validation"
+    assert model_trace[-1]["fallback"] is True
+    assert model_trace[-1]["errorType"] == "schema_validation"
+
+
+def test_graph_uses_valid_model_chat_output(monkeypatch):
+    class ChatProvider:
+        name = "chat-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario in {"memory_extraction", "trip_review"}:
+                raise ModelProviderError(f"{scenario} not configured")
+            assert scenario == "companion_chat"
+            return {
+                "chat": {
+                    "replyText": "Model chat reply",
+                    "voiceText": "Model chat reply",
+                    "avatarState": "planning",
+                    "emotion": "curious",
+                    "cards": [],
+                    "memoryCandidates": [],
+                    "toolTrace": [],
+                    "nextActions": [{"type": "modelAction"}],
+                    "syncSuggestions": [],
+                    "errors": [],
+                }
+            }
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: ChatProvider())
+    state = create_initial_state(message="Plan a calm weekend")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["response"]["replyText"] == "Model chat reply"
+    assert result["response"]["nextActions"] == [{"type": "modelAction"}]
+    model_trace = [item for item in result["response"]["toolTrace"] if item.get("scenario") == "companion_chat"]
+    assert model_trace[-1]["provider"] == "chat-provider"
+    assert model_trace[-1]["fallback"] is False
+
+
+def test_graph_falls_back_when_model_chat_schema_is_invalid(monkeypatch):
+    class InvalidChatProvider:
+        name = "invalid-chat-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario in {"memory_extraction", "trip_review"}:
+                raise ModelProviderError(f"{scenario} not configured")
+            assert scenario == "companion_chat"
+            return {"chat": {"replyText": "missing required fields"}}
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidChatProvider())
+    state = create_initial_state(message="Plan a calm weekend")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["response"]["avatarState"] == "planning"
+    model_trace = [item for item in result["response"]["toolTrace"] if item.get("scenario") == "companion_chat"]
+    assert model_trace[-1]["provider"] == "invalid-chat-provider"
     assert model_trace[-1]["fallback"] is True
     assert model_trace[-1]["errorType"] == "schema_validation"
 

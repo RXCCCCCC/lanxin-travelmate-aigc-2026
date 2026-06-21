@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agents.travelmate.schemas import MemoryExtractionOutput, TripPlanningOutput, TripReviewOutput
+from app.agents.travelmate.schemas import ChatOutput, MemoryExtractionOutput, TripPlanningOutput, TripReviewOutput
 from app.agents.travelmate.state import TravelMateState
 from app.core.config import get_settings
 from app.services.model_providers import MockModelProvider, ModelProviderError, build_model_provider
@@ -638,6 +638,48 @@ def avatar_state_mapper(state: TravelMateState) -> TravelMateState:
     return next_state
 
 
+def _append_chat_model_trace(next_state: TravelMateState, trace: dict[str, Any]) -> None:
+    next_state.setdefault("tool_trace", []).append(trace)
+    if "response" in next_state:
+        next_state["response"]["toolTrace"] = next_state["tool_trace"]
+
+
+def _model_chat_response(next_state: TravelMateState) -> dict[str, Any]:
+    provider = build_model_provider(get_settings())
+    payload = provider.generate_json(
+        scenario="companion_chat",
+        system_prompt="Return structured TravelMate chat response JSON only.",
+        user_prompt=str({
+            "message": next_state.get("message"),
+            "intent": next_state.get("intent"),
+            "profile": next_state.get("user_profile", {}),
+            "tripPlan": next_state.get("trip_plan", {}),
+            "memoryCandidates": next_state.get("memory_candidates", []),
+            "avatarStatus": next_state.get("avatar_status", {}),
+        }),
+        schema={"task": "chat"},
+    )
+    if "chat" not in payload:
+        raise ModelProviderError("model output missing chat")
+    output = ChatOutput.model_validate(payload["chat"])
+    result = output.model_dump()
+    result["cards"] = result["cards"] or next_state.get("cards", [])
+    result["memoryCandidates"] = result["memoryCandidates"] or next_state.get("memory_candidates", [])
+    result["nextActions"] = result["nextActions"] or next_state.get("next_actions", [])
+    result["syncSuggestions"] = result["syncSuggestions"] or next_state.get("sync_suggestions", [])
+    result["errors"] = result["errors"] or next_state.get("errors", [])
+    trace = list(next_state.get("tool_trace", [])) + list(result.get("toolTrace") or [])
+    trace.append({
+        "tool": "model_provider",
+        "provider": provider.name,
+        "scenario": "companion_chat",
+        "fallback": False,
+    })
+    result["toolTrace"] = trace
+    next_state["tool_trace"] = trace
+    return result
+
+
 def response_composer(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "response_composer")
     trip_plan = next_state["trip_plan"]
@@ -663,6 +705,31 @@ def response_composer(state: TravelMateState) -> TravelMateState:
         "syncSuggestions": next_state["sync_suggestions"],
         "errors": next_state["errors"],
     }
+    try:
+        next_state["response"] = _model_chat_response(next_state)
+    except (AttributeError, ModelProviderError) as exc:
+        _append_chat_model_trace(next_state, {
+            "tool": "model_provider",
+            "provider": get_settings().model_provider,
+            "scenario": "companion_chat",
+            "fallback": True,
+            "errorType": "provider_error",
+            "error": str(exc),
+        })
+    except ValidationError as exc:
+        provider_name = get_settings().model_provider
+        try:
+            provider_name = build_model_provider(get_settings()).name
+        except ModelProviderError:
+            pass
+        _append_chat_model_trace(next_state, {
+            "tool": "model_provider",
+            "provider": provider_name,
+            "scenario": "companion_chat",
+            "fallback": True,
+            "errorType": "schema_validation",
+            "error": str(exc),
+        })
     return next_state
 
 
