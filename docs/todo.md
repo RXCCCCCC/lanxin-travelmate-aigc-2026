@@ -42,8 +42,8 @@
 - 🚧 使用真实高德 Key 完成天气、POI、步行路线联调；代码已接入高德 Provider 和无 Key 明确降级，待人工提供 Key 后验收真实数据。
 - 🚧 扩展路线能力到公交、驾车或混合路线；后端高德 Provider 已支持 `mode=driving/transit/mixed`，可输出换乘、费用、拥堵段、红绿灯和备选方案；真实 Key 联调、端侧选择出行方式和生产数据验收待继续。
 - 🚧 前端传入真实定位坐标、目的地坐标和用户选择的出行方式，避免后端只能按城市/关键词粗查；规划页已支持手动输入当前位置/目的地坐标并随 `/api/trip/plan` 传入 `originCoordinate`、`destinationCoordinate`，后端已写入 `planningInputs`，Agent 工具规划会将坐标转换为 `route_tool.originLocation/destinationLocation` 并带入所选 `transportMode`。剩余为接入真实定位/地图选点和真机权限验收。
-- 🚧 增加工具熔断、限流、持久缓存和 toolTrace 错误可视化；高德 Provider 已有进程内缓存、SQLite 持久缓存、一次 HTTP 重试、连续失败熔断、本地限流和 `retryCount/cacheHit/circuitOpen/errorType/rateLimited/retryAfterSeconds` 元数据，Agent `toolTrace` 已展开错误可视化字段；真实 Key 联调与生产级分布式限流待继续。
-- 🚧 将天气预警、营业时间、POI 坐标和路线耗时真正写入规划解释、主动提醒和复盘；后端规划卡已汇总 `toolTrace` 中的天气、POI 和路线结果到 `externalContext`，并把天气提示、营业时间和路线耗时写入画像匹配/风险提示；提醒页已调用 `/api/trip/reminders/evaluate` 并带入画像主动程度/偏好，复盘生成已可接收并展示画像上下文；真实 Key 数据验收待继续。
+- 🚧 增加工具熔断、限流、持久缓存和 toolTrace 错误可视化；高德 Provider 已有进程内缓存、SQLite 持久缓存、一次 HTTP 重试、连续失败熔断、本地限流和 `retryCount/cacheHit/circuitOpen/errorType/rateLimited/retryAfterSeconds` 元数据，Agent `toolTrace` 已展开错误可视化字段，规划页已展示外部数据状态、降级原因、缓存命中、熔断和限流信息；真实 Key 联调与生产级分布式限流待继续。
+- 🚧 将天气预警、营业时间、POI 坐标和路线耗时真正写入规划解释、主动提醒和复盘；后端规划卡已汇总 `toolTrace` 中的天气、POI 和路线结果到 `externalContext`，并把天气提示、营业时间和路线耗时写入画像匹配/风险提示；规划页已消费 `externalContext/toolTrace` 展示外部数据状态和工具降级原因；提醒页已调用 `/api/trip/reminders/evaluate` 并带入画像主动程度/偏好，复盘生成已可接收并展示画像上下文；真实 Key 数据验收待继续。
 
 人工介入：提供高德 API Key，确认计费/额度和可展示的数据来源；若改用百度/腾讯，需要确认服务商并替换 Provider。
 

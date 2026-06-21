@@ -580,7 +580,9 @@ class _GroupCoordinationResultCard extends StatelessWidget {
           ],
           if (conflicts.isNotEmpty) ...[
             const SizedBox(height: 6),
-            ...conflicts.take(2).map(
+            ...conflicts
+                .take(2)
+                .map(
                   (item) => Text(
                     '冲突：${item['title'] ?? item['type']}',
                     style: const TextStyle(
@@ -606,10 +608,7 @@ class _GroupCoordinationResultCard extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 publicRule,
-                style: const TextStyle(
-                  color: AppTheme.textMuted,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
               ),
             ],
           ],
@@ -618,6 +617,7 @@ class _GroupCoordinationResultCard extends StatelessWidget {
     );
   }
 }
+
 class _TripPlanInputCard extends StatelessWidget {
   const _TripPlanInputCard({
     required this.destinationController,
@@ -945,6 +945,12 @@ class _AgentTripPlanView extends StatelessWidget {
             .whereType<Map<String, dynamic>>()
             .toList();
     final adjustment = plan['dynamicAdjustment'] as Map<String, dynamic>?;
+    final externalContext =
+        (plan['externalContext'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
+    final toolTrace = (plan['toolTrace'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList(growable: false);
 
     return ListView(
       padding: EdgeInsets.only(bottom: metrics.listBottomPadding),
@@ -1045,6 +1051,13 @@ class _AgentTripPlanView extends StatelessWidget {
           const _SectionHeader(icon: Icons.navigation_rounded, title: '地图导航'),
           ...navigationLinks.map((item) => _NavigationLinkCard(item: item)),
         ],
+        if (_hasExternalToolContext(externalContext, toolTrace)) ...[
+          const _SectionHeader(icon: Icons.hub_rounded, title: '外部数据状态'),
+          _ToolContextCard(
+            externalContext: externalContext,
+            toolTrace: toolTrace,
+          ),
+        ],
         if (_hasRoutePoints(routePoints)) ...[
           const _SectionHeader(icon: Icons.timeline_rounded, title: '真实轨迹'),
           _RoutePointsCard(routePoints: routePoints),
@@ -1052,6 +1065,197 @@ class _AgentTripPlanView extends StatelessWidget {
       ],
     );
   }
+}
+
+bool _hasExternalToolContext(
+  Map<String, dynamic> externalContext,
+  List<Map<String, dynamic>> toolTrace,
+) {
+  return externalContext.isNotEmpty || toolTrace.isNotEmpty;
+}
+
+class _ToolContextCard extends StatelessWidget {
+  const _ToolContextCard({
+    required this.externalContext,
+    required this.toolTrace,
+  });
+
+  final Map<String, dynamic> externalContext;
+  final List<Map<String, dynamic>> toolTrace;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    final rows = _toolContextRows(externalContext, toolTrace);
+    return GlassBox(
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
+        vertical: AppTheme.spacingXs,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingLg,
+        vertical: AppTheme.spacingMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rows
+            .map(
+              (row) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(row.icon, size: 16, color: AppTheme.primary),
+                    const SizedBox(width: AppTheme.spacingSm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            row.label,
+                            style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            row.value,
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+  }
+}
+
+class _ToolContextRow {
+  const _ToolContextRow(this.label, this.value, this.icon);
+
+  final String label;
+  final String value;
+  final IconData icon;
+}
+
+List<_ToolContextRow> _toolContextRows(
+  Map<String, dynamic> externalContext,
+  List<Map<String, dynamic>> toolTrace,
+) {
+  final rows = <_ToolContextRow>[];
+  final weather = _asStringMap(externalContext['weather']);
+  if (weather.isNotEmpty) {
+    rows.add(
+      _ToolContextRow(
+        '天气',
+        _compactJoin([
+          weather['condition'],
+          weather['temperature'],
+          weather['warning'],
+          weather['fallbackReason'],
+        ]),
+        Icons.wb_cloudy_rounded,
+      ),
+    );
+  }
+
+  final pois = _asList(externalContext['pois']);
+  if (pois.isNotEmpty) {
+    rows.add(
+      _ToolContextRow('POI', '已返回 ${pois.length} 个候选地点', Icons.place_rounded),
+    );
+  }
+
+  final route = _asStringMap(externalContext['route']);
+  if (route.isNotEmpty) {
+    rows.add(
+      _ToolContextRow(
+        '路线',
+        _compactJoin([
+          route['mode'],
+          route['durationMinutes'] == null
+              ? null
+              : '${route['durationMinutes']} 分钟',
+          route['distanceMeters'] == null
+              ? null
+              : '${route['distanceMeters']} 米',
+          route['fallbackReason'],
+        ]),
+        Icons.route_rounded,
+      ),
+    );
+  }
+
+  for (final trace in toolTrace.take(4)) {
+    rows.add(
+      _ToolContextRow(
+        _toolTraceLabel(trace),
+        _toolTraceSummary(trace),
+        Icons.manage_search_rounded,
+      ),
+    );
+  }
+
+  if (rows.isEmpty) {
+    rows.add(
+      const _ToolContextRow(
+        '工具状态',
+        '后端未返回外部数据或工具调用详情。',
+        Icons.info_outline_rounded,
+      ),
+    );
+  }
+  return rows;
+}
+
+Map<String, dynamic> _asStringMap(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+  return const {};
+}
+
+List<dynamic> _asList(Object? value) {
+  return value is List ? value : const [];
+}
+
+String _toolTraceLabel(Map<String, dynamic> trace) {
+  return (trace['tool'] ?? trace['provider'] ?? trace['scenario'] ?? '工具调用')
+      .toString();
+}
+
+String _toolTraceSummary(Map<String, dynamic> trace) {
+  final parts = <String>[
+    if (trace['provider'] != null) 'provider=${trace['provider']}',
+    if (trace['fallback'] == true) '降级',
+    if (trace['cacheHit'] == true) '命中缓存',
+    if (trace['circuitOpen'] == true) '熔断开启',
+    if (trace['rateLimited'] == true) '限流',
+    if (trace['retryCount'] != null) '重试 ${trace['retryCount']} 次',
+    if (trace['errorType'] != null) '错误：${trace['errorType']}',
+    if (trace['fallbackReason'] != null) trace['fallbackReason'].toString(),
+  ];
+  return parts.isEmpty ? '已调用真实工具或模型。' : parts.join(' · ');
+}
+
+String _compactJoin(Iterable<Object?> values) {
+  final parts = values
+      .where((value) => value != null && value.toString().trim().isNotEmpty)
+      .map((value) => value.toString().trim())
+      .toList(growable: false);
+  return parts.isEmpty ? '暂无详情' : parts.join(' · ');
 }
 
 bool _hasRoutePoints(Map<String, dynamic> routePoints) {
