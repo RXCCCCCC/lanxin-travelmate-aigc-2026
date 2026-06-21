@@ -769,3 +769,29 @@ Flutter client entry: `TripDashboardService.fetchDashboard(userId, tripId?)` map
 ### `GET /api/trip/group/coordination`
 
 按 `tripId` 读取最近一次多人协调结果。无结果时返回空成员、空冲突和空折中方案。
+
+
+## 模型 Provider 输出契约
+
+真实模型必须返回带根字段的结构化 JSON，后端按场景校验后才进入主链路：
+
+| scenario | 根字段 | schema | 失败处理 |
+| --- | --- | --- | --- |
+| `memory_extraction` | `memoryExtraction` | `MemoryExtractionOutput` | 回退本地隐私规则记忆抽取，`toolTrace.errorType=schema_validation` 或 `provider_error` |
+| `trip_planning` | `tripPlanning` | `TripPlanningOutput` | 回退 `MockModelProvider.plan_trip`，保留 `model_provider` trace |
+| `photo_copywriting` | `photoCopywriting` | `PhotoCopywritingOutput` | `/api/photo/copywriting` 返回确定性文案并附带 `provider/fallback/errorType/fallbackReason` |
+| `trip_review` | `tripReview` | `TripReviewOutput` | 回退真实持久化上下文聚合复盘 |
+| `companion_chat` | `chat` | `ChatOutput` | 回退本地响应组合器 |
+
+`/api/agent/chat` 的 `toolTrace` 会包含模型调用 trace，例如：
+
+```json
+{
+  "tool": "model_provider",
+  "provider": "lanxin",
+  "scenario": "companion_chat",
+  "fallback": false
+}
+```
+
+schema 无效或 Provider 未配置时，`fallback=true`，并带 `errorType` 与脱敏错误摘要。真实验收时必须同时检查业务字段、`toolTrace` 和 `GET /api/audit/model-calls`，确认没有把 Mock 或 unconfigured 降级当作真实模型结果。

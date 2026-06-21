@@ -133,3 +133,15 @@ GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时�
 - `docs/*`：文档分支。
 
 不自动推送远程；涉及 push、PR、merge、删除远程分支等操作需单独确认。
+
+
+## 真实模型结构化链路
+
+后端默认仍可使用 Mock Provider 保证本地演示稳定；当 `LANXIN_MODEL_PROVIDER` 配置为 `lanxin` 或 OpenAI 兼容 Provider 时，Agent 会按场景调用真实模型并校验结构化输出：
+
+- `memory_extraction`：校验 `MemoryExtractionOutput`，生成候选记忆并补齐隐私确认字段。
+- `trip_planning`：校验 `TripPlanningOutput`，生成结构化规划。
+- `trip_review`：校验 `TripReviewOutput`，生成复盘；失败时回退到已持久化路线、照片、提醒、盲盒、状态事件和记忆聚合。
+- `companion_chat`：校验 `ChatOutput`，生成最终聊天回复；失败时保留本地响应。
+
+每个模型场景都会在 `toolTrace` 或模型审计日志中标注 `provider`、`scenario`、`fallback` 和错误类型。未配置真实密钥或 schema 无效时必须明确降级，不计入真实数据验收。后端集成测试 `uv run pytest tests/test_model_providers.py -q` 覆盖同一个结构化 Provider 驱动记忆抽取、规划、复盘和聊天四个场景。

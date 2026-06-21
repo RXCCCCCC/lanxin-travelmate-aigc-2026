@@ -118,3 +118,21 @@ flutter analyze
 - 使用 vivo/Android 真机验证定位、相册、相机、麦克风、通知和系统 TTS 权限。
 - 确认 Android 包名、签名证书、版本号和 APK 安装。
 - 录制最终 Demo 视频并检查隐私、素材授权、队伍信息和比赛提交材料。
+
+## 7. 结构化 Provider 验收
+
+无需真实密钥的本地结构化链路回归：
+
+```powershell
+cd services/api
+uv run pytest tests/test_model_providers.py -q
+```
+
+重点用例：`test_graph_runs_structured_provider_across_core_agent_loop`。它验证同一个结构化 Provider 能驱动：
+
+- `memory_extraction` 生成候选记忆。
+- `trip_planning` 生成规划。
+- `trip_review` 生成复盘。
+- `companion_chat` 生成最终回复。
+
+验收时需要检查四个 `model_provider` trace 均为 `fallback=false`。真实密钥联调时再运行 `scripts/real_provider_smoke.py` 和 CI 的 Real provider smoke；未配置 secrets 的结果只代表降级可用，不代表真实模型验收通过。

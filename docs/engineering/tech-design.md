@@ -35,3 +35,14 @@ P1 阶段已补充记忆冲突处理：当长期偏好与本次行程约束冲�
 - 不实现后台无感相册监听。
 - 不实现自动社交发布。
 - 不在缺少 Key 时伪造真实地图、天气或大模型 API 结果。
+
+
+## 真实数据与降级边界
+
+系统现在区分三类结果：
+
+1. 真实 Provider 结果：模型或高德工具已配置真实密钥，返回结构化结果且 schema/解析通过，`fallback=false`。
+2. 明确降级结果：Provider 未配置、HTTP 失败、schema 无效或能力暂未接入，返回 `fallback=true`、`provider=unconfigured/mock` 或对应错误类型。
+3. 本地持久化聚合结果：复盘、dashboard、记忆、画像、路线点、提醒历史、盲盒任务状态等来自 SQLModel/Drift 的真实用户数据，不依赖 Mock 样例。
+
+模型侧已覆盖 `memory_extraction`、`trip_planning`、`photo_copywriting`、`trip_review`、`companion_chat` 五类结构化输出。工具侧高德天气、POI、路线支持真实 Provider 与无 Key 降级。比赛演示中只有第 1 类和第 3 类可以声明为真实链路；第 2 类只能作为可控降级能力展示。

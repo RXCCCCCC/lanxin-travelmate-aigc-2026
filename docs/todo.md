@@ -95,7 +95,7 @@
 - 🚧 Docker Compose 已配置 API 指向 Postgres、Postgres healthcheck、API 启动前 `alembic upgrade head`；待人工/CI 环境执行 `docker compose up` 验证真实容器初始化。
 - 🚧 GitHub Actions 已接入真实 Provider 可选 smoke job 与密钥泄露静态检查；待人工配置 GitHub secrets 后在 CI 环境验收真实模型/高德连通性。
 - ⬜ Android APK 构建通过，确认 SDK、包名、签名、版本号和安装测试。
-- ⬜ 更新 README、API 契约、技术设计、Agent 图和交接文档，反映真实数据链路。
+- ✅ 更新 README、API 契约、技术设计、Agent 图和交接文档，反映真实数据链路；已补充结构化模型 Provider 场景、schema 校验、toolTrace/audit 降级语义、真实数据与降级边界、端到端验收方式。
 - ⬜ 清理过时文件、生成缓存和无用样例，控制仓库体积。
 
 人工介入：Android SDK/签名证书/应用包名；GitHub secrets；删除文件前确认；是否部署域名、HTTPS 和服务器。

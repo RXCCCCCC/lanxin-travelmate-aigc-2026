@@ -47,3 +47,15 @@
 2. Mock/离线降级工具仍放在 `services/api/app/tools/mock_tools.py`，并通过 `build_mock_tool_registry()` 仅供测试或显式降级使用。
 3. 在 `tool_planner` 中加入调用计划，并保证输出包含 `provider`、`fallback`、`sourceTime` 或 `confidence` 等可解释元数据。
 4. 在 `tests/test_real_tool_providers.py` 或对应测试中补充无 Key 降级与 HTTP 响应解析测试。
+
+
+## 结构化模型节点契约
+
+当前 Agent 仍保持 19 个节点顺序，但关键生成节点已经具备真实 Provider 结构化校验：
+
+- `memory_extractor` 调用 `scenario=memory_extraction`，要求 `memoryExtraction` 根字段；校验成功后补齐 `id`、`scopeOptions`、`requiresExplicitConsent`、`sensitivity` 等端侧确认字段。
+- `trip_planner` 调用 Provider 的规划能力并校验 `TripPlanningOutput`；失败时降级到本地规划。
+- `review_generator` 调用 `scenario=trip_review`，要求 `tripReview` 根字段；失败时使用数据库中的路线、照片、提醒、盲盒任务、状态事件和记忆聚合复盘。
+- `response_composer` 调用 `scenario=companion_chat`，要求 `chat` 根字段；模型未返回卡片、记忆候选或后续动作时保留前序节点结果。
+
+所有模型节点不得直接信任自然语言文本。新增真实节点时必须先定义 Pydantic schema，再在节点内校验，并在失败时写入 `toolTrace` 的 `provider/scenario/fallback/errorType`。结构化 Provider 闭环测试见 `tests/test_model_providers.py::test_graph_runs_structured_provider_across_core_agent_loop`。
