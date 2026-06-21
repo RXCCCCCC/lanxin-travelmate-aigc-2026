@@ -296,6 +296,10 @@ class _AgentReviewView extends StatelessWidget {
         .toList();
     final states = (review['avatarStatusChanges'] as List<dynamic>? ?? const [])
         .map((e) => e.toString());
+    final reminders =
+        (review['reminderHighlights'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     final suggestions =
         (review['nextTripSuggestions'] as List<dynamic>? ?? const []).map(
           (e) => e.toString(),
@@ -346,8 +350,24 @@ class _AgentReviewView extends StatelessWidget {
         if (tasks.isNotEmpty) ...[
           const _SectionHeader(title: '完成任务', icon: Icons.task_alt_rounded),
           ...tasks.map(
-            (item) =>
-                TripReviewCard(item: item['title']?.toString() ?? '已完成旅行任务'),
+            (item) => _ReviewDetailCard(
+              icon: Icons.task_alt_rounded,
+              title: item['title']?.toString() ?? '已完成旅行任务',
+              details: _reviewTaskDetails(item),
+            ),
+          ),
+        ],
+        if (reminders.isNotEmpty) ...[
+          const _SectionHeader(
+            title: '提醒回看',
+            icon: Icons.notifications_active_rounded,
+          ),
+          ...reminders.map(
+            (item) => _ReviewDetailCard(
+              icon: Icons.notifications_active_rounded,
+              title: item['title']?.toString() ?? '旅程提醒',
+              details: _reviewReminderDetails(item),
+            ),
           ),
         ],
         const _SectionHeader(title: '蓝小心状态变化', icon: Icons.mood_rounded),
@@ -357,12 +377,122 @@ class _AgentReviewView extends StatelessWidget {
         if (promotions.isNotEmpty) ...[
           const _SectionHeader(title: '可沉淀为长期记忆', icon: Icons.upgrade_rounded),
           ...promotions.map(
-            (item) => TripReviewCard(item: item['title']?.toString() ?? '临时记忆'),
+            (item) => _ReviewDetailCard(
+              icon: Icons.upgrade_rounded,
+              title: item['title']?.toString() ?? '临时记忆',
+              details: _reviewPromotionDetails(item),
+            ),
           ),
         ],
       ],
     );
   }
+}
+
+class _ReviewDetailCard extends StatelessWidget {
+  const _ReviewDetailCard({
+    required this.icon,
+    required this.title,
+    required this.details,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<String> details;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return GlassBox(
+      opacity: 0.18,
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
+        vertical: AppTheme.spacingXs,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingLg,
+        vertical: AppTheme.spacingMd,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppTheme.primary, size: 18),
+          const SizedBox(width: AppTheme.spacingSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  ...details.map(
+                    (detail) => Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text(
+                        detail,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<String> _reviewTaskDetails(Map<String, dynamic> item) {
+  return _nonEmptyDetails([
+    _labeledValue('状态', item['status']),
+    _labeledValue('奖励', item['reward']),
+    _labeledValue('影响', item['impact'] ?? item['reviewImpact']),
+    _labeledValue('备注', item['note']),
+    _labeledValue('完成时间', item['completedAt']),
+  ]);
+}
+
+List<String> _reviewReminderDetails(Map<String, dynamic> item) {
+  return _nonEmptyDetails([
+    _labeledValue('触发', item['triggerType']),
+    _labeledValue('地点', item['location']),
+    _labeledValue('时间', item['createdAt']),
+    _labeledValue('来源', item['historyId']),
+  ]);
+}
+
+List<String> _reviewPromotionDetails(Map<String, dynamic> item) {
+  return _nonEmptyDetails([
+    _labeledValue('建议范围', item['suggestedScope']),
+    _labeledValue('内容', item['content']),
+    _labeledValue('分类', item['category']),
+    _labeledValue('置信度', item['confidence']),
+  ]);
+}
+
+List<String> _nonEmptyDetails(Iterable<String?> values) {
+  return values
+      .where((value) => value != null && value.trim().isNotEmpty)
+      .cast<String>()
+      .toList(growable: false);
+}
+
+String? _labeledValue(String label, Object? value) {
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty || text == 'null' ? null : '$label：$text';
 }
 
 String _avatarStateEventText(Map<String, dynamic> event) {
