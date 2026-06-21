@@ -94,6 +94,11 @@ Docker：
 ```powershell
 docker build -t lanxin-travelmate-api ./services/api
 docker compose -f infra/docker-compose.yml up --build
+
+# 迁移链与回滚计划检查
+cd services/api
+uv run python scripts/migration_plan.py check
+uv run python scripts/migration_plan.py plan --target head --rollback-to <升级前revision> --backup-path <备份文件路径>
 ```
 真实 Provider smoke：
 

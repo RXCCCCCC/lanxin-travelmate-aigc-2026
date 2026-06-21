@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -48,3 +50,32 @@ def test_docker_compose_wires_api_to_postgres_with_healthcheck():
     assert "LANXIN_DATABASE_URL: postgresql+psycopg://lanxin:lanxin_dev@postgres:5432/lanxin_travelmate" in compose_text
     assert "condition: service_healthy" in compose_text
     assert "pg_isready" in compose_text
+
+def test_migration_plan_script_validates_revision_chain():
+    script = ROOT / "scripts" / "migration_plan.py"
+    assert script.exists()
+
+    result = subprocess.run(
+        [sys.executable, str(script), "check"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "OK: " in result.stdout
+    assert "head=0006_add_avatar_state_events" in result.stdout
+
+
+def test_database_migration_rollback_documentation_exists():
+    doc = REPO_ROOT / "docs" / "engineering" / "database-migrations.md"
+    assert doc.exists()
+    text = doc.read_text(encoding="utf-8")
+    for phrase in [
+        "uv run python scripts/migration_plan.py check",
+        "uv run alembic current",
+        "uv run alembic downgrade",
+        "备份",
+        "真实 Postgres 容器启动",
+    ]:
+        assert phrase in text
