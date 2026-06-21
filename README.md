@@ -116,6 +116,8 @@ GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时�
 
 脚本只输出 provider、scenario、fallback、errorType 等摘要，并用 `[REDACTED]` 标记密钥占位，不应在日志中打印真实密钥。
 
+认证 token 使用 HMAC-SHA256 JWT；生产或公开演示环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用 `.env.example` 中的默认值。
+
 ## 第一阶段验收
 
 1. 后端 `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000` 可启动。

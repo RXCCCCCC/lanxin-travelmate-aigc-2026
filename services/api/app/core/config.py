@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     amap_api_key: str | None = None
     tool_timeout_seconds: float = 8.0
     tool_rate_limit_per_minute: int = 0
+    auth_token_secret: str = "lanxin-local-dev-secret"
+    auth_token_ttl_seconds: int = 60 * 60 * 24 * 30
     cors_origins: list[str] = [
         "http://localhost",
         "http://localhost:8000",

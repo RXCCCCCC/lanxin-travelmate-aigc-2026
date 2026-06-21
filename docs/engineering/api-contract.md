@@ -467,7 +467,7 @@ P1 支持的 `triggerType`：
 
 ### `POST /api/auth/guest`
 
-创建或读取游客用户，返回可用于本机演示的 Bearer token：
+创建或读取游客用户，返回 HMAC-SHA256 JWT Bearer token：
 
 ```json
 {
@@ -478,7 +478,7 @@ P1 支持的 `triggerType`：
 
 ### `POST /api/auth/register`
 
-邮箱/账号 + 密码注册。当前使用后端 PBKDF2 密码哈希与本地 HMAC token，后续可替换正式 JWT。
+邮箱/账号 + 密码注册。当前使用后端 PBKDF2 密码哈希，并返回 HMAC-SHA256 JWT。生产环境必须通过 `LANXIN_AUTH_TOKEN_SECRET` 覆盖默认开发 secret。
 
 ```json
 {
@@ -490,11 +490,11 @@ P1 支持的 `triggerType`：
 
 ### `POST /api/auth/login`
 
-账号密码登录，返回 `accessToken`。
+账号密码登录，返回 `accessToken`。token 为三段式 JWT，payload 至少包含 `sub`、`isGuest`、`iat`、`exp`。
 
 ### `GET /api/users/me`
 
-需要 `Authorization: Bearer <accessToken>`，返回当前用户信息。
+需要 `Authorization: Bearer <accessToken>`，返回当前用户信息。后端仍兼容旧本地 HMAC token 以便既有游客会话过渡，但新签发 token 均为 JWT。
 ## `GET /api/audio/status`
 
 返回后端音频能力状态。真实 ASR/TTS 未配置时返回 fallback ready，前端可使用文字或系统 TTS 降级。
