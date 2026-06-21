@@ -34,6 +34,8 @@ class _TripPageState extends State<TripPage> {
   late final ProfileService _profileService;
   late final TripGroupService _groupService;
   final _destinationController = TextEditingController();
+  final _originCoordinateController = TextEditingController();
+  final _destinationCoordinateController = TextEditingController();
   final _startDateController = TextEditingController();
   final _endDateController = TextEditingController();
   final _companionsController = TextEditingController();
@@ -70,6 +72,8 @@ class _TripPageState extends State<TripPage> {
   @override
   void dispose() {
     _destinationController.dispose();
+    _originCoordinateController.dispose();
+    _destinationCoordinateController.dispose();
     _startDateController.dispose();
     _endDateController.dispose();
     _companionsController.dispose();
@@ -118,6 +122,10 @@ class _TripPageState extends State<TripPage> {
     final result = await _planService.createPlan(
       TripPlanRequestDraft(
         destination: destination,
+        originCoordinate: _parseCoordinate(_originCoordinateController.text),
+        destinationCoordinate: _parseCoordinate(
+          _destinationCoordinateController.text,
+        ),
         startDate: _emptyToNull(_startDateController.text),
         endDate: _emptyToNull(_endDateController.text),
         budget: _budget,
@@ -288,6 +296,10 @@ class _TripPageState extends State<TripPage> {
                           children: [
                             _TripPlanInputCard(
                               destinationController: _destinationController,
+                              originCoordinateController:
+                                  _originCoordinateController,
+                              destinationCoordinateController:
+                                  _destinationCoordinateController,
                               startDateController: _startDateController,
                               endDateController: _endDateController,
                               companionsController: _companionsController,
@@ -593,6 +605,8 @@ class _GroupCoordinationResultCard extends StatelessWidget {
 class _TripPlanInputCard extends StatelessWidget {
   const _TripPlanInputCard({
     required this.destinationController,
+    required this.originCoordinateController,
+    required this.destinationCoordinateController,
     required this.startDateController,
     required this.endDateController,
     required this.companionsController,
@@ -607,6 +621,8 @@ class _TripPlanInputCard extends StatelessWidget {
   });
 
   final TextEditingController destinationController;
+  final TextEditingController originCoordinateController;
+  final TextEditingController destinationCoordinateController;
   final TextEditingController startDateController;
   final TextEditingController endDateController;
   final TextEditingController companionsController;
@@ -646,6 +662,27 @@ class _TripPlanInputCard extends StatelessWidget {
               controller: destinationController,
               label: '目的地',
               hint: '例如 Hangzhou',
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _PlanTextField(
+                    keyValue: 'trip-origin-coordinate-input',
+                    controller: originCoordinateController,
+                    label: '当前位置坐标',
+                    hint: '30.245,120.165',
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingSm),
+                Expanded(
+                  child: _PlanTextField(
+                    keyValue: 'trip-destination-coordinate-input',
+                    controller: destinationCoordinateController,
+                    label: '目的地坐标',
+                    hint: '30.259,120.130',
+                  ),
+                ),
+              ],
             ),
             Row(
               children: [
@@ -809,6 +846,17 @@ class _OptionRow extends StatelessWidget {
       ],
     );
   }
+}
+
+Map<String, double>? _parseCoordinate(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  final parts = trimmed.split(RegExp(r'[,，\s]+'));
+  if (parts.length < 2) return null;
+  final latitude = double.tryParse(parts[0]);
+  final longitude = double.tryParse(parts[1]);
+  if (latitude == null || longitude == null) return null;
+  return {'latitude': latitude, 'longitude': longitude};
 }
 
 String? _emptyToNull(String value) {

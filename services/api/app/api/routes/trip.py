@@ -19,6 +19,8 @@ class TripPlanRequest(BaseModel):
     userId: str = "guest"
     tripId: str | None = None
     destination: str | None = None
+    originCoordinate: dict[str, float] = Field(default_factory=dict)
+    destinationCoordinate: dict[str, float] = Field(default_factory=dict)
     startDate: str | None = None
     endDate: str | None = None
     budget: str | None = None
@@ -395,6 +397,8 @@ def create_trip_plan(payload: TripPlanRequest, session: Session = Depends(get_se
     trip_id = payload.tripId or f"current-{payload.userId}-trip"
     planning_inputs: dict[str, object] = {
         "destination": payload.destination,
+        "originCoordinate": payload.originCoordinate,
+        "destinationCoordinate": payload.destinationCoordinate,
         "dateRange": {"startDate": payload.startDate, "endDate": payload.endDate},
         "budget": payload.budget,
         "companions": payload.companions,

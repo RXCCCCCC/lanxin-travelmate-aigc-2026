@@ -180,7 +180,7 @@
 }
 ```
 
-响应会包含 `planningInputs`，并把预算、交通方式、同行人、偏好和重规划原因写入 `profileMatches/risks`，便于端侧解释规划依据。
+请求可包含 `originCoordinate` 和 `destinationCoordinate`，格式为 `{ "latitude": number, "longitude": number }`；响应会包含 `planningInputs`，并把预算、交通方式、同行人、偏好、坐标和重规划原因写入规划上下文，便于端侧解释规划依据。
 
 规划卡 P1 字段：`externalContext` 会汇总天气、POI 和路线工具结果；后端会把天气提示、POI 营业时间和路线耗时写入 `profileMatches` 或 `risks`，方便端侧解释规划为什么这样安排。多人出游协调完成后，端侧可在 `POST /api/trip/plan` 中传入 `groupCoordination`，后端会把该结构写入 `planningInputs.groupCoordination`，并将折中节奏/预算摘要写入 `profileMatches`，但不展示成员敏感偏好原文。
 

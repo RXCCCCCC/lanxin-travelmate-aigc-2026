@@ -19,6 +19,8 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
             "tripId": trip_id,
             "message": "Plan Hangzhou with my family, relaxed pace.",
             "destination": "Hangzhou",
+            "originCoordinate": {"latitude": 30.245, "longitude": 120.165},
+            "destinationCoordinate": {"latitude": 30.259, "longitude": 120.130},
             "startDate": "2026-07-01",
             "endDate": "2026-07-03",
             "budget": "medium",
@@ -32,6 +34,8 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
     assert first.status_code == 200
     plan = first.json()
     assert plan["planningInputs"]["destination"] == "Hangzhou"
+    assert plan["planningInputs"]["originCoordinate"] == {"latitude": 30.245, "longitude": 120.165}
+    assert plan["planningInputs"]["destinationCoordinate"] == {"latitude": 30.259, "longitude": 120.130}
     assert plan["planningInputs"]["dateRange"] == {"startDate": "2026-07-01", "endDate": "2026-07-03"}
     assert plan["planningInputs"]["budget"] == "medium"
     assert plan["planningInputs"]["companions"] == ["mother", "child"]

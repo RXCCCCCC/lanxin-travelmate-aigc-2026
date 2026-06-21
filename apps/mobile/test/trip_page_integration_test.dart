@@ -202,6 +202,14 @@ void main() {
       'Hangzhou',
     );
     await tester.enterText(
+      find.byKey(const ValueKey('trip-origin-coordinate-input')),
+      '30.245,120.165',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-destination-coordinate-input')),
+      '30.259,120.130',
+    );
+    await tester.enterText(
       find.byKey(const ValueKey('trip-start-date-input')),
       '2026-07-01',
     );
@@ -223,6 +231,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(planService.capturedDraft?.destination, 'Hangzhou');
+    expect(planService.capturedDraft?.originCoordinate?['latitude'], 30.245);
+    expect(planService.capturedDraft?.originCoordinate?['longitude'], 120.165);
+    expect(
+      planService.capturedDraft?.destinationCoordinate?['latitude'],
+      30.259,
+    );
+    expect(
+      planService.capturedDraft?.destinationCoordinate?['longitude'],
+      120.130,
+    );
     expect(planService.capturedDraft?.startDate, '2026-07-01');
     expect(planService.capturedDraft?.companions, ['mother', 'child']);
     expect(planService.capturedDraft?.preferences, [

@@ -201,6 +201,7 @@ P1 增强状态：规划页已展示备选方案和高德外部导航入口，�
 
 
 ## Recent Frontend Facts
+- 2026-06-21 coordinate planning follow-up: `TripPlanRequestDraft` and backend `/api/trip/plan` now support `originCoordinate` and `destinationCoordinate` maps. `TripPage` exposes optional coordinate inputs and sends parsed `{latitude, longitude}` values together with the selected transport mode; backend tests verify the values remain in `planningInputs`. Validation passed: `flutter analyze`; `uv run pytest tests/test_trip_plan_inputs.py -q`.
 - 2026-06-20 blind-box follow-up: `PhotoExperienceService.updateBlindBoxTaskStatus()` posts to `/api/trip/blind-box/tasks/{taskId}/status`; `PhotoPage` now renders accept/complete/skip controls for blind-box tasks, updates local task state from the backend response, and displays returned affection/rapport reward deltas after completion. Validation passed: `flutter analyze`; backend blind-box/avatar event tests passed with `uv run pytest tests/test_blind_box_task_state.py tests/test_avatar_state_events.py -q`; reward delta response passed with `uv run pytest tests/test_blind_box_task_state.py -q`. Flutter widget tests were not rerun because the local Flutter test runner timed out repeatedly in this session.
 
 - 2026-06-20: Flutter 主页面固定样例依赖继续收敛。`shared/models/travelmate_models.dart` 承载聊天、记忆、规划、提醒、旅拍和复盘 UI 类型；`data/mock_data.dart` 只保留离线样例/测试 fixture。聊天页只保留真实 Agent 欢迎态；记忆、规划、提醒和复盘页在无真实数据时展示空状态、加载、错误或重试入口，不再渲染固定杭州行程、样例记忆、样例提醒或样例复盘。画像页空值显示“未设置”，不再套用固定样例用户画像。

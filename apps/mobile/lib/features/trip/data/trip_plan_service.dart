@@ -8,6 +8,8 @@ class TripPlanRequestDraft {
     this.tripId,
     this.message,
     required this.destination,
+    this.originCoordinate,
+    this.destinationCoordinate,
     this.startDate,
     this.endDate,
     this.budget,
@@ -23,6 +25,8 @@ class TripPlanRequestDraft {
   final String? tripId;
   final String? message;
   final String destination;
+  final Map<String, double>? originCoordinate;
+  final Map<String, double>? destinationCoordinate;
   final String? startDate;
   final String? endDate;
   final String? budget;
@@ -39,6 +43,10 @@ class TripPlanRequestDraft {
       if (_hasText(tripId)) 'tripId': tripId,
       if (_hasText(message)) 'message': message,
       'destination': destination,
+      if (originCoordinate != null && originCoordinate!.isNotEmpty)
+        'originCoordinate': originCoordinate,
+      if (destinationCoordinate != null && destinationCoordinate!.isNotEmpty)
+        'destinationCoordinate': destinationCoordinate,
       if (_hasText(startDate)) 'startDate': startDate,
       if (_hasText(endDate)) 'endDate': endDate,
       if (_hasText(budget)) 'budget': budget,
