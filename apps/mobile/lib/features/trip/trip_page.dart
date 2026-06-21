@@ -53,6 +53,7 @@ class _TripPageState extends State<TripPage> {
   String _transportMode = 'walking';
   bool _creatingPlan = false;
   bool _coordinatingGroup = false;
+  bool _editingPlan = false;
   String? _planError;
   String? _groupError;
 
@@ -143,6 +144,7 @@ class _TripPageState extends State<TripPage> {
       _creatingPlan = false;
       if (result.status == 'ok') {
         _createdPlan = result.plan;
+        _editingPlan = false;
       } else {
         _planError = '规划失败，请检查网络后重试';
       }
@@ -237,6 +239,49 @@ class _TripPageState extends State<TripPage> {
         .toList(growable: false);
   }
 
+  void _editCurrentPlan(Map<String, dynamic> plan) {
+    final planningInputs = _asDynamicMap(plan['planningInputs']);
+    final dateRange = _asDynamicMap(plan['dateRange']);
+    _setTextIfPresent(
+      _destinationController,
+      planningInputs['destination'] ?? plan['destination'],
+    );
+    _setCoordinateText(
+      _originCoordinateController,
+      planningInputs['originCoordinate'],
+    );
+    _setCoordinateText(
+      _destinationCoordinateController,
+      planningInputs['destinationCoordinate'],
+    );
+    _setTextIfPresent(
+      _startDateController,
+      planningInputs['startDate'] ?? dateRange['startDate'],
+    );
+    _setTextIfPresent(
+      _endDateController,
+      planningInputs['endDate'] ?? dateRange['endDate'],
+    );
+    _setTextIfPresent(
+      _companionsController,
+      _joinInputList(planningInputs['companions']),
+    );
+    _setTextIfPresent(
+      _preferencesController,
+      _joinInputList(planningInputs['preferences']),
+    );
+    final budget = planningInputs['budget']?.toString();
+    final transportMode = planningInputs['transportMode']?.toString();
+    setState(() {
+      if (budget != null && budget.isNotEmpty) _budget = budget;
+      if (transportMode != null && transportMode.isNotEmpty) {
+        _transportMode = transportMode;
+      }
+      _planError = null;
+      _editingPlan = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder(
@@ -245,6 +290,7 @@ class _TripPageState extends State<TripPage> {
         final metrics = context.responsive;
         final agentPlan = agentCardPayload(response, 'tripPlan');
         final livePlan = agentPlan ?? _createdPlan ?? _dashboardPlan;
+        final visiblePlan = _editingPlan ? null : livePlan;
         return Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -288,7 +334,7 @@ class _TripPageState extends State<TripPage> {
                 ),
                 // 内容
                 Expanded(
-                  child: livePlan == null
+                  child: visiblePlan == null
                       ? ListView(
                           padding: EdgeInsets.only(
                             bottom: metrics.listBottomPadding,
@@ -332,7 +378,8 @@ class _TripPageState extends State<TripPage> {
                           ],
                         )
                       : _AgentTripPlanView(
-                          plan: livePlan,
+                          plan: visiblePlan,
+                          onEditPlan: () => _editCurrentPlan(visiblePlan),
                           onWeatherReplan: _createdPlan == null
                               ? null
                               : () => _createPlan(replanReason: 'weather_risk'),
@@ -864,6 +911,38 @@ class _OptionRow extends StatelessWidget {
   }
 }
 
+Map<String, dynamic> _asDynamicMap(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+  return const {};
+}
+
+void _setTextIfPresent(TextEditingController controller, Object? value) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isNotEmpty && text != 'null') controller.text = text;
+}
+
+void _setCoordinateText(TextEditingController controller, Object? value) {
+  final coordinate = _asDynamicMap(value);
+  final latitude = coordinate['latitude'];
+  final longitude = coordinate['longitude'];
+  if (latitude == null || longitude == null) return;
+  controller.text = '$latitude,$longitude';
+}
+
+String? _joinInputList(Object? value) {
+  if (value is List) {
+    final items = value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    return items.isEmpty ? null : items.join(', ');
+  }
+  return value?.toString();
+}
+
 Map<String, double>? _parseCoordinate(String value) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) return null;
@@ -918,11 +997,13 @@ class _AgentTripPlanView extends StatelessWidget {
   const _AgentTripPlanView({
     required this.plan,
     this.routePoints = const {},
+    this.onEditPlan,
     this.onWeatherReplan,
   });
 
   final Map<String, dynamic> plan;
   final Map<String, dynamic> routePoints;
+  final VoidCallback? onEditPlan;
   final VoidCallback? onWeatherReplan;
 
   @override
@@ -991,6 +1072,9 @@ class _AgentTripPlanView extends StatelessWidget {
             ],
           ),
         ),
+        if (onEditPlan != null) ...[
+          _PlanEditActionCard(onEditPlan: onEditPlan!),
+        ],
         if (onWeatherReplan != null) ...[
           _ReplanActionCard(onWeatherReplan: onWeatherReplan!),
         ],
@@ -1321,6 +1405,53 @@ class _SimpleInfoCard extends StatelessWidget {
                 height: 1.4,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanEditActionCard extends StatelessWidget {
+  const _PlanEditActionCard({required this.onEditPlan});
+
+  final VoidCallback onEditPlan;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return GlassBox(
+      margin: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
+        vertical: AppTheme.spacingXs,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingLg,
+        vertical: AppTheme.spacingMd,
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.edit_note_rounded,
+            color: AppTheme.primary,
+            size: 18,
+          ),
+          const SizedBox(width: AppTheme.spacingSm),
+          const Expanded(
+            child: Text(
+              '修改当前方案后重新规划',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          OutlinedButton.icon(
+            key: const ValueKey('trip-edit-current-plan'),
+            onPressed: onEditPlan,
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text('修改'),
           ),
         ],
       ),
