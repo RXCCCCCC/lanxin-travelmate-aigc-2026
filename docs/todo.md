@@ -51,7 +51,7 @@
 
 目标：移动端页面由真实 API、本地数据库和设备能力驱动。
 
-- ✅ 移除主页面对 `apps/mobile/lib/data/mock_data.dart` 的主链路依赖；聊天、记忆、规划、提醒、复盘和画像页已不再用固定样例支撑空状态，共享 UI 类型已迁到 `shared/models/travelmate_models.dart`，`mock_data.dart` 仅保留离线样例/测试 fixture；首页已移除“演示模式”与固定重庆聊天片段，聊天页已改用本地生成的真实会话/旅程 ID，旅拍候选/盲盒列表读取失败不再返回固定样例，旅拍手动登记不再构造假设备 URI 或固定照片文件名，盲盒状态更新不再使用固定 guest 旅程 ID；已补主链路 mock_data/demo tripId/固定复盘/假设备照片 URI/固定 guest tripId 边界复查与防回归测试。
+- ✅ 移除主页面对 `apps/mobile/lib/data/mock_data.dart` 的主链路依赖；聊天、记忆、规划、提醒、复盘和画像页已不再用固定样例支撑空状态，共享 UI 类型已迁到 `shared/models/travelmate_models.dart`，`mock_data.dart` 仅保留离线样例/测试 fixture；首页已移除“演示模式”与固定重庆聊天片段，聊天页已改用本地生成的真实会话/旅程 ID，旅拍候选/盲盒列表读取失败不再返回固定样例，旅拍手动登记不再构造假设备 URI 或固定照片文件名，盲盒状态更新不再使用固定 guest 旅程 ID；已补主链路 mock_data/demo tripId/固定复盘/假设备照片 URI/固定 guest tripId/后端 demo session 与 demo trip 默认值边界复查与防回归测试。
 - 🚧 少量离线降级继续清理；首页改为真实联调入口态，聊天页改为真实 Agent 欢迎态，记忆/规划/提醒/复盘页在无真实数据时展示加载、空状态、错误或重试入口，不再渲染固定杭州/重庆复盘/样例提醒，复盘降级已改为空结构且提醒页不再硬编码固定地点；画像页真实读取和编辑 `/api/profile/me`，设置页的人格、主动程度、同步策略、通知、语音/文字偏好、自定义 Prompt、隐私摘要、记忆导出、清空记忆、清空当前旅行和撤销云端画像同步已接入真实后端接口。
 - 🚧 画像变更后影响规划、提醒和复盘的端到端展示已完成基础链路：规划页会把预算、交通偏好、兴趣、饮食忌口和节奏画像带入 `/api/trip/plan`；提醒页会把主动程度、节奏、兴趣和饮食偏好带入 `/api/trip/reminders/evaluate` 并展示画像上下文；复盘页会把画像上下文带入 `/api/trip/review` 并展示引用画像。剩余为真实模型/真实 Key/真机环境下的端到端验收。
 - 🚧 规划页支持任意目的地、日期、预算、同行人和偏好，不再固定演示路线；后端 `/api/trip/plan` 已接收并持久化 `destination/startDate/endDate/budget/companions/preferences/transportMode/tripStyle/replanReason`，计划响应包含 `planningInputs`；端侧已新增真实规划表单和 `TripPlanService`，可提交目的地、日期、预算、同行人、偏好、交通方式和画像偏好并展示返回计划；天气变化重规划入口已接入并传 `replanReason=weather_risk`。规划页已支持坐标字段传入，后端路线工具计划已消费坐标，剩余为真实定位/地图选点、真实 Key 环境验收。

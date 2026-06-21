@@ -45,7 +45,7 @@ def create_initial_state(
         "message": message,
         "session_id": session_id,
         "user_id": user_id or "guest",
-        "trip_id": trip_id or "demo-chongqing-weekend",
+        "trip_id": trip_id,
         "context": context or {},
         "memory_candidates": [],
         "memory_conflicts": [],

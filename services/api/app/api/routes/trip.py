@@ -418,7 +418,7 @@ def create_trip_plan(
     }
     state = create_initial_state(
         message=payload.message,
-        session_id="demo-session",
+        session_id=f"trip-plan-{effective_user_id}-{trip_id}",
         user_id=effective_user_id,
         trip_id=trip_id,
         context={"planningInputs": planning_inputs},
@@ -485,7 +485,7 @@ def create_trip_review(
     trip_id = payload.tripId or f"current-{effective_user_id}-trip"
     state = create_initial_state(
         message=payload.message,
-        session_id="demo-session",
+        session_id=f"trip-review-{effective_user_id}-{trip_id}",
         user_id=effective_user_id,
         trip_id=trip_id,
         context={
@@ -536,7 +536,7 @@ def trigger_reminders(
     effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     state = create_initial_state(
         message=f"触发提醒：{payload.triggerType} {payload.location or ''}",
-        session_id="demo-session",
+        session_id=f"reminder-{effective_user_id}-{payload.tripId or payload.triggerType}",
         user_id=effective_user_id,
         trip_id=payload.tripId,
         context={

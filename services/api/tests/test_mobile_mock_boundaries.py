@@ -70,6 +70,17 @@ def test_mobile_runtime_has_no_fixed_guest_trip_id():
     assert offenders == []
 
 
+def test_backend_runtime_has_no_fixed_demo_session_or_trip_ids():
+    app_root = REPO_ROOT / "services" / "api" / "app"
+    offenders: list[str] = []
+    for path in sorted(app_root.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        if "demo-session" in text or "demo-chongqing-weekend" in text:
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    assert offenders == []
+
+
 def test_demo_agent_state_is_only_cross_page_agent_cache():
     text = (MOBILE_LIB / "data" / "demo_agent_state.dart").read_text(encoding="utf-8")
 
