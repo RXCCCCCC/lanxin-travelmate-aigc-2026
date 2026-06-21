@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agents.travelmate.schemas import TripPlanningOutput
+from app.agents.travelmate.schemas import TripPlanningOutput, TripReviewOutput
 from app.agents.travelmate.state import TravelMateState
 from app.core.config import get_settings
 from app.services.model_providers import MockModelProvider, ModelProviderError, build_model_provider
@@ -449,59 +449,122 @@ def review_generator(state: TravelMateState) -> TravelMateState:
     completed_tasks = next_state["context"].get("completedTasks") or [
         {
             "id": "task-night-photo",
-            "title": "拍一张不是游客照的重庆夜景",
+            "title": "\u62cd\u4e00\u5f20\u4e0d\u662f\u6e38\u5ba2\u7167\u7684\u91cd\u5e86\u591c\u666f",
             "status": "completed",
-            "reward": "好感度 +2",
-            "impact": "进入今日高光照片与复盘故事线。",
+            "reward": "\u597d\u611f\u5ea6 +2",
+            "impact": "\u8fdb\u5165\u4eca\u65e5\u9ad8\u5149\u7167\u7247\u4e0e\u590d\u76d8\u6545\u4e8b\u7ebf\u3002",
         },
         {
             "id": "task-local-snack",
-            "title": "找一家不用香菜也好吃的小店",
+            "title": "\u627e\u4e00\u5bb6\u4e0d\u7528\u9999\u83dc\u4e5f\u597d\u5403\u7684\u5c0f\u5e97",
             "status": "completed",
-            "reward": "默契值 +1",
-            "impact": "强化了餐饮避雷偏好。",
+            "reward": "\u9ed8\u5951\u503c +1",
+            "impact": "\u5f3a\u5316\u4e86\u9910\u996e\u907f\u96f7\u504f\u597d\u3002",
         },
     ]
     temporary_memories = next_state["context"].get("temporaryMemories") or [
         {
             "id": "mem-slow-pace",
-            "title": "本次旅行想轻松一点",
-            "content": "用户本次行程希望低强度，减少跨区移动和密集景点。",
+            "title": "\u672c\u6b21\u65c5\u884c\u60f3\u8f7b\u677e\u4e00\u70b9",
+            "content": "\u7528\u6237\u672c\u6b21\u884c\u7a0b\u5e0c\u671b\u4f4e\u5f3a\u5ea6\uff0c\u51cf\u5c11\u8de8\u533a\u79fb\u52a8\u548c\u5bc6\u96c6\u666f\u70b9\u3002",
         }
     ]
     promotions = [
         {
             "id": item.get("id", "temp-memory"),
-            "title": item.get("title", "本次旅行偏好"),
-            "content": item.get("content", "这条临时记忆在本次旅行中反复出现，可考虑长期保存。"),
+            "title": item.get("title", "\u672c\u6b21\u65c5\u884c\u504f\u597d"),
+            "content": item.get("content", "\u8fd9\u6761\u4e34\u65f6\u8bb0\u5fc6\u5728\u672c\u6b21\u65c5\u884c\u4e2d\u53cd\u590d\u51fa\u73b0\uff0c\u53ef\u8003\u8651\u957f\u671f\u4fdd\u5b58\u3002"),
             "suggestedScope": "longTerm",
-            "reason": "这条临时记忆已经影响规划、提醒和复盘，建议询问用户是否转为长期记忆。",
+            "reason": "\u8fd9\u6761\u4e34\u65f6\u8bb0\u5fc6\u5df2\u7ecf\u5f71\u54cd\u89c4\u5212\u3001\u63d0\u9192\u548c\u590d\u76d8\uff0c\u5efa\u8bae\u8be2\u95ee\u7528\u6237\u662f\u5426\u8f6c\u4e3a\u957f\u671f\u8bb0\u5fc6\u3002",
         }
         for item in temporary_memories
     ]
-    highlight_photos = next_state["context"].get("highlightPhotos") or ["洪崖洞夜景"]
     reminder_highlights = next_state["context"].get("reminderHighlights") or []
-    status_changes = next_state["context"].get("avatarStatusChanges") or ["默契值 +1", "好感度 +2", "精力 -5"]
+    status_changes = next_state["context"].get("avatarStatusChanges") or ["\u9ed8\u5951\u503c +1", "\u597d\u611f\u5ea6 +2", "\u7cbe\u529b -5"]
     if next_state["context"].get("completedTasks"):
-        status_changes.append("盲盒任务完成奖励已进入复盘")
+        status_changes.append("\u76f2\u76d2\u4efb\u52a1\u5b8c\u6210\u5956\u52b1\u5df2\u8fdb\u5165\u590d\u76d8")
     if reminder_highlights:
-        status_changes.append("提醒响应记录已进入复盘")
+        status_changes.append("\u63d0\u9192\u54cd\u5e94\u8bb0\u5f55\u5df2\u8fdb\u5165\u590d\u76d8")
 
     next_state["completed_tasks"] = completed_tasks
     next_state["temporary_memory_promotions"] = promotions
-    next_state["review"] = {
-        "route": next_state["context"].get("route") or "解放碑 → 山城步道 → 洪崖洞 → 南山一棵树",
-        "highlightPhotos": highlight_photos,
-        "newMemories": next_state["context"].get("newMemories") or [item["title"] for item in next_state["memory_candidates"]],
-        "completedTasks": completed_tasks,
-        "reminderHighlights": reminder_highlights,
-        "avatarStatusChanges": status_changes,
-        "nextTripSuggestions": next_state["context"].get("nextTripSuggestions") or ["成都慢节奏美食线", "长沙夜景与小吃线"],
-        "temporaryMemoryPromotions": promotions,
-        "profileContext": next_state["context"].get("profileContext") or {},
-    }
+    next_state["context"]["reminderHighlights"] = reminder_highlights
+    next_state["context"]["avatarStatusChanges"] = status_changes
+    next_state["review"] = _review_with_model_or_fallback(next_state)
     return next_state
 
+
+def _fallback_review_payload(next_state: TravelMateState) -> dict[str, Any]:
+    return {
+        "route": next_state["context"].get("route") or "\u89e3\u653e\u7891 \u2192 \u5c71\u57ce\u6b65\u9053 \u2192 \u6d2a\u5d16\u6d1e \u2192 \u5357\u5c71\u4e00\u68f5\u6811",
+        "highlightPhotos": next_state["context"].get("highlightPhotos") or ["\u6d2a\u5d16\u6d1e\u591c\u666f"],
+        "newMemories": next_state["context"].get("newMemories") or [item["title"] for item in next_state["memory_candidates"]],
+        "completedTasks": next_state["completed_tasks"],
+        "reminderHighlights": next_state["context"].get("reminderHighlights") or [],
+        "avatarStatusChanges": next_state["context"].get("avatarStatusChanges") or [],
+        "nextTripSuggestions": next_state["context"].get("nextTripSuggestions") or ["\u6210\u90fd\u6162\u8282\u594f\u7f8e\u98df\u7ebf", "\u957f\u6c99\u591c\u666f\u4e0e\u5c0f\u5403\u7ebf"],
+        "temporaryMemoryPromotions": next_state["temporary_memory_promotions"],
+        "profileContext": next_state["context"].get("profileContext") or {},
+    }
+
+
+def _model_review_payload(next_state: TravelMateState) -> dict[str, Any]:
+    provider = build_model_provider(get_settings())
+    payload = provider.generate_json(
+        scenario="trip_review",
+        system_prompt="Return structured trip review JSON only.",
+        user_prompt=str({
+            "message": next_state.get("message"),
+            "context": next_state.get("context", {}),
+            "completedTasks": next_state.get("completed_tasks", []),
+            "temporaryMemoryPromotions": next_state.get("temporary_memory_promotions", []),
+        }),
+        schema={"task": "tripReview"},
+    )
+    if "tripReview" not in payload:
+        raise ModelProviderError("model output missing tripReview")
+    output = TripReviewOutput.model_validate(payload["tripReview"])
+    result = output.model_dump()
+    result["provider"] = provider.name
+    result["fallback"] = False
+    result["errorType"] = None
+    return result
+
+
+def _review_with_model_or_fallback(next_state: TravelMateState) -> dict[str, Any]:
+    try:
+        return _model_review_payload(next_state)
+    except (AttributeError, ModelProviderError) as exc:
+        review = _fallback_review_payload(next_state)
+        review.update({
+            "provider": get_settings().model_provider,
+            "fallback": True,
+            "errorType": "provider_error",
+            "fallbackReason": str(exc),
+        })
+        return review
+    except ValidationError as exc:
+        provider_name = get_settings().model_provider
+        try:
+            provider_name = build_model_provider(get_settings()).name
+        except ModelProviderError:
+            pass
+        next_state.setdefault("tool_trace", []).append({
+            "tool": "model_provider",
+            "provider": provider_name,
+            "scenario": "trip_review",
+            "fallback": True,
+            "errorType": "schema_validation",
+            "error": str(exc),
+        })
+        review = _fallback_review_payload(next_state)
+        review.update({
+            "provider": provider_name,
+            "fallback": True,
+            "errorType": "schema_validation",
+            "fallbackReason": str(exc),
+        })
+        return review
 
 def avatar_state_mapper(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "avatar_state_mapper")

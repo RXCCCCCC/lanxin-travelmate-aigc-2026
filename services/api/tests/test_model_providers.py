@@ -57,6 +57,64 @@ def test_graph_falls_back_when_model_trip_plan_schema_is_invalid(monkeypatch):
     assert result["trip_plan"]["title"]
 
 
+def test_graph_uses_valid_model_trip_review_output(monkeypatch):
+    class ReviewProvider:
+        name = "review-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            assert scenario == "trip_review"
+            return {
+                "tripReview": {
+                    "route": "Model start -> Model finish",
+                    "highlightPhotos": ["model-photo"],
+                    "completedTasks": [{"id": "task-model", "title": "Model task"}],
+                    "reminderHighlights": [{"triggerType": "model"}],
+                    "avatarStatusChanges": ["rapport +2"],
+                    "newMemories": ["model memory"],
+                    "nextTripSuggestions": ["model next trip"],
+                    "temporaryMemoryPromotions": [
+                        {"id": "mem-model", "suggestedScope": "longTerm", "reason": "model reason"}
+                    ],
+                    "profileContext": {"pace": "slow"},
+                }
+            }
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: ReviewProvider())
+    state = create_initial_state(message="Create a review")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["review"]["route"] == "Model start -> Model finish"
+    assert result["review"]["provider"] == "review-provider"
+    assert result["review"]["fallback"] is False
+
+
+def test_graph_falls_back_when_model_trip_review_schema_is_invalid(monkeypatch):
+    class InvalidReviewProvider:
+        name = "invalid-review-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            return {"tripReview": {"completedTasks": "not-a-list"}}
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidReviewProvider())
+    state = create_initial_state(message="Create a review")
+
+    result = TravelMateGraph().invoke(state)
+
+    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider"]
+    assert result["review"]["provider"] == "invalid-review-provider"
+    assert result["review"]["fallback"] is True
+    assert result["review"]["errorType"] == "schema_validation"
+    assert model_trace[-1]["fallback"] is True
+    assert model_trace[-1]["errorType"] == "schema_validation"
+
+
 def test_openai_compatible_provider_parses_json_response(monkeypatch):
     def fake_post(self, url, headers, json):
         return httpx.Response(
