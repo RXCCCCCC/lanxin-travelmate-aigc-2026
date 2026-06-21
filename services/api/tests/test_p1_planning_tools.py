@@ -33,9 +33,13 @@ def test_travel_tools_return_provider_and_fallback_metadata():
 
     weather = registry.call("weather_tool", {"city": "重庆"})
     poi = registry.call("poi_tool", {"city": "重庆", "keyword": "夜景"})
-    route = registry.call("route_tool", {"city": "重庆", "pace": "轻松"})
+    route = registry.call(
+        "route_tool",
+        {"city": "重庆", "origin": "真实起点", "destination": "真实终点", "pace": "轻松"},
+    )
 
     assert weather["provider"] in {"mock", "amap"}
     assert weather["fallback"] is True
     assert poi["provider"] in {"mock", "amap"}
+    assert route["route"] == ["真实起点", "真实终点"]
     assert route["navigationLinks"][0]["url"].startswith("androidamap://")
