@@ -95,6 +95,7 @@ Docker：
 ```powershell
 docker build -t lanxin-travelmate-api ./services/api
 docker compose -f infra/docker-compose.yml up --build
+python scripts/docker_compose_preflight.py --json
 
 # 迁移链与回滚计划检查
 cd services/api

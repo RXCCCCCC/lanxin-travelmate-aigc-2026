@@ -17,6 +17,16 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 - `POST /api/agent/chat` 返回固定 camelCase 字段：`replyText`、`cards`、`memoryCandidates`、`toolTrace`、`errors`。
 - 未配置真实模型或高德 Key 时，响应必须明确显示 fallback/unconfigured，不得伪装为真实数据。
 
+Docker/Postgres 编排预检：
+
+```powershell
+cd <repo-root>
+python scripts/docker_compose_preflight.py --json
+docker compose -f infra/docker-compose.yml config
+```
+
+预检只检查配置，不启动容器。真正的 `docker compose -f infra/docker-compose.yml up --build` 仍需要本机 Docker 可用，并会拉取/构建镜像。
+
 ## 2. 后端数据闭环验收
 
 建议按顺序调用：

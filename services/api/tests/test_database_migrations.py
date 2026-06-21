@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import importlib.util
 from pathlib import Path
 
 
@@ -46,10 +47,30 @@ def test_migrations_contain_current_core_tables():
 
 def test_docker_compose_wires_api_to_postgres_with_healthcheck():
     compose_text = (REPO_ROOT / "infra" / "docker-compose.yml").read_text(encoding="utf-8")
+    dockerfile_text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert "LANXIN_DATABASE_URL: postgresql+psycopg://lanxin:lanxin_dev@postgres:5432/lanxin_travelmate" in compose_text
     assert "condition: service_healthy" in compose_text
     assert "pg_isready" in compose_text
+    assert "uv run alembic upgrade head" in dockerfile_text
+    assert "uv run uvicorn app.main:app" in dockerfile_text
+
+
+def test_docker_compose_preflight_script_validates_static_contract():
+    script = REPO_ROOT / "scripts" / "docker_compose_preflight.py"
+    spec = importlib.util.spec_from_file_location("docker_compose_preflight", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    report = module.collect_docker_compose_preflight(REPO_ROOT, run_docker_config=False)
+    checks = report["checks"]
+
+    assert checks["compose_file_exists"]["ok"] is True
+    assert checks["api_points_to_postgres"]["ok"] is True
+    assert checks["api_waits_for_postgres_health"]["ok"] is True
+    assert checks["postgres_healthcheck"]["ok"] is True
+    assert checks["api_runs_migrations_before_server"]["ok"] is True
 
 def test_migration_plan_script_validates_revision_chain():
     script = ROOT / "scripts" / "migration_plan.py"
@@ -64,7 +85,7 @@ def test_migration_plan_script_validates_revision_chain():
     )
 
     assert "OK: " in result.stdout
-    assert "head=0006_add_avatar_state_events" in result.stdout
+    assert "head=0007_add_tool_call_log_user_id" in result.stdout
 
 
 def test_database_migration_rollback_documentation_exists():
