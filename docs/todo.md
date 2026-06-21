@@ -93,7 +93,7 @@
 
 - ⬜ 为真实 Provider、工具服务、数据库同步、端侧权限和核心闭环补单元/集成测试。
 - 🚧 Docker Compose 已配置 API 指向 Postgres、Postgres healthcheck、API 启动前 `alembic upgrade head`；待人工/CI 环境执行 `docker compose up` 验证真实容器初始化。
-- ⬜ GitHub Actions 增加真实 secrets 下的可选 smoke test，并避免密钥泄露。
+- 🚧 GitHub Actions 已接入真实 Provider 可选 smoke job 与密钥泄露静态检查；待人工配置 GitHub secrets 后在 CI 环境验收真实模型/高德连通性。
 - ⬜ Android APK 构建通过，确认 SDK、包名、签名、版本号和安装测试。
 - ⬜ 更新 README、API 契约、技术设计、Agent 图和交接文档，反映真实数据链路。
 - ⬜ 清理过时文件、生成缓存和无用样例，控制仓库体积。

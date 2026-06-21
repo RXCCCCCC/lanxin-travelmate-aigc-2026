@@ -64,6 +64,53 @@ jobs:
       - name: Run API tests
         run: uv run pytest
 
+  real-provider-smoke:
+    name: Real provider smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      LANXIN_AMAP_API_KEY: ${{ secrets.LANXIN_AMAP_API_KEY }}
+      LANXIN_MODEL_PROVIDER: ${{ secrets.LANXIN_MODEL_PROVIDER }}
+      LANXIN_LANXIN_BASE_URL: ${{ secrets.LANXIN_LANXIN_BASE_URL }}
+      LANXIN_LANXIN_API_KEY: ${{ secrets.LANXIN_LANXIN_API_KEY }}
+      LANXIN_LANXIN_MODEL: ${{ secrets.LANXIN_LANXIN_MODEL }}
+      LANXIN_OPENAI_BASE_URL: ${{ secrets.LANXIN_OPENAI_BASE_URL }}
+      LANXIN_OPENAI_API_KEY: ${{ secrets.LANXIN_OPENAI_API_KEY }}
+      LANXIN_OPENAI_MODEL: ${{ secrets.LANXIN_OPENAI_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report smoke gate
+        run: echo "Real provider smoke runs only when matching secrets are configured."
+
+      - name: Install uv
+        if: >-
+          ${{
+            env.LANXIN_AMAP_API_KEY != '' ||
+            (env.LANXIN_MODEL_PROVIDER == 'lanxin' && env.LANXIN_LANXIN_BASE_URL != '' && env.LANXIN_LANXIN_API_KEY != '') ||
+            ((env.LANXIN_MODEL_PROVIDER == 'openai' || env.LANXIN_MODEL_PROVIDER == 'openai_compatible' || env.LANXIN_MODEL_PROVIDER == 'openai-compatible') && env.LANXIN_OPENAI_BASE_URL != '' && env.LANXIN_OPENAI_API_KEY != '')
+          }}
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync API dependencies
+        if: >-
+          ${{
+            env.LANXIN_AMAP_API_KEY != '' ||
+            (env.LANXIN_MODEL_PROVIDER == 'lanxin' && env.LANXIN_LANXIN_BASE_URL != '' && env.LANXIN_LANXIN_API_KEY != '') ||
+            ((env.LANXIN_MODEL_PROVIDER == 'openai' || env.LANXIN_MODEL_PROVIDER == 'openai_compatible' || env.LANXIN_MODEL_PROVIDER == 'openai-compatible') && env.LANXIN_OPENAI_BASE_URL != '' && env.LANXIN_OPENAI_API_KEY != '')
+          }}
+        run: uv sync --dev
+
+      - name: Run real provider smoke
+        if: >-
+          ${{
+            env.LANXIN_AMAP_API_KEY != '' ||
+            (env.LANXIN_MODEL_PROVIDER == 'lanxin' && env.LANXIN_LANXIN_BASE_URL != '' && env.LANXIN_LANXIN_API_KEY != '') ||
+            ((env.LANXIN_MODEL_PROVIDER == 'openai' || env.LANXIN_MODEL_PROVIDER == 'openai_compatible' || env.LANXIN_MODEL_PROVIDER == 'openai-compatible') && env.LANXIN_OPENAI_BASE_URL != '' && env.LANXIN_OPENAI_API_KEY != '')
+          }}
+        run: uv run python scripts/real_provider_smoke.py
   android-apk:
     name: Android debug APK build
     runs-on: ubuntu-latest
