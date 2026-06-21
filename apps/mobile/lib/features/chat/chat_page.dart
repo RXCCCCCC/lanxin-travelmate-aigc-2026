@@ -42,10 +42,15 @@ class _ChatPageState extends State<ChatPage> {
   Map<String, dynamic>? _memoryConflictSuggestion;
   String? _memoryStatusText;
   bool _isSending = false;
+  late final String _sessionId;
+  late final String _tripId;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _sessionId = 'chat-session-$now';
+    _tripId = 'chat-trip-$now';
     _agentChatService = widget.agentChatService ?? AgentChatService();
     if (widget.memoryRepository == null) {
       _ownedDatabase = AppDatabase();
@@ -80,9 +85,9 @@ class _ChatPageState extends State<ChatPage> {
     _controller.clear();
     final response = await _agentChatService.sendMessage(
       text,
-      sessionId: 'demo-session',
+      sessionId: _sessionId,
       userId: 'guest',
-      tripId: 'demo-chongqing-weekend',
+      tripId: _tripId,
     );
     if (!mounted) return;
     latestAgentResponse.value = response;
