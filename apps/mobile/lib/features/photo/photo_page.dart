@@ -77,13 +77,13 @@ class _PhotoPageState extends State<PhotoPage> {
       _isRegistering = true;
       _photoNotice = null;
     });
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
     final upload = await _photoExperienceService.createUploadMetadata(
-      filename: 'manual-night-photo.jpg',
+      filename: 'user-import-$timestamp.jpg',
       contentType: 'image/jpeg',
-      localPath: 'device://selected-photo/manual-night-photo.jpg',
     );
     final candidate = await _photoExperienceService.createCandidate(
-      id: 'manual-photo-${DateTime.now().millisecondsSinceEpoch}',
+      id: 'manual-photo-$timestamp',
       remoteUrl: upload['remoteUrl']?.toString(),
       location: '手动导入照片',
       score: 8.6,
