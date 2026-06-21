@@ -606,6 +606,57 @@ String _formatRewardDeltas(Map<String, dynamic> deltas) {
   return labels.isEmpty ? '蓝小心状态已奖励' : labels.join(' / ');
 }
 
+class _RewardPulseCard extends StatelessWidget {
+  const _RewardPulseCard({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.94, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) {
+        return Transform.scale(
+          scale: scale,
+          alignment: Alignment.centerLeft,
+          child: child,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppTheme.accent.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          border: Border.all(color: AppTheme.accent.withOpacity(0.28)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              color: AppTheme.accent,
+              size: 15,
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppTheme.accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.task,
@@ -667,12 +718,15 @@ class _TaskCard extends StatelessWidget {
           ],
           if (rewardDeltas.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(
-              _formatRewardDeltas(rewardDeltas),
-              style: const TextStyle(
-                color: AppTheme.accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 360),
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeIn,
+              child: _RewardPulseCard(
+                key: ValueKey(
+                  'blind-box-$taskId-reward-${rewardDeltas.hashCode}',
+                ),
+                label: _formatRewardDeltas(rewardDeltas),
               ),
             ),
           ],
