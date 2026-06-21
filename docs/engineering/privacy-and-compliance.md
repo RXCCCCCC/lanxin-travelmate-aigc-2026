@@ -8,6 +8,9 @@
 - 身体状态、位置上下文、同行人信息标记为 `sensitive`，默认只建议本次旅行、当前会话或不记忆。
 - 已有接口支持导出记忆、清空全部记忆、清空本次旅行。
 
+- Flutter `PhotoExperienceService.createUploadMetadata()` 不向后端发送设备本地 `localPath`；后端照片候选和上传元数据响应固定返回 `localUri/localPath=null`。
+- `services/api/tests/test_mobile_privacy_boundaries.py` 静态检查移动端运行时代码不得使用 `print/debugPrint/developer.log/console.log` 输出潜在照片、音频、路径或 Token。
+
 ## 端侧展示要求
 
 - 所有记忆候选保存前必须展示保存范围：长期记忆、本次旅行、当前会话、不记忆。

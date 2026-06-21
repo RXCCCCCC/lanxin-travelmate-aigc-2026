@@ -295,7 +295,7 @@ P1 支持的 `triggerType`：
 
 ## `POST /api/photo/candidates`
 
-端侧在用户选择照片或拍照后写入旅拍候选元数据。真实图片文件上传可后续接对象存储；当前先保存 `localUri/remoteUrl`、地点、标签和评分。
+端侧在用户选择照片或拍照后写入旅拍候选元数据。真实图片文件上传可后续接对象存储；设备本地 `localUri` 只能留在端侧，后端即使收到历史兼容字段也会忽略并返回 `localUri: null`，当前仅保存 `remoteUrl`、地点、标签和评分。
 
 ```json
 {
@@ -312,7 +312,7 @@ P1 支持的 `triggerType`：
 
 ## `POST /api/photo/upload-metadata`
 
-保存用户选择或拍摄照片的文件元数据，供后续多模态分析、复盘引用和对象存储接入。
+保存用户选择或拍摄照片的文件元数据，供后续多模态分析、复盘引用和对象存储接入。端侧不得向该接口发送设备本地 `localPath`；后端对历史兼容字段也固定不保存并返回 `localPath: null`。
 ## `POST /api/photo/copywriting`
 
 根据候选照片生成朋友圈、小红书、旅行日记和 Vlog 旁白文案。不会自动发布到任何社交平台。

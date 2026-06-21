@@ -136,7 +136,7 @@ void main() {
       );
 
       expect(requests.first.path, '/api/photo/upload-metadata');
-      expect(requests.first.data['localPath'], '/device/private/night.jpg');
+      expect(requests.first.data, isNot(contains('localPath')));
       expect(upload['privacy']['localPathStored'], isFalse);
       expect(candidate['location'], '洪崖洞');
       expect(candidate['localUri'], isNull);

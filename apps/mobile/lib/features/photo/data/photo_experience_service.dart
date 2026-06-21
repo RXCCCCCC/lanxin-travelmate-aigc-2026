@@ -50,7 +50,6 @@ class PhotoExperienceService {
           'userId': userId,
           'filename': filename,
           'contentType': contentType,
-          if (localPath != null) 'localPath': localPath,
           if (remoteUrl != null) 'remoteUrl': remoteUrl,
         },
       );
