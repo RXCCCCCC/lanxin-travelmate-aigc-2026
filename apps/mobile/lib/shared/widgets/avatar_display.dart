@@ -5,7 +5,7 @@ import '../../core/theme/app_theme.dart';
 /// 蓝小心形象展示组件
 ///
 /// 根据 [AvatarState] 显示对应状态的蓝小心形象图，
-/// 带有上下浮动动画效果。
+/// 并按状态应用不同的浮动节奏和轻微缩放。
 class AvatarDisplay extends StatefulWidget {
   const AvatarDisplay({
     super.key,
@@ -23,19 +23,44 @@ class AvatarDisplay extends StatefulWidget {
 class _AvatarDisplayState extends State<AvatarDisplay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _floatController;
-  late final Animation<double> _floatAnimation;
+  late Animation<double> _floatAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _floatController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration: widget.state.motionDuration,
     )..repeat(reverse: true);
+    _configureAnimations();
+  }
 
-    _floatAnimation = Tween<double>(begin: -6, end: 6).animate(
-      CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
+  @override
+  void didUpdateWidget(covariant AvatarDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state) {
+      _floatController.duration = widget.state.motionDuration;
+      _configureAnimations();
+      _floatController
+        ..reset()
+        ..repeat(reverse: true);
+    }
+  }
+
+  void _configureAnimations() {
+    final curve = CurvedAnimation(
+      parent: _floatController,
+      curve: Curves.easeInOut,
     );
+    _floatAnimation = Tween<double>(
+      begin: -widget.state.floatAmplitude,
+      end: widget.state.floatAmplitude,
+    ).animate(curve);
+    _scaleAnimation = Tween<double>(
+      begin: 1,
+      end: widget.state.pulseScale,
+    ).animate(curve);
   }
 
   @override
@@ -47,11 +72,11 @@ class _AvatarDisplayState extends State<AvatarDisplay>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      listenable: _floatAnimation,
+      animation: _floatController,
       builder: (context, child) {
         return Transform.translate(
           offset: Offset(0, _floatAnimation.value),
-          child: child,
+          child: Transform.scale(scale: _scaleAnimation.value, child: child),
         );
       },
       child: _buildAvatar(),
@@ -77,6 +102,7 @@ class _AvatarDisplayState extends State<AvatarDisplay>
         width: widget.size,
         height: widget.size,
         fit: BoxFit.contain,
+        semanticLabel: '蓝小心${widget.state.label}',
         errorBuilder: (context, error, stackTrace) {
           return Container(
             width: widget.size,
@@ -94,23 +120,5 @@ class _AvatarDisplayState extends State<AvatarDisplay>
         },
       ),
     );
-  }
-}
-
-/// AnimatedBuilder 的兼容封装
-class AnimatedBuilder extends AnimatedWidget {
-  const AnimatedBuilder({
-    super.key,
-    required super.listenable,
-    required this.builder,
-    this.child,
-  });
-
-  final TransitionBuilder builder;
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    return builder(context, child);
   }
 }
