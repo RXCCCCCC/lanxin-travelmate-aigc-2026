@@ -1,8 +1,8 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import CloudMemory, utc_now
 from app.db.session import get_session
 
@@ -47,11 +47,13 @@ def _to_response(memory: CloudMemory) -> dict[str, object]:
 
 @router.get("/capsules")
 def list_memory_capsules(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, list[dict[str, object]]]:
+    effective_user_id = resolve_effective_user_id(userId, current_user)
     memories = session.exec(
-        select(CloudMemory).where(CloudMemory.user_id == userId).order_by(CloudMemory.updated_at.desc())
+        select(CloudMemory).where(CloudMemory.user_id == effective_user_id).order_by(CloudMemory.updated_at.desc())
     ).all()
     return {"items": [_to_response(memory) for memory in memories]}
 
@@ -59,12 +61,14 @@ def list_memory_capsules(
 @router.post("/capsules")
 def create_memory_capsule(
     payload: MemoryCapsulePayload,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     existing = session.get(CloudMemory, payload.id)
     now = utc_now()
     if existing:
-        existing.user_id = payload.userId
+        existing.user_id = effective_user_id
         existing.title = payload.title
         existing.content = payload.content
         existing.scope = payload.scope
@@ -78,7 +82,7 @@ def create_memory_capsule(
         return _to_response(existing)
     memory = CloudMemory(
         id=payload.id,
-        user_id=payload.userId,
+        user_id=effective_user_id,
         title=payload.title,
         content=payload.content,
         scope=payload.scope,
@@ -130,21 +134,25 @@ def delete_memory_capsule(memory_id: str, session: Session = Depends(get_session
 
 @router.get("/export")
 def export_memories(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    memories = session.exec(select(CloudMemory).where(CloudMemory.user_id == userId)).all()
-    return {"userId": userId, "items": [_to_response(memory) for memory in memories]}
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    memories = session.exec(select(CloudMemory).where(CloudMemory.user_id == effective_user_id)).all()
+    return {"userId": effective_user_id, "items": [_to_response(memory) for memory in memories]}
 
 
 @router.delete("/capsules")
 def clear_memory_capsules(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    memories = session.exec(select(CloudMemory).where(CloudMemory.user_id == userId)).all()
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    memories = session.exec(select(CloudMemory).where(CloudMemory.user_id == effective_user_id)).all()
     count = len(memories)
     for memory in memories:
         session.delete(memory)
     session.commit()
-    return {"deleted": count, "userId": userId}
+    return {"deleted": count, "userId": effective_user_id}

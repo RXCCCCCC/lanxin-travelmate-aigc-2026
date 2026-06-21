@@ -275,3 +275,5 @@ This project is indexed by GitNexus as **lanxin-travelmate-aigc-2026** (4424 sym
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+- 2026-06-21 auth-scope follow-up: backend profile, memory list/create/export/clear, and Agent chat routes now use `resolve_effective_user_id()` so authenticated Bearer-token users are used when `userId` is omitted or still sent as `guest`. Explicit non-guest `userId` remains compatible. Validation passed: `uv run python -m py_compile app\core\security.py app\api\routes\profile.py app\api\routes\memory.py app\api\routes\agent.py`; `uv run pytest tests/test_authenticated_user_scope.py tests/test_auth_routes.py tests/test_profile_settings_context.py tests/test_persistence_routes.py tests/test_agent_api.py -q`. GitNexus `impact` for `get_current_user`, `read_profile`, and `chat` timed out at about 34s, so fallback review used `rg`, `git diff`, py_compile, and targeted pytest. Remaining auth ownership work is trip/photo/sync/audio/tools token-first propagation and real multi-device validation.

@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from app.agents.travelmate.graph import TravelMateGraph
 from app.agents.travelmate.state import create_initial_state
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import CloudUserProfile, ModelCallLog, utc_now
 from app.db.session import get_session
 from app.schemas.agent import AgentChatRequest, AgentChatResponse
@@ -54,17 +55,23 @@ def _persist_model_call_logs(session: Session, records: list[dict[str, object]])
         )
     session.commit()
 
+
 @router.post("/chat", response_model=AgentChatResponse)
-def chat(request: AgentChatRequest, session: Session = Depends(get_session)) -> AgentChatResponse:
+def chat(
+    request: AgentChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AgentChatResponse:
     graph = TravelMateGraph()
+    effective_user_id = resolve_effective_user_id(request.userId, current_user)
     context = dict(request.context or {})
-    user_settings = _load_user_settings(session, request.userId)
+    user_settings = _load_user_settings(session, effective_user_id)
     if user_settings:
         context["userSettings"] = user_settings
     state = create_initial_state(
         message=request.message,
         session_id=request.sessionId,
-        user_id=request.userId,
+        user_id=effective_user_id,
         trip_id=request.tripId,
         context=context,
     )
@@ -77,7 +84,7 @@ def chat(request: AgentChatRequest, session: Session = Depends(get_session)) -> 
 def read_avatar_state() -> dict[str, int | str]:
     return {
         "energy": 85,
-        "mood": "规划中",
+        "mood": "planning",
         "curiosity": 76,
         "rapport": 13,
         "affection": 38,

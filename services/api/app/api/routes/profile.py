@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import CloudUserProfile, utc_now
 from app.db.session import get_session
 
@@ -45,22 +46,26 @@ def _read_profile(session: Session, user_id: str) -> CloudUserProfile | None:
 
 @router.get("/me")
 def read_profile(
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    profile = _read_profile(session, userId)
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    profile = _read_profile(session, effective_user_id)
     if not profile:
-        return _profile_response(userId, DEFAULT_PROFILE.model_dump())
-    return _profile_response(userId, json.loads(profile.profile_json))
+        return _profile_response(effective_user_id, DEFAULT_PROFILE.model_dump())
+    return _profile_response(effective_user_id, json.loads(profile.profile_json))
 
 
 @router.put("/me")
 def update_profile(
     payload: ProfilePayload,
-    userId: str = Query(default="guest"),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    profile = _read_profile(session, userId)
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    profile = _read_profile(session, effective_user_id)
     data = payload.model_dump()
     if profile:
         profile.profile_json = json.dumps(data, ensure_ascii=False)
@@ -68,10 +73,10 @@ def update_profile(
     else:
         profile = CloudUserProfile(
             id=f"profile-{uuid4().hex}",
-            user_id=userId,
+            user_id=effective_user_id,
             profile_json=json.dumps(data, ensure_ascii=False),
             updated_at=utc_now(),
         )
     session.add(profile)
     session.commit()
-    return _profile_response(userId, data)
+    return _profile_response(effective_user_id, data)

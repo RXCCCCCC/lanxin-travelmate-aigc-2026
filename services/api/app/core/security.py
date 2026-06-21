@@ -22,6 +22,13 @@ class CurrentUser:
     is_guest: bool = True
 
 
+def resolve_effective_user_id(explicit_user_id: str | None, current_user: CurrentUser) -> str:
+    requested_user_id = (explicit_user_id or "").strip()
+    if current_user.user_id != "guest" and (not requested_user_id or requested_user_id == "guest"):
+        return current_user.user_id
+    return requested_user_id or "guest"
+
+
 def hash_password(password: str, salt: str | None = None) -> str:
     salt = salt or secrets.token_hex(16)
     digest = pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 120_000).hex()
