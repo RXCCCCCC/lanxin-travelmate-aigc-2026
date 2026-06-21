@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agents.travelmate.schemas import TripPlanningOutput, TripReviewOutput
+from app.agents.travelmate.schemas import MemoryExtractionOutput, TripPlanningOutput, TripReviewOutput
 from app.agents.travelmate.state import TravelMateState
 from app.core.config import get_settings
 from app.services.model_providers import MockModelProvider, ModelProviderError, build_model_provider
@@ -72,10 +72,70 @@ def intent_router(state: TravelMateState) -> TravelMateState:
     return next_state
 
 
+def _model_memory_candidates(next_state: TravelMateState) -> list[dict[str, Any]]:
+    provider = build_model_provider(get_settings())
+    payload = provider.generate_json(
+        scenario="memory_extraction",
+        system_prompt="Return structured travel memory candidates JSON only.",
+        user_prompt=str({
+            "message": next_state.get("normalized_input") or next_state.get("message"),
+            "userId": next_state.get("user_id"),
+            "tripId": next_state.get("trip_id"),
+            "context": next_state.get("context", {}),
+        }),
+        schema={"task": "memoryExtraction"},
+    )
+    if "memoryExtraction" not in payload:
+        raise ModelProviderError("model output missing memoryExtraction")
+    output = MemoryExtractionOutput.model_validate(payload["memoryExtraction"])
+    candidates: list[dict[str, Any]] = []
+    for index, item in enumerate(output.candidates):
+        candidate = item.model_dump()
+        candidate.setdefault("id", f"model-memory-{index}")
+        candidate.setdefault("scopeOptions", ["longTerm", "currentTrip", "temporary", "ignore"])
+        candidate.setdefault("sensitivity", "personal" if candidate.get("category") == "dietary_preference" else "normal")
+        candidate.setdefault("requiresExplicitConsent", True)
+        candidate["provider"] = provider.name
+        candidate["fallback"] = False
+        candidates.append(candidate)
+    return candidates
+
+
+def _model_memory_trace(next_state: TravelMateState, *, provider: str, error_type: str, error: str) -> None:
+    next_state.setdefault("tool_trace", []).append({
+        "tool": "model_provider",
+        "provider": provider,
+        "scenario": "memory_extraction",
+        "fallback": True,
+        "errorType": error_type,
+        "error": error,
+    })
+
+
 def memory_extractor(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "memory_extractor")
     text = next_state["normalized_input"]
     candidates: list[dict[str, Any]] = []
+    try:
+        model_candidates = _model_memory_candidates(next_state)
+        if model_candidates:
+            next_state["memory_candidates"] = model_candidates
+            next_state.setdefault("tool_trace", []).append({
+                "tool": "model_provider",
+                "provider": model_candidates[0].get("provider"),
+                "scenario": "memory_extraction",
+                "fallback": False,
+            })
+            return next_state
+    except (AttributeError, ModelProviderError) as exc:
+        _model_memory_trace(next_state, provider=get_settings().model_provider, error_type="provider_error", error=str(exc))
+    except ValidationError as exc:
+        provider_name = get_settings().model_provider
+        try:
+            provider_name = build_model_provider(get_settings()).name
+        except ModelProviderError:
+            pass
+        _model_memory_trace(next_state, provider=provider_name, error_type="schema_validation", error=str(exc))
     if "不吃香菜" in text or "香菜" in text:
         candidates.append({
             "id": "mem-cilantro",
@@ -257,7 +317,7 @@ def tool_planner(state: TravelMateState) -> TravelMateState:
 def tool_executor(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "tool_executor")
     registry = build_tool_registry()
-    trace = []
+    trace = list(next_state.get("tool_trace", []))
     for item in next_state["tool_plan"]:
         output = registry.call(item["tool"], item["input"])
         trace.append({

@@ -6,6 +6,7 @@ from app.agents.travelmate.state import create_initial_state
 from app.core.config import Settings
 from app.services.model_providers.call_log import ModelCallLogger
 from app.services.model_providers.factory import build_model_provider
+from app.services.model_providers.base import ModelProviderError
 from app.services.model_providers.mock import MockModelProvider
 from app.services.model_providers.openai_compatible import OpenAICompatibleProvider
 
@@ -57,6 +58,73 @@ def test_graph_falls_back_when_model_trip_plan_schema_is_invalid(monkeypatch):
     assert result["trip_plan"]["title"]
 
 
+def test_graph_uses_valid_model_memory_extraction_output(monkeypatch):
+    class MemoryProvider:
+        name = "memory-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {
+                    "memoryExtraction": {
+                        "candidates": [
+                            {
+                                "title": "Quiet gardens",
+                                "content": "Traveler prefers calm garden stops.",
+                                "category": "travel_preference",
+                                "recommendedScope": "longTerm",
+                                "confidence": 0.88,
+                                "reason": "Repeated preference in the current request.",
+                            }
+                        ]
+                    }
+                }
+            if scenario == "trip_review":
+                raise ModelProviderError("review not configured")
+            return {}
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: MemoryProvider())
+    state = create_initial_state(message="I prefer quiet gardens and slow walks")
+
+    result = TravelMateGraph().invoke(state)
+
+    candidate = result["memory_candidates"][0]
+    assert candidate["title"] == "Quiet gardens"
+    assert candidate["id"] == "model-memory-0"
+    assert candidate["provider"] == "memory-provider"
+    assert candidate["requiresExplicitConsent"] is True
+    assert candidate["recommendedScope"] == "longTerm"
+
+
+def test_graph_falls_back_when_model_memory_extraction_schema_is_invalid(monkeypatch):
+    class InvalidMemoryProvider:
+        name = "invalid-memory-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {"memoryExtraction": {"candidates": [{"title": "Missing content"}]}}
+            if scenario == "trip_review":
+                raise ModelProviderError("review not configured")
+            return {}
+
+    monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidMemoryProvider())
+    state = create_initial_state(message="\u6211\u4e0d\u5403\u9999\u83dc\uff0c\u4e5f\u559c\u6b22\u591c\u666f")
+
+    result = TravelMateGraph().invoke(state)
+
+    model_trace = [item for item in result["tool_trace"] if item["tool"] == "model_provider" and item.get("scenario") == "memory_extraction"]
+    assert any(item["id"] == "mem-cilantro" for item in result["memory_candidates"])
+    assert model_trace
+    assert model_trace[-1]["provider"] == "invalid-memory-provider"
+    assert model_trace[-1]["fallback"] is True
+    assert model_trace[-1]["errorType"] == "schema_validation"
+
+
 def test_graph_uses_valid_model_trip_review_output(monkeypatch):
     class ReviewProvider:
         name = "review-provider"
@@ -65,6 +133,8 @@ def test_graph_uses_valid_model_trip_review_output(monkeypatch):
             return MockModelProvider().plan_trip(state)
 
         def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                raise ModelProviderError("memory extraction not configured")
             assert scenario == "trip_review"
             return {
                 "tripReview": {
@@ -100,6 +170,8 @@ def test_graph_falls_back_when_model_trip_review_schema_is_invalid(monkeypatch):
             return MockModelProvider().plan_trip(state)
 
         def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                raise ModelProviderError("memory extraction not configured")
             return {"tripReview": {"completedTasks": "not-a-list"}}
 
     monkeypatch.setattr(mock_nodes, "build_model_provider", lambda settings: InvalidReviewProvider())

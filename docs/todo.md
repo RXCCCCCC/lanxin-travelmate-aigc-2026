@@ -15,7 +15,7 @@
 目标：把当前 Mock Agent 升级为真实模型驱动的结构化 Agent。
 
 - 🚧 接入真实 `LanxinModelProvider`，并保留 OpenAI 兼容 Provider 作为可选后备；代码接口已接入，待真实密钥联调。
-- 🚧 为聊天、记忆抽取、规划、旅拍文案、复盘生成建立中文 Prompt 与 JSON Schema 校验；已新增通用 Prompt/模型输出 schema，解析层已覆盖 `ChatOutput`、`MemoryExtractionOutput`、`TripPlanningOutput`、`PhotoCopywritingOutput` 和 `TripReviewOutput`，规划节点、`/api/photo/copywriting` 和复盘节点已接入真实 Provider 输出校验并在 schema 无效时降级记录；剩余为把聊天和记忆抽取节点接入真实 Provider 输出校验。
+- 🚧 为聊天、记忆抽取、规划、旅拍文案、复盘生成建立中文 Prompt 与 JSON Schema 校验；已新增通用 Prompt/模型输出 schema，解析层已覆盖 `ChatOutput`、`MemoryExtractionOutput`、`TripPlanningOutput`、`PhotoCopywritingOutput` 和 `TripReviewOutput`，记忆抽取节点、规划节点、`/api/photo/copywriting` 和复盘节点已接入真实 Provider 输出校验并在 schema 无效时降级记录；剩余为把聊天节点接入真实 Provider 输出校验。
 - 🚧 将 `mock_nodes.py` 拆为真实节点、降级节点和共享 schema，节点输出必须可验证；已先接入 Provider 工厂、规划节点 schema 校验和降级日志。
 - ✅ 增加模型调用日志：provider、耗时、错误码、降级原因、脱敏请求摘要。
 - ⬜ 完成真实蓝心模型效果验证记录：记忆抽取、规划推理、角色化对话、文案生成、多模态理解。
@@ -64,7 +64,7 @@
 
 目标：达到 PRD 中“完整作品功能标准”的可体验闭环。
 
-- 🚧 记忆胶囊闭环：后端已支持记忆 CRUD/同步，并可按 `sourceText=tripId` 将本次旅程确认记忆写入复盘 `newMemories`、将临时记忆生成长期沉淀建议；真实模型抽取质量、端侧确认范围/画像更新/规划引用展示待继续。
+- 🚧 记忆胶囊闭环：后端已支持记忆 CRUD/同步，并可按 `sourceText=tripId` 将本次旅程确认记忆写入复盘 `newMemories`、将临时记忆生成长期沉淀建议；记忆抽取节点已接入真实 Provider `MemoryExtractionOutput` 校验，模型未配置或 schema 无效时保留本地隐私规则降级；真实模型抽取质量、端侧确认范围/画像更新/规划引用展示待继续。
 - 🚧 个性化规划闭环：创建旅行、生成方案、解释画像匹配、用户修改后重新规划、保存旅程；后端已支持同一 `tripId` 重规划、保存日期/预算/同行人/风格并把预算/交通方式/偏好/重规划原因写入 `profileMatches/risks`，端侧修改入口和真实模型增强待继续。
 - 🚧 主动情境提醒：由时间、位置、天气、行程节点或状态触发，具备冷却和主动程度控制；后端已支持 `/api/trip/reminders/evaluate` 自动评估时间/位置/状态/外部事件、按主动程度过滤、45 分钟冷却和历史落库；提醒页已读取画像主动程度/偏好并调用 evaluate，且可展示 dashboard 提醒历史；定时/真实定位/系统通知调用和真机验收待继续。
 - 🚧 旅拍候选集：后端候选/上传元数据/文案持久化已完成，`/api/photo/copywriting` 已接入真实 Provider 结构化文案输出校验并可在模型未配置或 schema 无效时明确降级；旅拍页已接入候选读取、上传元数据登记、候选创建和文案生成，并提示本地路径不会上传保存；真实系统选图/拍照、多模态分析、标签评分增强和复制/分享前确认待继续。
