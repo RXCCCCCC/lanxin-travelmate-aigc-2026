@@ -103,7 +103,8 @@ void main() {
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -180));
+    await tester.pump();
+    await tester.ensureVisible(find.text('导出记忆').first);
     await tester.pump();
     await tester.tap(find.text('导出记忆').first);
     await tester.pump(const Duration(milliseconds: 50));
