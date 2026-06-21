@@ -79,18 +79,22 @@ class _PhotoPageState extends State<PhotoPage> {
     });
   }
 
-  Future<void> _registerManualCandidate() async {
+  Future<void> _registerManualCandidate({bool fromCamera = false}) async {
     if (_isRegistering) return;
     setState(() {
       _isRegistering = true;
       _photoNotice = null;
     });
 
-    final selected = await _photoSelectionService.pickFromGallery();
+    final selected = fromCamera
+        ? await _photoSelectionService.takePhoto()
+        : await _photoSelectionService.pickFromGallery();
     if (!mounted) return;
     if (selected == null || selected.localUri.isEmpty) {
       setState(() {
-        _photoNotice = '未选择照片，或当前平台暂不支持系统相册入口';
+        _photoNotice = fromCamera
+            ? '未完成拍摄，或当前平台暂不支持系统相机入口'
+            : '未选择照片，或当前平台暂不支持系统相册入口';
         _isRegistering = false;
       });
       return;
@@ -305,6 +309,34 @@ class _PhotoPageState extends State<PhotoPage> {
                 width: double.infinity,
                 child: Row(
                   children: [
+                    SizedBox(
+                      width: metrics.minTouchTarget,
+                      height: metrics.minTouchTarget,
+                      child: Tooltip(
+                        message: '拍摄照片',
+                        child: OutlinedButton(
+                          onPressed: _isRegistering
+                              ? null
+                              : () =>
+                                    _registerManualCandidate(fromCamera: true),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.primary,
+                            padding: EdgeInsets.zero,
+                            side: const BorderSide(color: AppTheme.primary),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMd,
+                              ),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.photo_camera_rounded,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spacingSm),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _isRegistering

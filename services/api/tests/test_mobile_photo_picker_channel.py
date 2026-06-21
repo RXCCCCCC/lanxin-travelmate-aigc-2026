@@ -35,6 +35,8 @@ def test_photo_page_registers_real_selected_photo_without_uploading_local_path()
 
     assert "PhotoSelectionService" in text
     assert "pickFromGallery()" in text
+    assert "takePhoto()" in text
+    assert "Icons.photo_camera_rounded" in text
     assert "selected.localUri" in text
     assert "localPath:" not in text
 
