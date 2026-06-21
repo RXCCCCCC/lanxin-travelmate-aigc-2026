@@ -82,12 +82,13 @@ cd apps/mobile
 $env:NO_PROXY='localhost,127.0.0.1,::1'
 flutter analyze
 flutter test --concurrency=1
+python ..\..\scripts\android_release_preflight.py --json
 flutter build apk --debug
 ```
 
 如果本机设置了 `HTTP_PROXY`，运行 Flutter 测试时需要临时设置 `NO_PROXY`，否则本地 `flutter_tester` WebSocket 可能被代理拦截。
 
-本机执行 `flutter build apk --debug` 需要安装 Android SDK `platforms;android-35`；CI 会自动安装 Android SDK 35 和 `build-tools;35.0.0`。
+本机执行 `flutter build apk --debug` 前先运行 `python scripts/android_release_preflight.py --json`；当前预检会检查 Android-only 平台壳、`applicationId`、版本号、SDK 35、build-tools 35.0.0 和 release 签名状态。本机需要安装 Android SDK `platforms;android-35`；CI 的 Android APK job 会自动安装 Android SDK 35、`build-tools;35.0.0` 并运行 strict 预检。
 
 Docker：
 
@@ -129,7 +130,7 @@ GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时�
 7. 记忆页可看到已确认胶囊，并支持编辑/删除。
 8. 规划、提醒、复盘页优先展示本次 Agent Mock 响应。
 9. P1 演示可继续验证：规划页备选方案/高德导航入口、多人偏好协调并带入规划、提醒页三类模拟触发、旅拍页文案生成/盲盒任务接受-完成-跳过、盲盒完成奖励数值、复盘页独立生成。
-10. `uv run pytest`、`flutter analyze`、`flutter test --concurrency=1` 可作为基础验收命令；本机有 Android SDK 35 时再执行 `flutter build apk --debug`。
+10. `uv run pytest`、`flutter analyze`、`flutter test --concurrency=1` 可作为基础验收命令；本机先执行 `python scripts/android_release_preflight.py --json`，有 Android SDK 35 时再执行 `flutter build apk --debug`。
 
 ## 分支协作
 

@@ -95,7 +95,7 @@
 - 🚧 为真实 Provider、工具服务、数据库同步、端侧权限和核心闭环补单元/集成测试；已新增结构化 Provider 覆盖记忆抽取、规划、复盘、聊天四个 Agent 场景的后端集成测试，并新增移动端权限 manifest/plist 静态测试。剩余为真实密钥 smoke、工具服务真实 Key、数据库同步真实环境、端侧运行时权限和完整端到端闭环测试。
 - 🚧 Docker Compose 已配置 API 指向 Postgres、Postgres healthcheck、API 启动前 `alembic upgrade head`；待人工/CI 环境执行 `docker compose up` 验证真实容器初始化。
 - 🚧 GitHub Actions 已接入真实 Provider 可选 smoke job 与密钥泄露静态检查；待人工配置 GitHub secrets 后在 CI 环境验收真实模型/高德连通性。
-- 🚧 Android APK 构建通过，确认 SDK、包名、签名、版本号和安装测试；本机直接 Gradle 构建已定位到环境阻塞：`E:\localAndroid` 缺少 Android SDK `platforms;android-35`，CI 已配置安装 SDK 35 与 `build-tools;35.0.0`，剩余为人工安装本机 SDK 35 或在 CI/真机环境完成 APK 验收。
+- 🚧 Android APK 构建通过，确认 SDK、包名、签名、版本号和安装测试；已新增 `scripts/android_release_preflight.py` 检查 Android-only 平台壳、`applicationId`、版本号、SDK 35、build-tools 35.0.0、CI APK job 和 release 签名状态；CI Android APK job 已补安装 SDK 35/build-tools 35.0.0 并运行 strict 预检。本机预检显示 `E:\localAndroid` 已有 build-tools 35.0.0 但缺少 `platforms;android-35`，剩余为人工安装本机 SDK 35 或在 CI/真机环境完成 APK 构建与安装验收，并替换正式签名。
 - ✅ 更新 README、API 契约、技术设计、Agent 图和交接文档，反映真实数据链路；已补充结构化模型 Provider 场景、schema 校验、toolTrace/audit 降级语义、真实数据与降级边界、端到端验收方式。
 - 🚧 清理过时文件、生成缓存和无用样例，控制仓库体积；已生成 `docs/handoff/cleanup-inventory.md`，确认仓库未跟踪常见 build/cache 目录，并列出 PSD、重复头像源素材、mock/fixture 文件和必须保留的锁文件/生成文件。实际删除素材、样例或旧兼容导出文件（例如 `apps/mobile/lib/data/demo_agent_state.dart`）前仍需人工确认。
 

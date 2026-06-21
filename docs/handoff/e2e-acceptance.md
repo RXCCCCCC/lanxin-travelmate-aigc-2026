@@ -111,12 +111,21 @@ $env:NO_PROXY='localhost,127.0.0.1,::1'
 flutter analyze
 ```
 
+Android APK 预检：
+
+```powershell
+cd <repo-root>
+python scripts/android_release_preflight.py --json
+```
+
+预检会报告 Android-only 平台壳、包名、版本号、SDK 35、build-tools 35.0.0、CI APK job 和 release 签名状态。当前 release 仍使用 debug signing，最终公开发布前必须替换为正式签名。
+
 ## 6. 必须人工介入的验收
 
 - 配置真实 `LANXIN_MODEL_PROVIDER`、base URL、API Key、模型名，并验证模型效果。
 - 配置真实 `LANXIN_AMAP_API_KEY`，验证天气、POI、路线返回真实数据。
 - 使用 vivo/Android 真机验证定位、相册、相机、麦克风、通知和系统 TTS 权限。
-- 确认 Android 包名、签名证书、版本号和 APK 安装。
+- 确认 Android 包名、签名证书、版本号、SDK 35 和 APK 安装。
 - 录制最终 Demo 视频并检查隐私、素材授权、队伍信息和比赛提交材料。
 
 ## 7. 结构化 Provider 验收

@@ -126,6 +126,17 @@ jobs:
           channel: stable
           cache: true
 
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Android release preflight
+        working-directory: .
+        run: python scripts/android_release_preflight.py --strict
+
       - name: Install Flutter dependencies
         run: flutter pub get
 
