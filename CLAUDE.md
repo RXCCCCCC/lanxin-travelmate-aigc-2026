@@ -137,7 +137,7 @@ PRD当前采用端云协同Agent思路：
 - 评估用户提供的角色图、原型图或视觉素材时，应优先采用用户给出的素材定位；若姿势、用途或生成阶段不确定，先标注为“待确认”或询问，不要自行断定为自拍图、标准立绘或其他类型。
 - 当用户通过 `@文件名`、模板名或模糊文件名引用项目资料时，应先用 Glob 主动搜索根目录和相关目录，确认真实文件名与格式后再读取，不要只依赖用户给出的路径或扩展名。
 - 开发过程中若沉淀出新的工程事实、运行命令、验收方式、约束规则或用户纠正点，必须同步更新本文件；`AGENTS.md` 通过引用本文件继承最新项目上下文，不单独维护重复规则。
-- `docs/todo.md` 是全项目未完成待办总表，不仅是功能清单。更新时删除已完成项，只保留未完成、未真实化、待验证或人工介入事项；主链路不得把 Mock、固定演示数据或手动模拟标为完成，人工介入项必须单独标注。
+- `docs/todo.md` 是全项目剩余人工介入清单。更新时删除已由 AI 完成并验证的事项，只保留需要真实密钥、真实设备、正式签名、素材授权、远端推送、部署环境、比赛提交或负责人确认的事项；主链路不得把 Mock、固定演示数据或手动模拟标为完成。
 
 ## 当前代码工程状态
 
@@ -308,3 +308,4 @@ This project is indexed by GitNexus as **lanxin-travelmate-aigc-2026** (4424 sym
 - 2026-06-21 Android release preflight follow-up: added `scripts/android_release_preflight.py` to check Android-only platform scope, applicationId/namespace, version fields, local/CI SDK 35, build-tools 35.0.0, CI APK job setup, and release signing status. CI `android-apk` now installs Android SDK 35/build-tools 35.0.0 and runs strict preflight before `flutter build apk --debug`. Local validation command `python scripts/android_release_preflight.py --json` currently reports `E:\localAndroid\platforms\android-35` missing while build-tools 35.0.0 exists; final APK build/sign/install remains manual or CI validation.
 - 2026-06-21 presentation/submission follow-up: `docs/handoff/presentation-outline.md` provides a 12-page PPT structure, and `docs/handoff/submission-checklist.md` provides the final repository/CI/real-provider/Android/Demo/PPT/platform submission checklist. Team info, true screenshots, video link, final PPT design, and upload confirmation remain manual.
 - 2026-06-21 Docker compose preflight follow-up: added `scripts/docker_compose_preflight.py` to validate `infra/docker-compose.yml`, API-to-Postgres wiring, Postgres healthcheck, named volume, Dockerfile migration-before-server command, and optionally `docker compose config` without starting containers. Updated migration test head to `0007_add_tool_call_log_user_id`. Real `docker compose up --build` container initialization remains environment/manual validation.
+- 2026-06-21 todo scope follow-up: `docs/todo.md` has been reduced to a concise remaining-human-work checklist. It now excludes completed implementation detail and only tracks external/manual requirements such as real model keys, Amap key, multi-device validation, Android/vivo device validation, SDK/signing/APK, Docker deployment validation, privacy/material approval, Demo/PPT/upload, and push authorization.
