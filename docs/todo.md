@@ -34,7 +34,8 @@
 
 ## 4. Android/vivo 真机能力验收
 
-- [ ] 准备 vivo/Android 真机或稳定 Android 模拟器。
+- [x] 稳定 Android 模拟器验收环境已准备并完成一轮 debug APK 安装启动、首页和聊天真实联调验收。
+- [ ] 准备 vivo/Android 真机做最终设备能力验收。
 - [ ] 验证相册选择、相机拍摄、定位、麦克风、系统语音识别、中文 TTS、Android 13+ 通知权限和通知展示。
 - [ ] 验证拒绝权限时页面展示明确中文提示，不白屏、不卡死、不写入伪造数据。
 - [ ] 准备真实可展示照片素材，确认素材授权和隐私边界。
@@ -46,7 +47,8 @@
 - [ ] 运行 `python scripts/android_release_preflight.py --json`，确认 Android-only、包名、版本号、SDK、build-tools、CI APK job 和签名状态。
 - [ ] 确认最终 `applicationId`、`versionCode`、`versionName`。
 - [ ] 将 release 构建从 debug signing 替换为正式签名证书。
-- [ ] 在 CI 或本机完成 `flutter build apk --debug`/最终 APK 构建，并在 Android/vivo 设备安装启动。
+- [x] 本机完成 Android debug APK 构建，并在 Android 模拟器安装启动。
+- [ ] 在 CI 或真机完成最终 APK 构建/安装启动验收；release 包仍需正式签名。
 
 ## 6. Docker/Postgres 与部署验收
 

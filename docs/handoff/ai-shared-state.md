@@ -28,6 +28,10 @@
 
 ### 2026-06-29
 
+- Android 模拟器验收已完成一轮：debug APK 构建、安装、`adb reverse tcp:8000 tcp:8000`、首页启动、聊天页真实后端回复均通过；截图保存在 `E:\tmp\lanxin_after_timeout_fix_home.png` 和 `E:\tmp\lanxin_chat_real_reply.png`。
+- 本轮定位到聊天离线降级根因：真实 `/api/agent/chat` 在 OpenAI 兼容 Provider 路径下约 28 秒返回，而移动端 `receiveTimeout` 只有 8 秒；已将 API client 超时调整为 connect/send 10 秒、receive 45 秒。
+- Android 模拟器仍有 debug 冷启动偏慢现象，首页最终可渲染；后续录制 Demo 建议使用真机或 profile/release APK 验证启动体验。
+- `flutter test --no-pub test\auth_session_service_test.dart` 未完成，原因是本机 native assets 钩子下载 Windows `sqlite3.x64.windows.dll` 超时；不要为此恢复会破坏 Android 的 `sqlite3` system hook。
 - 已推送 `dev` 到远端；最新提交以 `git log --oneline -1` 为准，避免状态文档提交后哈希反复过期。
 - 真实 Provider smoke 已通过：高德天气/步行路线 `provider=amap fallback=false`，OpenAI 兼容模型连通 `ok=True`。
 - 真实高德工具已补验 POI、驾车、公交、混合路线，结果均为 `provider=amap fallback=false`；计费额度、可展示授权和 Android 真机展示仍需人工确认。

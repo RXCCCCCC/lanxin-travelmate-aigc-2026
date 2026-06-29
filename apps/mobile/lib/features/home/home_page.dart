@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../shared/widgets/glass_box.dart';
@@ -23,6 +24,7 @@ class _HomePageState extends State<HomePage>
   late final AnimationController _floatCtrl;
   late final TripDashboardService _dashboardService;
   _HomeDashboardSummary _dashboardSummary = const _HomeDashboardSummary();
+  bool _showHeroAvatar = false;
 
   @override
   void initState() {
@@ -32,7 +34,14 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(milliseconds: 3400),
     )..repeat(reverse: true);
     _dashboardService = widget.dashboardService ?? TripDashboardService();
-    _loadDashboardSummary();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _showHeroAvatar = true);
+      Future<void>.delayed(
+        const Duration(milliseconds: 600),
+        _loadDashboardSummary,
+      );
+    });
   }
 
   Future<void> _loadDashboardSummary() async {
@@ -109,7 +118,10 @@ class _HomePageState extends State<HomePage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      _IntegrationButton(compact: compact),
+                      GestureDetector(
+                        onTap: () => context.go('/chat'),
+                        child: _IntegrationButton(compact: compact),
+                      ),
                       const SizedBox(height: 8),
                       if (!compact) const _NoticePill(),
                     ],
@@ -144,17 +156,27 @@ class _HomePageState extends State<HomePage>
                     );
                   },
                   child: IgnorePointer(
-                    child: Image.asset(
-                      AvatarState.hello.assetPath,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(
-                          Icons.person,
-                          size: 120,
-                          color: Color(0xFF4C8DFF),
-                        ),
-                      ),
-                    ),
+                    child: _showHeroAvatar
+                        ? Image.asset(
+                            AvatarState.hello.assetPath,
+                            fit: BoxFit.contain,
+                            cacheWidth: 720,
+                            filterQuality: FilterQuality.medium,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(
+                                Icons.person,
+                                size: 120,
+                                color: Color(0xFF4C8DFF),
+                              ),
+                            ),
+                          )
+                        : const Center(
+                            child: Icon(
+                              Icons.person,
+                              size: 120,
+                              color: Color(0xFF4C8DFF),
+                            ),
+                          ),
                   ),
                 ),
 
@@ -734,80 +756,83 @@ class _ChatGlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    return GlassBox(
-      borderRadius: BorderRadius.circular(32),
-      padding: EdgeInsets.fromLTRB(
-        metrics.isCompactPhone ? 12 : 16,
-        metrics.isCompactPhone ? 12 : 14,
-        metrics.isCompactPhone ? 12 : 16,
-        10,
-      ),
-      opacity: 0.18,
-      blur: 30.0,
-      child: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _ChatBubble(
-                  isUser: false,
-                  text: '告诉我你的目的地、时间和偏好，我会调用后端 Agent 生成真实规划。',
-                  avatarPath: AvatarState.hello.assetPath,
-                ),
-              ],
-            ),
-          ),
-          // 输入栏
-          GlassBox(
-            borderRadius: BorderRadius.circular(24),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            opacity: 0.10,
-            blur: 16,
-            child: Row(
-              children: const [
-                Icon(Icons.mic_rounded, color: Color(0xFF5F8FBF), size: 22),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '去聊天页联调 Agent...',
-                    style: TextStyle(color: Color(0xFF8FABC4), fontSize: 14),
+    return GestureDetector(
+      onTap: () => context.go('/chat'),
+      child: GlassBox(
+        borderRadius: BorderRadius.circular(32),
+        padding: EdgeInsets.fromLTRB(
+          metrics.isCompactPhone ? 12 : 16,
+          metrics.isCompactPhone ? 12 : 14,
+          metrics.isCompactPhone ? 12 : 16,
+          10,
+        ),
+        opacity: 0.18,
+        blur: 30.0,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  _ChatBubble(
+                    isUser: false,
+                    text: '告诉我你的目的地、时间和偏好，我会调用后端 Agent 生成真实规划。',
+                    avatarPath: AvatarState.hello.assetPath,
                   ),
-                ),
-                Icon(
-                  Icons.emoji_emotions_outlined,
-                  color: Color(0xFF5F8FBF),
-                  size: 21,
-                ),
-                SizedBox(width: 10),
-                Icon(
-                  Icons.photo_library_outlined,
-                  color: Color(0xFF5F8FBF),
-                  size: 21,
-                ),
-                SizedBox(width: 10),
-                Icon(
-                  Icons.add_circle_outline,
-                  color: Color(0xFF5F8FBF),
-                  size: 22,
-                ),
+                ],
+              ),
+            ),
+            // 输入栏
+            GlassBox(
+              borderRadius: BorderRadius.circular(24),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              opacity: 0.10,
+              blur: 16,
+              child: Row(
+                children: const [
+                  Icon(Icons.mic_rounded, color: Color(0xFF5F8FBF), size: 22),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '去聊天页联调 Agent...',
+                      style: TextStyle(color: Color(0xFF8FABC4), fontSize: 14),
+                    ),
+                  ),
+                  Icon(
+                    Icons.emoji_emotions_outlined,
+                    color: Color(0xFF5F8FBF),
+                    size: 21,
+                  ),
+                  SizedBox(width: 10),
+                  Icon(
+                    Icons.photo_library_outlined,
+                    color: Color(0xFF5F8FBF),
+                    size: 21,
+                  ),
+                  SizedBox(width: 10),
+                  Icon(
+                    Icons.add_circle_outline,
+                    color: Color(0xFF5F8FBF),
+                    size: 22,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            // 快捷指令
+            Row(
+              children: const [
+                _QuickChip(icon: Icons.route_rounded, label: '规划路线'),
+                SizedBox(width: 6),
+                _QuickChip(icon: Icons.bubble_chart_rounded, label: '记忆胶囊'),
+                SizedBox(width: 6),
+                _QuickChip(icon: Icons.edit_road_rounded, label: '调整行程'),
+                SizedBox(width: 6),
+                _QuickChip(icon: Icons.auto_stories_rounded, label: '生成复盘'),
               ],
             ),
-          ),
-          const SizedBox(height: 6),
-          // 快捷指令
-          Row(
-            children: const [
-              _QuickChip(icon: Icons.route_rounded, label: '规划路线'),
-              SizedBox(width: 6),
-              _QuickChip(icon: Icons.bubble_chart_rounded, label: '记忆胶囊'),
-              SizedBox(width: 6),
-              _QuickChip(icon: Icons.edit_road_rounded, label: '调整行程'),
-              SizedBox(width: 6),
-              _QuickChip(icon: Icons.auto_stories_rounded, label: '生成复盘'),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

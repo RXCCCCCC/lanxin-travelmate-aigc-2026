@@ -197,10 +197,11 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final inputBottom = keyboardOpen ? 8.0 : metrics.safeInsets.bottom + 8;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final inputBottom = metrics.safeInsets.bottom + 8;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: const BoxDecoration(
@@ -352,81 +353,86 @@ class _ChatPageState extends State<ChatPage> {
                       ],
                     ),
                   ),
-                GlassBox(
-                  margin: EdgeInsets.fromLTRB(
-                    metrics.horizontalPadding,
-                    0,
-                    metrics.horizontalPadding,
-                    inputBottom,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: metrics.minTouchTarget,
-                        height: metrics.minTouchTarget,
-                        child: Tooltip(
-                          message: '语音输入',
-                          child: IconButton(
-                            onPressed: _isListening || _isSending
-                                ? null
-                                : _listenAndFillInput,
-                            icon: Icon(
-                              _isListening
-                                  ? Icons.more_horiz_rounded
-                                  : Icons.mic_rounded,
-                              color: AppTheme.primary,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spacingXs),
-                      Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          style: const TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 15,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '和蓝小心说点什么...',
-                            hintStyle: TextStyle(
-                              color: AppTheme.textMuted.withOpacity(0.6),
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                            ),
-                          ),
-                          onSubmitted: (_) => _send(),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _isSending ? null : _send,
-                        child: Container(
+                AnimatedPadding(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  padding: EdgeInsets.only(bottom: keyboardInset),
+                  child: GlassBox(
+                    margin: EdgeInsets.fromLTRB(
+                      metrics.horizontalPadding,
+                      0,
+                      metrics.horizontalPadding,
+                      inputBottom,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
                           width: metrics.minTouchTarget,
                           height: metrics.minTouchTarget,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary,
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSm,
+                          child: Tooltip(
+                            message: '语音输入',
+                            child: IconButton(
+                              onPressed: _isListening || _isSending
+                                  ? null
+                                  : _listenAndFillInput,
+                              icon: Icon(
+                                _isListening
+                                    ? Icons.more_horiz_rounded
+                                    : Icons.mic_rounded,
+                                color: AppTheme.primary,
+                                size: 22,
+                              ),
                             ),
                           ),
-                          child: Icon(
-                            _isSending
-                                ? Icons.more_horiz_rounded
-                                : Icons.send_rounded,
-                            color: Colors.white,
-                            size: 20,
+                        ),
+                        const SizedBox(width: AppTheme.spacingXs),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 15,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '和蓝小心说点什么...',
+                              hintStyle: TextStyle(
+                                color: AppTheme.textMuted.withOpacity(0.6),
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: (_) => _send(),
                           ),
                         ),
-                      ),
-                    ],
+                        GestureDetector(
+                          onTap: _isSending ? null : _send,
+                          child: Container(
+                            width: metrics.minTouchTarget,
+                            height: metrics.minTouchTarget,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary,
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusSm,
+                              ),
+                            ),
+                            child: Icon(
+                              _isSending
+                                  ? Icons.more_horiz_rounded
+                                  : Icons.send_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

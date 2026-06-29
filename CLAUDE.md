@@ -182,6 +182,7 @@ flutter build apk --debug
 
 - Flutter 前端需要优先覆盖 vivo/Android 主流手机尺寸：360x780、375x812、390x844、412x915、430x932，同时关注横屏、平板宽度和系统字体缩放 1.2/1.4。
 - 当前仓库只维护 Android/vivo 原生平台壳：保留 `apps/mobile/android/`、Flutter Dart 业务代码和通用资源；不要主动新增或维护 iOS、macOS、Windows、Linux、Web 平台工程；推送到远端 `dev` 后也应只保留 Android 侧相关平台文件。
+- Android 模拟器联调本机 FastAPI 时需要执行 `adb reverse tcp:8000 tcp:8000`，移动端真实 Agent/Provider 路径可能需要约 30 秒返回；不要把 API `receiveTimeout` 改回只适合 Mock 的短超时。
 - 固定底部导航、输入栏、底部 CTA 和列表页必须显式处理 SafeArea；主要触控目标按 Android 48dp 设计。
 - 首页这类沉浸式页面不得只依赖 `Stack + Positioned + 屏幕比例`，短屏或横屏需要折叠次要浮动元素或允许滚动兜底。
 - Flutter widget test 在本机若设置了 `HTTP_PROXY`，必须临时设置 `$env:NO_PROXY='localhost,127.0.0.1,::1'` 后再运行，否则 `flutter_tester` 可能出现 WebSocket 握手失败。

@@ -24,7 +24,9 @@ class _LanXinAppState extends State<LanXinApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _retryPendingSync());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(seconds: 2), _retryPendingSync);
+    });
   }
 
   @override

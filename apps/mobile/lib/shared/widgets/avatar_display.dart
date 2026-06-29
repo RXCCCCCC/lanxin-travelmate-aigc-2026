@@ -102,6 +102,8 @@ class _AvatarDisplayState extends State<AvatarDisplay>
         width: widget.size,
         height: widget.size,
         fit: BoxFit.contain,
+        cacheWidth: (widget.size * 3).round(),
+        filterQuality: FilterQuality.medium,
         semanticLabel: '蓝小心${widget.state.label}',
         errorBuilder: (context, error, stackTrace) {
           return Container(

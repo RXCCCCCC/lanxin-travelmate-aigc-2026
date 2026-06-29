@@ -32,6 +32,23 @@ class _AuthAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('api client keeps enough receive timeout for real agent calls', () {
+    final dio = buildApiClient(
+      baseUrl: 'https://example.test',
+      authSession: AuthSessionService(
+        deviceIdProvider: () async => 'device-test',
+      ),
+    );
+
+    expect(dio.options.connectTimeout, apiConnectTimeout);
+    expect(dio.options.receiveTimeout, apiReceiveTimeout);
+    expect(dio.options.sendTimeout, apiSendTimeout);
+    expect(
+      dio.options.receiveTimeout,
+      greaterThanOrEqualTo(const Duration(seconds: 45)),
+    );
+  });
+
   test(
     'guest session registers device and adds bearer token to later requests',
     () async {

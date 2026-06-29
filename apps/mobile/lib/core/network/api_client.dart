@@ -6,6 +6,10 @@ const String defaultApiBaseUrl = String.fromEnvironment(
   defaultValue: 'http://127.0.0.1:8000',
 );
 
+const Duration apiConnectTimeout = Duration(seconds: 10);
+const Duration apiReceiveTimeout = Duration(seconds: 45);
+const Duration apiSendTimeout = Duration(seconds: 10);
+
 Dio buildApiClient({
   String baseUrl = defaultApiBaseUrl,
   AuthSessionService? authSession,
@@ -13,9 +17,9 @@ Dio buildApiClient({
   final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 8),
-      sendTimeout: const Duration(seconds: 5),
+      connectTimeout: apiConnectTimeout,
+      receiveTimeout: apiReceiveTimeout,
+      sendTimeout: apiSendTimeout,
       headers: {'content-type': 'application/json'},
     ),
   );
