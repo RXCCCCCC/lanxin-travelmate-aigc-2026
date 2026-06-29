@@ -63,3 +63,16 @@ def test_trip_context_builder_uses_requested_destination_instead_of_fixture():
     result = real_nodes.trip_context_builder(normalized)
 
     assert result["trip_context"]["destination"] == "杭州"
+
+
+def test_trip_context_builder_extracts_destination_from_message_without_fixture():
+    state = create_initial_state(
+        message="\u5468\u672b\u60f3\u53bb\u676d\u5dde\u4e24\u5929\uff0c\u4e0d\u60f3\u592a\u7d2f\uff0c\u559c\u6b22\u591c\u666f",
+    )
+    normalized = real_nodes.input_normalizer(state)
+
+    result = real_nodes.trip_context_builder(normalized)
+
+    assert result["trip_context"]["destination"] == "\u676d\u5dde"
+    assert result["trip_context"]["pace"] == "\u8f7b\u677e"
+    assert "\u591c\u666f" in result["trip_context"]["mustKeep"]

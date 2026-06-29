@@ -35,16 +35,55 @@ def _planning_inputs(state: TravelMateState) -> dict[str, Any]:
     return planning_inputs if isinstance(planning_inputs, dict) else {}
 
 
+
 def _extract_destination_from_message(message: str) -> str | None:
     text = message.strip()
-    patterns = [
-        r"(?:去|到)([\u4e00-\u9fffA-Za-z]{2,20}?)(?:两天|三天|四天|五天|一周|周末|旅游|旅行|玩|逛|出差|[，。,.！!？?\s])",
-        r"目的地(?:是|为)?([\u4e00-\u9fffA-Za-z]{2,20})",
+    if not text:
+        return None
+
+    explicit_patterns = [
+        "\u76ee\u7684\u5730(?:\u662f|\u4e3a|:|\uff1a)?\\s*([\u4e00-\u9fffA-Za-z]{2,20})",
+        "(?:\u53bb|\u5230)\\s*([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u4e24\u5929|\u4e09\u5929|\u56db\u5929|\u4e94\u5929|\u4e00\u5929|\u4e00\u5468|\u5468\u672b|\u65c5\u6e38|\u65c5\u884c|\u73a9|\u901b|\u51fa\u5dee|\uff0c|\u3002|,|\\.|!|\uff01|\\?|\uff1f|\\s|$)",
     ]
-    for pattern in patterns:
+    for pattern in explicit_patterns:
         match = re.search(pattern, text)
         if match:
-            return match.group(1)
+            destination = match.group(1).strip()
+            if len(destination) >= 2:
+                return destination
+
+    stop_tokens = [
+        "\u4e24\u5929",
+        "\u4e09\u5929",
+        "\u56db\u5929",
+        "\u4e94\u5929",
+        "\u4e00\u5929",
+        "\u4e00\u5468",
+        "\u5468\u672b",
+        "\u65c5\u6e38",
+        "\u65c5\u884c",
+        "\u73a9",
+        "\u901b",
+        "\u51fa\u5dee",
+        "\uff0c",
+        "\u3002",
+        ",",
+        ".",
+        " ",
+    ]
+    for marker in ("\u53bb", "\u5230"):
+        index = text.find(marker)
+        if index < 0:
+            continue
+        candidate = text[index + len(marker) :]
+        end = len(candidate)
+        for token in stop_tokens:
+            token_index = candidate.find(token)
+            if token_index >= 0:
+                end = min(end, token_index)
+        destination = candidate[:end].strip()
+        if len(destination) >= 2:
+            return destination
     return None
 
 
@@ -56,26 +95,25 @@ def _extract_trip_destination(state: TravelMateState) -> str:
     from_message = _extract_destination_from_message(state.get("normalized_input") or state.get("message") or "")
     if from_message:
         return from_message
-    return "待确认目的地"
+    return "\u5f85\u786e\u8ba4\u76ee\u7684\u5730"
 
 
 def _extract_trip_pace(state: TravelMateState) -> str:
     text = state.get("normalized_input") or state.get("message") or ""
     planning_inputs = _planning_inputs(state)
     if planning_inputs.get("tripStyle") == "family_relaxed":
-        return "轻松"
-    if _contains_any(text, ["不想太累", "轻松", "慢一点", "慢节奏", "少走路"]):
-        return "轻松"
-    return "适中"
+        return "\u8f7b\u677e"
+    if _contains_any(text, ["\u4e0d\u60f3\u592a\u7d2f", "\u8f7b\u677e", "\u6162\u4e00\u70b9", "\u6162\u8282\u594f", "\u5c11\u8d70\u8def"]):
+        return "\u8f7b\u677e"
+    return "\u9002\u4e2d"
 
 
 def _extract_trip_days(state: TravelMateState) -> int:
     text = state.get("normalized_input") or state.get("message") or ""
-    for label, days in [("一天", 1), ("两天", 2), ("三天", 3), ("四天", 4), ("五天", 5)]:
+    for label, days in [("\u4e00\u5929", 1), ("\u4e24\u5929", 2), ("\u4e09\u5929", 3), ("\u56db\u5929", 4), ("\u4e94\u5929", 5)]:
         if label in text:
             return days
     return 2
-
 
 def _parse_nested_json_object(value: object) -> dict[str, Any] | None:
     if isinstance(value, dict):
@@ -215,101 +253,6 @@ def _normalize_chat_payload(payload: dict[str, Any], next_state: TravelMateState
             }
         }
     return unwrapped
-
-
-# Re-declare the text inference helpers with unicode escapes so they stay stable
-# even when the local console/editor path is not using UTF-8.
-def _extract_destination_from_message(message: str) -> str | None:
-    text = message.strip()
-    patterns = [
-        "(?:\u53bb|\u5230)([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u4e24\u5929|\u4e09\u5929|\u56db\u5929|\u4e94\u5929|\u4e00\u5468|\u5468\u672b|\u65c5\u6e38|\u65c5\u884c|\u73a9|\u901b|\u51fa\u5dee|[\uff0c\u3002,.!\uff01\uff1f?\\s])".replace("\\u4e00-\\u9fff", "\u4e00-\u9fff"),
-        "\u76ee\u7684\u5730(?:\u662f|\u4e3a)?([\u4e00-\u9fffA-Za-z]{2,20})".replace("\\u4e00-\\u9fff", "\u4e00-\u9fff"),
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            return match.group(1)
-    return None
-
-
-def _extract_trip_destination(state: TravelMateState) -> str:
-    planning_inputs = _planning_inputs(state)
-    destination = planning_inputs.get("destination")
-    if isinstance(destination, str) and destination.strip():
-        return destination.strip()
-    from_message = _extract_destination_from_message(state.get("normalized_input") or state.get("message") or "")
-    if from_message:
-        return from_message
-    return "\u5f85\u786e\u8ba4\u76ee\u7684\u5730"
-
-
-def _extract_trip_pace(state: TravelMateState) -> str:
-    text = state.get("normalized_input") or state.get("message") or ""
-    planning_inputs = _planning_inputs(state)
-    if planning_inputs.get("tripStyle") == "family_relaxed":
-        return "\u8f7b\u677e"
-    if _contains_any(
-        text,
-        [
-            "\u4e0d\u60f3\u592a\u7d2f",
-            "\u8f7b\u677e",
-            "\u6162\u4e00\u70b9",
-            "\u6162\u8282\u594f",
-            "\u5c11\u8d70\u8def",
-        ],
-    ):
-        return "\u8f7b\u677e"
-    return "\u9002\u4e2d"
-
-
-def _extract_trip_days(state: TravelMateState) -> int:
-    text = state.get("normalized_input") or state.get("message") or ""
-    for label, days in [
-        ("\u4e00\u5929", 1),
-        ("\u4e24\u5929", 2),
-        ("\u4e09\u5929", 3),
-        ("\u56db\u5929", 4),
-        ("\u4e94\u5929", 5),
-    ]:
-        if label in text:
-            return days
-    return 2
-
-
-def _extract_destination_from_message(message: str) -> str | None:
-    text = message.strip()
-    stop_tokens = [
-        "\u4e24\u5929",
-        "\u4e09\u5929",
-        "\u56db\u5929",
-        "\u4e94\u5929",
-        "\u4e00\u5468",
-        "\u5468\u672b",
-        "\u65c5\u6e38",
-        "\u65c5\u884c",
-        "\u73a9",
-        "\u901b",
-        "\u51fa\u5dee",
-        "\uff0c",
-        "\u3002",
-        ",",
-        ".",
-        " ",
-    ]
-    for marker in ("\u53bb", "\u5230"):
-        index = text.find(marker)
-        if index < 0:
-            continue
-        candidate = text[index + 1 :]
-        end = len(candidate)
-        for token in stop_tokens:
-            token_index = candidate.find(token)
-            if token_index >= 0:
-                end = min(end, token_index)
-        destination = candidate[:end].strip()
-        if len(destination) >= 2:
-            return destination
-    return None
 
 
 def input_normalizer(state: TravelMateState) -> TravelMateState:
@@ -469,14 +412,20 @@ def profile_updater(state: TravelMateState) -> TravelMateState:
 
 def trip_context_builder(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_context_builder")
+    destination = _extract_trip_destination(next_state)
+    must_keep = []
+    text = next_state.get("normalized_input") or next_state.get("message") or ""
+    if "\u591c\u666f" in text:
+        must_keep.append("\u591c\u666f")
+    if "\u4e0d\u60f3\u592a\u7d2f" in text or "\u5c11\u8d70\u8def" in text:
+        must_keep.append("\u4f4e\u5f3a\u5ea6\u8def\u7ebf")
     next_state["trip_context"] = {
-        "destination": _extract_trip_destination(next_state),
+        "destination": destination,
         "durationDays": _extract_trip_days(next_state),
         "pace": _extract_trip_pace(next_state),
-        "mustKeep": ["洪崖洞夜景", "山城步道"],
+        "mustKeep": must_keep,
     }
     return next_state
-
 
 def _coordinate_to_location(value: object) -> str | None:
     if not isinstance(value, dict):
@@ -494,7 +443,7 @@ def tool_planner(state: TravelMateState) -> TravelMateState:
     destination = str(
         planning_inputs.get("destination")
         or next_state.get("trip_context", {}).get("destination")
-        or "重庆"
+        or _extract_trip_destination(next_state)
     )
     transport_mode = str(planning_inputs.get("transportMode") or "walking")
     origin_location = _coordinate_to_location(planning_inputs.get("originCoordinate"))
@@ -502,7 +451,7 @@ def tool_planner(state: TravelMateState) -> TravelMateState:
     route_input = {
         "city": destination,
         "destination": destination,
-        "pace": next_state.get("trip_context", {}).get("pace") or "轻松",
+        "pace": next_state.get("trip_context", {}).get("pace") or "\u8f7b\u677e",
         "mode": transport_mode,
     }
     if origin_location and destination_location:
@@ -511,7 +460,7 @@ def tool_planner(state: TravelMateState) -> TravelMateState:
 
     next_state["tool_plan"] = [
         {"tool": "weather_tool", "input": {"city": destination}},
-        {"tool": "poi_tool", "input": {"city": destination, "keyword": "夜景"}},
+        {"tool": "poi_tool", "input": {"city": destination, "keyword": "\u591c\u666f"}},
         {"tool": "route_tool", "input": route_input},
     ]
     return next_state
@@ -624,28 +573,29 @@ def trip_planner(state: TravelMateState) -> TravelMateState:
 
 def trip_adjuster(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_adjuster")
+    destination = str(next_state.get("trip_context", {}).get("destination") or _extract_trip_destination(next_state))
     next_state["trip_plan"]["dynamicAdjustment"] = {
-        "trigger": "洪崖洞排队较长",
-        "suggestion": "先去附近轻量景点，再回到洪崖洞看夜景。",
+        "trigger": f"{destination}\u5b9e\u65f6\u62e5\u6324\u6216\u5929\u6c14\u53d8\u5316",
+        "suggestion": "\u4f18\u5148\u4fdd\u7559\u4f4e\u5f3a\u5ea6\u4f53\u9a8c\uff0c\u628a\u6392\u961f\u957f\u6216\u53d7\u5929\u6c14\u5f71\u54cd\u7684\u70b9\u4f4d\u8c03\u6574\u5230\u5907\u9009\u65f6\u6bb5\u3002",
     }
     return next_state
 
-
 def reminder_checker(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "reminder_checker")
+    destination = str(next_state.get("trip_context", {}).get("destination") or _extract_trip_destination(next_state))
     reminders = [
         {
             "id": "reminder-dinner",
-            "title": "先吃饭再看夜景",
+            "title": "\u5148\u5b89\u6392\u8f7b\u91cf\u8865\u7ed9",
             "triggerType": "time",
-            "description": "18:00 后洪崖洞周边人流上升，建议先在解放碑附近吃饭。",
+            "description": f"\u5230\u996d\u70b9\u524d\u5148\u5728{destination}\u9644\u8fd1\u5b89\u6392\u4f4e\u8d1f\u62c5\u7528\u9910\uff0c\u907f\u514d\u540e\u7eed\u591c\u666f\u65f6\u6bb5\u4f53\u529b\u4e0b\u964d\u3002",
             "cooldownMinutes": 90,
         },
         {
             "id": "reminder-location",
-            "title": "已接近洪崖洞",
+            "title": "\u5df2\u63a5\u8fd1\u884c\u7a0b\u70b9\u4f4d",
             "triggerType": "location",
-            "description": "当前位置适合步行到观景点，蓝小心已帮你避开最挤路线。",
+            "description": f"\u5f53\u524d\u4f4d\u7f6e\u9002\u5408\u8fdb\u5165{destination}\u7684\u4e0b\u4e00\u6bb5\u8def\u7ebf\uff0c\u84dd\u5c0f\u5fc3\u4f1a\u4f18\u5148\u907f\u5f00\u62e5\u6324\u548c\u8fc7\u957f\u6b65\u884c\u3002",
             "cooldownMinutes": 60,
         },
     ]
@@ -654,57 +604,55 @@ def reminder_checker(state: TravelMateState) -> TravelMateState:
     if trigger_type == "behavior":
         reminders.append({
             "id": "reminder-new-photo",
-            "title": "这张照片适合加入旅拍候选",
+            "title": "\u8fd9\u5f20\u7167\u7247\u9002\u5408\u52a0\u5165\u65c5\u62cd\u5019\u9009",
             "triggerType": "behavior",
-            "description": "蓝小心发现你刚拍了夜景照片，可以先存入候选集，复盘时生成配文。",
+            "description": "\u84dd\u5c0f\u5fc3\u53d1\u73b0\u4f60\u521a\u62cd\u4e86\u53ef\u590d\u76d8\u7167\u7247\uff0c\u53ef\u4ee5\u5148\u5b58\u5165\u5019\u9009\u96c6\uff0c\u590d\u76d8\u65f6\u751f\u6210\u914d\u6587\u3002",
             "cooldownMinutes": 45,
             "event": event_payload.get("event", "newPhoto"),
         })
     if trigger_type == "status":
         reminders.append({
             "id": "reminder-low-energy",
-            "title": "蓝小心建议放慢一点",
+            "title": "\u84dd\u5c0f\u5fc3\u5efa\u8bae\u653e\u6162\u4e00\u70b9",
             "triggerType": "status",
-            "description": "当前精力偏低，建议把下一个景点改为附近轻量休息点。",
+            "description": "\u5f53\u524d\u7cbe\u529b\u504f\u4f4e\uff0c\u5efa\u8bae\u628a\u4e0b\u4e00\u6bb5\u6539\u4e3a\u9644\u8fd1\u8f7b\u91cf\u4f11\u606f\u70b9\u6216\u4f4e\u5f3a\u5ea6\u8def\u7ebf\u3002",
             "cooldownMinutes": 60,
             "energy": event_payload.get("energy", 35),
         })
     if trigger_type == "external":
         reminders.append({
             "id": "reminder-weather-change",
-            "title": "天气变化，路线需要备选",
+            "title": "\u5916\u90e8\u60c5\u51b5\u53d8\u5316\uff0c\u8def\u7ebf\u9700\u8981\u5907\u9009",
             "triggerType": "external",
-            "description": "天气或排队情况发生变化，蓝小心已准备雨天室内轻松版备选方案。",
+            "description": "\u5929\u6c14\u3001\u6392\u961f\u6216\u4ea4\u901a\u60c5\u51b5\u53d1\u751f\u53d8\u5316\uff0c\u84dd\u5c0f\u5fc3\u5df2\u51c6\u5907\u66f4\u7a33\u59a5\u7684\u5907\u9009\u65b9\u6848\u3002",
             "cooldownMinutes": 90,
             "event": event_payload.get("event", "weatherChanged"),
         })
     next_state["reminders"] = reminders
     return next_state
 
-
 def photo_analyzer(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "photo_analyzer")
+    destination = str(next_state.get("trip_context", {}).get("destination") or _extract_trip_destination(next_state))
     next_state["photo_candidates"] = [
         {
-            "id": "photo-night",
-            "location": "洪崖洞",
-            "score": 9.3,
-            "description": "夜景灯光层次明显，适合做今日高光。",
+            "id": "photo-candidate-current-trip",
+            "location": destination,
+            "score": 8.0,
+            "description": "\u57fa\u4e8e\u5f53\u524d\u884c\u7a0b\u7684\u65c5\u62cd\u5019\u9009\uff0c\u7b49\u5f85\u771f\u5b9e\u7167\u7247\u5206\u6790\u7ed3\u679c\u8865\u5145\u3002",
         }
     ]
     return next_state
 
-
 def copywriter(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "copywriter")
     next_state["next_actions"] = [
-        {"type": "confirmMemory", "label": "确认记忆胶囊"},
-        {"type": "openTripPlan", "label": "查看两日路线"},
-        {"type": "simulateReminder", "label": "模拟主动提醒"},
-        {"type": "openReview", "label": "生成旅行复盘"},
+        {"type": "confirmMemory", "label": "\u786e\u8ba4\u8bb0\u5fc6\u80f6\u56ca"},
+        {"type": "openTripPlan", "label": "\u67e5\u770b\u884c\u7a0b\u8def\u7ebf"},
+        {"type": "simulateReminder", "label": "\u6a21\u62df\u4e3b\u52a8\u63d0\u9192"},
+        {"type": "openReview", "label": "\u751f\u6210\u65c5\u884c\u590d\u76d8"},
     ]
     return next_state
-
 
 def review_generator(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "review_generator")
@@ -886,11 +834,6 @@ def _model_chat_response(next_state: TravelMateState) -> dict[str, Any]:
 def response_composer(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "response_composer")
     trip_plan = next_state["trip_plan"]
-    reply = (
-        "收到，我会按轻松节奏规划重庆两天。因为你喜欢夜景，"
-        "我把洪崖洞和南山观景放在傍晚后；因为你不吃香菜，"
-        "餐厅建议会标注避开香菜；今天也会减少跨区移动。"
-    )
     destination = str(trip_plan.get("destination") or _extract_trip_destination(next_state))
     reply = (
         f"\u6536\u5230\uff0c\u6211\u4f1a\u5148\u6309\u8f7b\u677e\u8282\u594f\u89c4\u5212{destination}\u884c\u7a0b\u3002"
@@ -943,13 +886,13 @@ def response_composer(state: TravelMateState) -> TravelMateState:
         })
     return next_state
 
-
 def error_fallback(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "error_fallback")
     if "response" not in next_state:
+        reply = "\u6211\u5148\u7528\u79bb\u7ebf\u6a21\u5f0f\u966a\u4f60\u89c4\u5212\uff0c\u7a0d\u540e\u518d\u540c\u6b65\u66f4\u5b8c\u6574\u7684\u8def\u7ebf\u3002"
         next_state["response"] = {
-            "replyText": "我先用离线模式陪你规划，稍后再同步更完整的路线。",
-            "voiceText": "我先用离线模式陪你规划，稍后再同步更完整的路线。",
+            "replyText": reply,
+            "voiceText": reply,
             "avatarState": "thinking",
             "emotion": "fallback",
             "cards": [],
@@ -957,7 +900,7 @@ def error_fallback(state: TravelMateState) -> TravelMateState:
             "toolTrace": next_state.get("tool_trace", []),
             "nextActions": [],
             "syncSuggestions": [],
-            "errors": [{"code": "GRAPH_EMPTY_RESPONSE", "message": "未生成正式响应"}],
+            "errors": [{"code": "GRAPH_EMPTY_RESPONSE", "message": "\u672a\u751f\u6210\u6b63\u5f0f\u54cd\u5e94"}],
         }
     return next_state
 
