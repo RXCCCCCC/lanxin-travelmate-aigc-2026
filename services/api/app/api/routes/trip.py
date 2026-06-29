@@ -10,6 +10,7 @@ from app.core.security import CurrentUser, get_current_user, resolve_effective_u
 from app.agents.travelmate.state import create_initial_state
 from app.db.models import AvatarStateEventRecord, BlindBoxTaskRecord, CloudMemory, CloudTrip, CloudTripReview, GroupCoordinationRecord, PhotoCandidateRecord, ReminderEvent, TripRoutePointRecord, utc_now
 from app.db.session import get_session
+from app.services.model_audit import persist_model_call_logs
 
 
 router = APIRouter(prefix="/trip", tags=["trip"])
@@ -424,6 +425,7 @@ def create_trip_plan(
         context={"planningInputs": planning_inputs},
     )
     result = TravelMateGraph().invoke(state)
+    persist_model_call_logs(session, result.get("model_call_logs", []))
     plan = result["trip_plan"]
     plan["planningInputs"] = planning_inputs
     _apply_planning_input_explanations(plan, planning_inputs)
@@ -501,6 +503,7 @@ def create_trip_review(
         },
     )
     result = TravelMateGraph().invoke(state)
+    persist_model_call_logs(session, result.get("model_call_logs", []))
     review = result["review"]
     record = CloudTripReview(
         id=f"review-{uuid4().hex}",

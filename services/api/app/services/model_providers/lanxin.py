@@ -27,10 +27,11 @@ class LanxinModelProvider(ModelProvider):
     def generate_json(self, *, scenario: str, system_prompt: str, user_prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         url = self._settings.lanxin_base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {self._settings.lanxin_api_key}"}
+        schema_prompt = _schema_prompt(scenario, schema)
         body = {
             "model": self._settings.lanxin_model,
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": f"{system_prompt}\n{schema_prompt}"},
                 {"role": "user", "content": user_prompt},
             ],
             "response_format": {"type": "json_object"},
@@ -54,5 +55,39 @@ class LanxinModelProvider(ModelProvider):
             scenario="trip_planning",
             system_prompt="你是蓝心同行的旅行规划 Agent，只返回 JSON。",
             user_prompt=str(state),
-            schema={},
+            schema={"task": "tripPlanning"},
         )
+
+
+def _schema_prompt(scenario: str, schema: dict[str, Any]) -> str:
+    task = str(schema.get("task") or scenario)
+    contracts = {
+        "chat": (
+            'Return {"chat":{"replyText":"...","voiceText":"...","avatarState":"planning",'
+            '"emotion":"curious","cards":[],"memoryCandidates":[],"toolTrace":[],'
+            '"nextActions":[],"syncSuggestions":[],"errors":[]}}.'
+        ),
+        "memoryExtraction": (
+            'Return {"memoryExtraction":{"candidates":[{"title":"...","content":"...",'
+            '"category":"travel_preference","recommendedScope":"longTerm","confidence":0.8,'
+            '"reason":"..."}]}}.'
+        ),
+        "tripPlanning": (
+            'Return {"tripPlanning":{"title":"...","destination":"...","summary":"...",'
+            '"profileMatches":[],"risks":[],"alternatives":[]}}.'
+        ),
+        "photoCopywriting": (
+            'Return {"photoCopywriting":{"photoIds":[],"persona":"...","style":"...",'
+            '"moments":"...","xiaohongshu":"...","diary":"...","vlogNarration":"...",'
+            '"reviewSuggestion":"..."}}.'
+        ),
+        "tripReview": (
+            'Return {"tripReview":{"route":"...","highlightPhotos":[],"completedTasks":[],'
+            '"reminderHighlights":[],"avatarStatusChanges":[],"newMemories":[],'
+            '"nextTripSuggestions":[],"temporaryMemoryPromotions":[],"profileContext":{}}}.'
+        ),
+    }
+    contract = contracts.get(task) or contracts.get(scenario)
+    if not contract:
+        return "Return one valid JSON object only. Do not include Markdown or explanatory text."
+    return f"{contract} Return one valid JSON object only. Do not include Markdown or explanatory text."

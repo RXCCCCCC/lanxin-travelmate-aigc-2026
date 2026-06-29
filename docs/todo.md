@@ -1,6 +1,6 @@
 # 蓝心同行 Todo：剩余人工介入清单
 
-> 更新时间：2026-06-21
+> 更新时间：2026-06-29
 > 口径：本文件只保留当前无法由 AI 在仓库内独立完成的事项。已完成的 FastAPI/LangGraph/Flutter Android 主链路、真实数据接口、结构化 Provider 接口、审计、端侧设备通道、CI/预检脚本、交接文档不再重复列为待办。
 
 ## 总原则
@@ -12,17 +12,18 @@
 
 ## 1. 真实模型验收
 
-- [ ] 提供蓝心 API 地址、鉴权方式、API Key、模型名和额度；或提供 OpenAI 兼容服务的 base URL、模型名和 API Key。
-- [ ] 配置 `LANXIN_MODEL_PROVIDER` 及对应密钥环境变量，运行 `cd services/api && uv run python scripts/real_provider_smoke.py`。
-- [ ] 验收五类真实模型效果：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘。
-- [ ] 检查 `GET /api/audit/model-calls`：真实场景应为 `fallback=false`，日志不得出现密钥、Token、密码或完整敏感原文。
+- [x] 已配置 OpenAI 兼容真实模型，并运行 `cd services/api && uv run python scripts/real_provider_smoke.py`；结果为 `provider=openai_compatible ok=True`。
+- [x] 已验证真实旅拍文案接口：`/api/photo/copywriting` 返回 `provider=openai_compatible fallback=false`，朋友圈/小红书/日记/Vlog/复盘建议字段齐全。
+- [ ] 人工验收五类真实模型效果：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘。当前代码链路已支持真实 Provider，但角色化对话/规划在外部服务慢响应时仍可能 fallback。
+- [x] 已补齐 Agent、行程规划/复盘、旅拍文案等模型调用审计落库，并通过 `GET /api/audit/model-calls` 定向测试验证请求摘要不泄露敏感原文。
+- [ ] 最终演示数据库中人工确认五类真实场景 `fallback=false`，并再次检查日志不含密钥、Token、密码或完整敏感原文。
 
 ## 2. 地图、天气、POI 与路线真实化
 
-- [ ] 提供高德 API Key，或明确改用百度/腾讯等其他服务商。
+- [x] 已提供并配置高德 API Key。
 - [ ] 确认计费额度、可展示的数据来源和比赛演示是否允许展示第三方地图/天气数据。
-- [ ] 使用真实 Key 验证天气、POI、步行/驾车/公交/混合路线。
-- [ ] 在规划页和接口响应中确认 `toolTrace` 为真实 provider 且 `fallback=false`；无 Key 或异常时必须明确显示 `fallback/unconfigured`。
+- [x] 已使用真实 Key 验证天气、POI、步行、驾车、公交、混合路线；工具结果均为 `provider=amap fallback=false`。
+- [ ] 在 Android 规划页真机确认 `toolTrace` 展示真实 provider 且 `fallback=false`；无 Key 或异常时必须明确显示 `fallback/unconfigured`。
 
 ## 3. 多设备与云同步验收
 
@@ -72,8 +73,8 @@
 
 ## 9. 推送与协作
 
-- [ ] 当前本地 `dev` 领先远端；推送 `origin/dev` 前必须由负责人明确授权。
-- [ ] 推送前再次确认 `git status --short` 为空，并运行必要的轻量验证与 GitNexus `detect_changes`。
+- [x] 当前本地 `dev` 已推送到 `origin/dev`，最新提交为 `1e627f4 fix: stabilize real provider fallback destinations`。
+- [ ] 后续推送前再次确认 `git status --short` 为空，并运行必要的轻量验证与 GitNexus `detect_changes`。
 - [ ] 队友基于远端 `dev` 继续开发时，必须遵守 Android-only 规则和 `CLAUDE.md`。
 
 ## AI 已提供的辅助入口

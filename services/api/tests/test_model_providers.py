@@ -645,6 +645,47 @@ def test_openai_compatible_provider_compacts_trip_prompt(monkeypatch):
     assert payload["destination"] == "Hangzhou"
 
 
+def test_openai_compatible_provider_includes_schema_contract(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_post(self, url, headers, json):
+        captured["body"] = json
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", "https://example.test/v1/chat/completions"),
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "{\"photoCopywriting\":{\"photoIds\":[],\"persona\":\"p\",\"style\":\"s\",\"moments\":\"m\",\"xiaohongshu\":\"x\",\"diary\":\"d\",\"vlogNarration\":\"v\",\"reviewSuggestion\":\"r\"}}"
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    provider = OpenAICompatibleProvider(
+        Settings(
+            openai_base_url="https://example.test/v1",
+            openai_api_key="test-key",
+        )
+    )
+
+    payload = provider.generate_json(
+        scenario="photo_copywriting",
+        system_prompt="system",
+        user_prompt="user",
+        schema={"task": "photoCopywriting"},
+    )
+
+    system_prompt = captured["body"]["messages"][0]["content"]
+    assert "photoCopywriting" in system_prompt
+    assert "vlogNarration" in system_prompt
+    assert "Markdown" in system_prompt
+    assert "photoCopywriting" in payload
+
+
 def test_model_chat_prompt_is_compact_for_real_provider(monkeypatch):
     class InspectingChatProvider:
         name = "inspect-chat-provider"

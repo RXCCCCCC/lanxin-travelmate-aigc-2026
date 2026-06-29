@@ -28,6 +28,12 @@
 
 ### 2026-06-29
 
+- 已推送 `dev` 到远端，最新远端提交为 `1e627f4 fix: stabilize real provider fallback destinations`。
+- 真实 Provider smoke 已通过：高德天气/步行路线 `provider=amap fallback=false`，OpenAI 兼容模型连通 `ok=True`。
+- 真实高德工具已补验 POI、驾车、公交、混合路线，结果均为 `provider=amap fallback=false`；计费额度、可展示授权和 Android 真机展示仍需人工确认。
+- 已增强 OpenAI 兼容/蓝心模型 JSON schema prompt，并归一化旅拍文案真实输出别名；`/api/photo/copywriting` 真实验证为 `provider=openai_compatible fallback=false`。
+- 已补齐 Agent、行程规划/复盘、旅拍文案等模型调用审计落库；定向测试验证 `/api/audit/model-calls` 可读到直连路由记录且请求摘要不泄露敏感原文。
+- 真实模型剩余风险：角色化对话/规划在外部模型慢响应时仍可能 timeout fallback；最终演示数据库仍需人工确认五类真实场景 `fallback=false`。
 - 后端真实 provider 兜底链路已清理：`real_nodes.py` 去掉重复解析 helper，运行时回复、提醒、照片候选和行程调整不再固定写死重庆/洪崖洞。
 - 已补回归测试验证“周末想去杭州两天，不想太累，喜欢夜景”能提取杭州、轻松节奏和夜景偏好。
 - 已做后端针对性验证：`py_compile` 通过，5 个 provider/graph 定向 pytest 通过；HTTP smoke 显示杭州聊天和行程规划不再落回重庆样例。

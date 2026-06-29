@@ -1,5 +1,4 @@
 import json
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
@@ -7,9 +6,10 @@ from sqlmodel import Session, select
 from app.agents.travelmate.graph import TravelMateGraph
 from app.agents.travelmate.state import create_initial_state
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
-from app.db.models import CloudUserProfile, ModelCallLog, utc_now
+from app.db.models import CloudUserProfile
 from app.db.session import get_session
 from app.schemas.agent import AgentChatRequest, AgentChatResponse
+from app.services.model_audit import persist_model_call_logs
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -37,25 +37,6 @@ def _load_user_settings(session: Session, user_id: str | None) -> dict[str, obje
     }
 
 
-def _persist_model_call_logs(session: Session, records: list[dict[str, object]]) -> None:
-    if not records:
-        return
-    for record in records:
-        session.add(
-            ModelCallLog(
-                id=f"model-{uuid4().hex}",
-                provider=str(record.get("provider") or "unknown"),
-                scenario=str(record.get("scenario") or "unknown"),
-                fallback=bool(record.get("fallback", False)),
-                elapsed_ms=int(record.get("elapsedMs") or 0),
-                error=str(record["error"]) if record.get("error") else None,
-                request_summary_json=json.dumps(record.get("requestSummary") or {}, ensure_ascii=False),
-                created_at=utc_now(),
-            )
-        )
-    session.commit()
-
-
 @router.post("/chat", response_model=AgentChatResponse)
 def chat(
     request: AgentChatRequest,
@@ -76,7 +57,7 @@ def chat(
         context=context,
     )
     result = graph.invoke(state)
-    _persist_model_call_logs(session, result.get("model_call_logs", []))
+    persist_model_call_logs(session, result.get("model_call_logs", []))
     return AgentChatResponse.model_validate(result["response"])
 
 

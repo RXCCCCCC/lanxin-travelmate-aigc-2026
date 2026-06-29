@@ -10,7 +10,9 @@ from app.core.config import get_settings
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import PhotoCandidateRecord, UploadedFile, utc_now
 from app.db.session import get_session
+from app.services.model_audit import persist_model_call_logs
 from app.services.model_providers import ModelProviderError, build_model_provider
+from app.services.model_providers.call_log import ModelCallLogger
 
 
 router = APIRouter(prefix="/photo", tags=["photo"])
@@ -103,19 +105,74 @@ def _candidate_prompt_context(candidates: list[PhotoCandidateRecord], persona: s
     }
 
 
-def _copywriting_with_model(candidates: list[PhotoCandidateRecord], persona: str, style: str) -> dict[str, object]:
+def _first_text(payload: dict[str, object], keys: list[str]) -> str:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _normalize_copywriting_payload(
+    payload: dict[str, object],
+    candidates: list[PhotoCandidateRecord],
+    persona: str,
+    style: str,
+) -> dict[str, object]:
+    root = payload.get("photoCopywriting")
+    if isinstance(root, dict):
+        normalized = dict(root)
+    else:
+        normalized = dict(payload)
+    fallback = _copywriting_for(candidates, persona, style)
+    normalized["photoIds"] = normalized.get("photoIds") if isinstance(normalized.get("photoIds"), list) else fallback["photoIds"]
+    normalized["persona"] = _first_text(normalized, ["persona", "tone", "voice"]) or persona
+    normalized["style"] = _first_text(normalized, ["style", "copyStyle"]) or style
+    normalized["moments"] = _first_text(normalized, ["moments", "moment", "wechat", "wechatMoments", "friendCircle"]) or fallback["moments"]
+    normalized["xiaohongshu"] = _first_text(normalized, ["xiaohongshu", "xhs", "rednote", "redBook"]) or fallback["xiaohongshu"]
+    normalized["diary"] = _first_text(normalized, ["diary", "travelDiary", "journal"]) or fallback["diary"]
+    normalized["vlogNarration"] = _first_text(normalized, ["vlogNarration", "vlog", "narration", "voiceover"]) or fallback["vlogNarration"]
+    normalized["reviewSuggestion"] = _first_text(normalized, ["reviewSuggestion", "review", "summarySuggestion"]) or fallback["reviewSuggestion"]
+    return {"photoCopywriting": normalized}
+
+
+def _copywriting_with_model(
+    candidates: list[PhotoCandidateRecord],
+    persona: str,
+    style: str,
+    logger: ModelCallLogger,
+) -> dict[str, object]:
     provider = build_model_provider(get_settings())
     context = _candidate_prompt_context(candidates, persona, style)
-    payload = provider.generate_json(
-        scenario="photo_copywriting",
-        system_prompt="Return structured travel photo copywriting JSON only.",
-        user_prompt=json.dumps(context, ensure_ascii=False),
-        schema={"task": "photoCopywriting"},
+    timer = logger.track(
+        provider.name,
+        "photo_copywriting",
+        {
+            "photoCount": len(candidates),
+            "photoIds": [item.id for item in candidates],
+            "persona": persona,
+            "style": style,
+        },
     )
     try:
-        output = PhotoCopywritingOutput.model_validate(payload.get("photoCopywriting", payload))
+        payload = provider.generate_json(
+            scenario="photo_copywriting",
+            system_prompt="Return structured travel photo copywriting JSON only.",
+            user_prompt=json.dumps(context, ensure_ascii=False),
+            schema={"task": "photoCopywriting"},
+        )
+        normalized = _normalize_copywriting_payload(payload, candidates, persona, style)
+        output = PhotoCopywritingOutput.model_validate(normalized["photoCopywriting"])
     except ValidationError as exc:
+        timer.finish(fallback=True, error=f"schema_validation:{exc}")
         raise CopywritingSchemaError(provider.name, str(exc)) from exc
+    except ModelProviderError as exc:
+        timer.finish(fallback=True, error=f"provider_error:{exc}")
+        raise
+    except Exception as exc:
+        timer.finish(fallback=True, error=f"unexpected_error:{exc}")
+        raise
+    timer.finish(fallback=False)
     result = output.model_dump()
     result["provider"] = provider.name
     result["fallback"] = False
@@ -245,8 +302,9 @@ def create_photo_copywriting(
             .where(PhotoCandidateRecord.user_id == effective_user_id)
             .order_by(PhotoCandidateRecord.updated_at.desc())
         ).all()
+    logger = ModelCallLogger()
     try:
-        copywriting = _copywriting_with_model(candidates, payload.persona, payload.style)
+        copywriting = _copywriting_with_model(candidates, payload.persona, payload.style, logger)
     except ModelProviderError as exc:
         copywriting = _copywriting_fallback(
             candidates,
@@ -269,5 +327,6 @@ def create_photo_copywriting(
         item.copywriting_json = json.dumps(copywriting, ensure_ascii=False)
         item.updated_at = utc_now()
         session.add(item)
+    persist_model_call_logs(session, [record.__dict__ for record in logger.records])
     session.commit()
     return copywriting

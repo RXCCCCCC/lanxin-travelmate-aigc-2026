@@ -126,6 +126,53 @@ def test_photo_copywriting_uses_valid_model_provider_output(monkeypatch):
     assert payload["fallback"] is False
 
 
+def test_photo_copywriting_normalizes_real_provider_aliases(monkeypatch):
+    class AliasCopywritingProvider:
+        name = "alias-copywriting-provider"
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            assert scenario == "photo_copywriting"
+            return {
+                "wechat": "Alias moments copy",
+                "xhs": "Alias XHS copy",
+                "travelDiary": "Alias diary copy",
+                "vlog": "Alias vlog copy",
+            }
+
+    monkeypatch.setattr(photo, "build_model_provider", lambda settings: AliasCopywritingProvider())
+    client.post(
+        "/api/photo/candidates",
+        json={
+            "id": "photo-alias-a",
+            "userId": "photo-alias-user",
+            "location": "West Lake",
+            "score": 8.9,
+            "description": "alias model candidate",
+            "tags": ["night"],
+        },
+    )
+
+    response = client.post(
+        "/api/photo/copywriting",
+        json={
+            "userId": "photo-alias-user",
+            "photoIds": ["photo-alias-a"],
+            "persona": "quiet guide",
+            "style": "warm",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["moments"] == "Alias moments copy"
+    assert payload["xiaohongshu"] == "Alias XHS copy"
+    assert payload["diary"] == "Alias diary copy"
+    assert payload["vlogNarration"] == "Alias vlog copy"
+    assert payload["persona"] == "quiet guide"
+    assert payload["style"] == "warm"
+    assert payload["fallback"] is False
+
+
 def test_photo_copywriting_falls_back_when_model_schema_is_invalid(monkeypatch):
     class InvalidCopywritingProvider:
         name = "invalid-copywriting-provider"
