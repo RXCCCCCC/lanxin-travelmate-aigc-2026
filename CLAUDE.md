@@ -316,3 +316,11 @@ This project is indexed by GitNexus as **lanxin-travelmate-aigc-2026** (4424 sym
 - 阶段性工作结束时，必须更新 `docs/handoff/ai-shared-state.md`，只记录当前结论、下一步和必要验证状态，不同步完整聊天记录。
 - 共享状态面向人工和 AI 双重阅读，保持简短中文 bullet；不要写入密钥、Token、私人位置、未授权素材或用户敏感原文。
 - 详细规则见 `docs/handoff/ai-sync-protocol.md`。
+
+## vivo AIGC 本地参考文档
+
+- vivo AIGC 在线文档已镜像到 `docs/reference/vivo-aigc/`。
+- 文档索引见 `docs/reference/vivo-aigc/README.md`。
+- 全量聚合检索见 `docs/reference/vivo-aigc/all-documents.md`。
+- 原始接口响应见 `docs/reference/vivo-aigc/raw-documents.json`，仅在需要核对上游字段时读取。
+- 镜像来源为 `https://aigc.vivo.com.cn/#/document/index`，内容覆盖大模型、Function calling、图片/视频生成、OCR、NLP、ASR、TTS、LBS、端侧 3B 模型和端侧审核等能力。
