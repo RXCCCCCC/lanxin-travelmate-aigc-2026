@@ -309,3 +309,10 @@ This project is indexed by GitNexus as **lanxin-travelmate-aigc-2026** (4424 sym
 - 2026-06-21 presentation/submission follow-up: `docs/handoff/presentation-outline.md` provides a 12-page PPT structure, and `docs/handoff/submission-checklist.md` provides the final repository/CI/real-provider/Android/Demo/PPT/platform submission checklist. Team info, true screenshots, video link, final PPT design, and upload confirmation remain manual.
 - 2026-06-21 Docker compose preflight follow-up: added `scripts/docker_compose_preflight.py` to validate `infra/docker-compose.yml`, API-to-Postgres wiring, Postgres healthcheck, named volume, Dockerfile migration-before-server command, and optionally `docker compose config` without starting containers. Updated migration test head to `0007_add_tool_call_log_user_id`. Real `docker compose up --build` container initialization remains environment/manual validation.
 - 2026-06-21 todo scope follow-up: `docs/todo.md` has been reduced to a concise remaining-human-work checklist. It now excludes completed implementation detail and only tracks external/manual requirements such as real model keys, Amap key, multi-device validation, Android/vivo device validation, SDK/signing/APK, Docker deployment validation, privacy/material approval, Demo/PPT/upload, and push authorization.
+
+## AI 会话同步约定
+
+- Claude Code、Codex 和其他 AI 助手新会话开始时，必须先阅读 `docs/handoff/ai-shared-state.md` 和 `docs/todo.md`，再决定是否需要读取本文件其他章节或具体源码。
+- 阶段性工作结束时，必须更新 `docs/handoff/ai-shared-state.md`，只记录当前结论、下一步和必要验证状态，不同步完整聊天记录。
+- 共享状态面向人工和 AI 双重阅读，保持简短中文 bullet；不要写入密钥、Token、私人位置、未授权素材或用户敏感原文。
+- 详细规则见 `docs/handoff/ai-sync-protocol.md`。
