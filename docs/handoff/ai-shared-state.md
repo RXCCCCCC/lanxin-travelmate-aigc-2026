@@ -28,7 +28,7 @@
 
 ### 2026-06-29
 
-- 已推送 `dev` 到远端，最新远端提交为 `d17f285 fix: persist real provider audit logs`。
+- 已推送 `dev` 到远端；最新提交以 `git log --oneline -1` 为准，避免状态文档提交后哈希反复过期。
 - 真实 Provider smoke 已通过：高德天气/步行路线 `provider=amap fallback=false`，OpenAI 兼容模型连通 `ok=True`。
 - 真实高德工具已补验 POI、驾车、公交、混合路线，结果均为 `provider=amap fallback=false`；计费额度、可展示授权和 Android 真机展示仍需人工确认。
 - 已增强 OpenAI 兼容/蓝心模型 JSON schema prompt，并归一化旅拍文案真实输出别名；`/api/photo/copywriting` 真实验证为 `provider=openai_compatible fallback=false`。

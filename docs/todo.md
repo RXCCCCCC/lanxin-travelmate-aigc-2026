@@ -73,7 +73,7 @@
 
 ## 9. 推送与协作
 
-- [x] 当前本地 `dev` 已推送到 `origin/dev`，最新提交为 `d17f285 fix: persist real provider audit logs`。
+- [x] 当前本地 `dev` 已推送到 `origin/dev`；最新提交以 `git log --oneline -1` 为准。
 - [ ] 后续推送前再次确认 `git status --short` 为空，并运行必要的轻量验证与 GitNexus `detect_changes`。
 - [ ] 队友基于远端 `dev` 继续开发时，必须遵守 Android-only 规则和 `CLAUDE.md`。
 
