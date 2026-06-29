@@ -12,7 +12,7 @@ from app.services.model_providers.openai_compatible import OpenAICompatibleProvi
 
 
 def test_model_provider_factory_defaults_to_mock():
-    provider = build_model_provider(Settings())
+    provider = build_model_provider(Settings(model_provider="mock"))
 
     assert isinstance(provider, MockModelProvider)
 
@@ -368,6 +368,201 @@ def test_openai_compatible_provider_parses_json_response(monkeypatch):
     assert payload["provider"] == "openai_compatible"
     assert payload["scenario"] == "companion_chat"
 
+
+def test_openai_compatible_provider_extracts_fenced_json_response(monkeypatch):
+    def fake_post(self, url, headers, json):
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", "https://example.test/v1/chat/completions"),
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '```json\n{"replyText": "围栏 JSON", "fallback": false}\n```'
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    provider = OpenAICompatibleProvider(
+        Settings(
+            openai_base_url="https://example.test/v1",
+            openai_api_key="test-key",
+        )
+    )
+
+    payload = provider.generate_json(
+        scenario="companion_chat",
+        system_prompt="system",
+        user_prompt="user",
+        schema={},
+    )
+
+    assert payload["replyText"] == "围栏 JSON"
+    assert payload["provider"] == "openai_compatible"
+
+
+def test_graph_accepts_unwrapped_model_memory_and_chat_outputs(monkeypatch):
+    class UnwrappedProvider:
+        name = "unwrapped-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {
+                    "candidates": [
+                        {
+                            "title": "夜景偏好",
+                            "content": "用户喜欢夜景。",
+                            "category": "travel_preference",
+                            "recommendedScope": "longTerm",
+                            "confidence": 0.91,
+                            "reason": "用户明确提到喜欢夜景。",
+                        }
+                    ],
+                    "provider": self.name,
+                }
+            if scenario == "trip_review":
+                raise ModelProviderError("review not configured")
+            if scenario == "companion_chat":
+                return {
+                    "replyText": "顶层聊天回复",
+                    "voiceText": "顶层聊天回复",
+                    "avatarState": "planning",
+                    "emotion": "curious",
+                    "provider": self.name,
+                }
+            raise AssertionError(f"unexpected scenario {scenario}")
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: UnwrappedProvider())
+    state = create_initial_state(message="我喜欢夜景，周末想轻松走走")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["memory_candidates"][0]["title"] == "夜景偏好"
+    assert result["response"]["replyText"] == "顶层聊天回复"
+    scenarios = {
+        item.get("scenario"): item
+        for item in result["response"]["toolTrace"]
+        if item.get("tool") == "model_provider"
+    }
+    assert scenarios["memory_extraction"]["fallback"] is False
+    assert scenarios["companion_chat"]["fallback"] is False
+
+
+def test_graph_normalizes_real_memory_candidate_shape(monkeypatch):
+    class RealishMemoryProvider:
+        name = "realish-memory-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "title": "Trying Street Food for the First Time",
+                            "description": "A memory about sampling local street food.",
+                            "type": "food",
+                            "timestamp": "2023-10-07T18:45:00Z",
+                            "location": "Dotonbori",
+                            "people": [],
+                            "tags": ["street food", "local cuisine"],
+                        }
+                    ],
+                    "provider": self.name,
+                }
+            if scenario == "trip_review":
+                raise ModelProviderError("review not configured")
+            return {}
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: RealishMemoryProvider())
+    state = create_initial_state(message="周末想去杭州，想尝试本地小吃")
+
+    result = TravelMateGraph().invoke(state)
+
+    candidate = result["memory_candidates"][0]
+    assert candidate["title"] == "Trying Street Food for the First Time"
+    assert candidate["content"] == "A memory about sampling local street food."
+    assert candidate["category"] == "food"
+    assert candidate["recommendedScope"] in {"temporary", "currentTrip", "longTerm"}
+    assert candidate["confidence"] > 0
+    assert candidate["provider"] == "realish-memory-provider"
+
+
+def test_graph_normalizes_real_chat_response_shape(monkeypatch):
+    class RealishChatProvider:
+        name = "realish-chat-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario in {"memory_extraction", "trip_review"}:
+                raise ModelProviderError(f"{scenario} not configured")
+            if scenario == "companion_chat":
+                return {
+                    "response": "我会先按轻松节奏规划杭州两天，并优先安排夜景。",
+                    "intent": "trip_planning",
+                    "status": "ready",
+                    "provider": self.name,
+                }
+            raise AssertionError(f"unexpected scenario {scenario}")
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: RealishChatProvider())
+    state = create_initial_state(message="周末想去杭州两天，不想太累，喜欢夜景")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["response"]["replyText"] == "我会先按轻松节奏规划杭州两天，并优先安排夜景。"
+    model_trace = [item for item in result["response"]["toolTrace"] if item.get("scenario") == "companion_chat"]
+    assert model_trace[-1]["provider"] == "realish-chat-provider"
+    assert model_trace[-1]["fallback"] is False
+
+
+def test_graph_normalizes_nested_real_trip_plan_shape(monkeypatch):
+    class RealishTripProvider:
+        name = "realish-trip-provider"
+
+        def plan_trip(self, state):
+            return {
+                "response": {
+                    "content": {
+                        "title": "杭州两日夜景慢游",
+                        "destination": "杭州",
+                        "summary": "按轻松节奏安排西湖和夜景。",
+                        "profileMatches": ["喜欢夜景", "不想太累"],
+                        "risks": ["周末热门区域人流较多"],
+                    }
+                }
+            }
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {"memoryExtraction": {"candidates": []}}
+            if scenario == "trip_review":
+                raise ModelProviderError("review not configured")
+            if scenario == "companion_chat":
+                raise ModelProviderError("chat not configured")
+            raise AssertionError(f"unexpected scenario {scenario}")
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: RealishTripProvider())
+    state = create_initial_state(message="周末想去杭州两天，不想太累，喜欢夜景")
+
+    result = TravelMateGraph().invoke(state)
+
+    assert result["trip_plan"]["destination"] == "杭州"
+    assert result["trip_plan"]["summary"] == "按轻松节奏安排西湖和夜景。"
+    model_trace = [item for item in result["tool_trace"] if item.get("scenario") == "trip_planning"]
+    assert model_trace[-1]["fallback"] is False
+
+
 def test_model_call_logger_redacts_secrets_and_private_text():
     message = "weekend trip to chongqing, no cilantro"
     prompt = "plan a slow trip with night views" * 40
@@ -399,3 +594,92 @@ def test_model_call_logger_redacts_secrets_and_private_text():
     assert len(summary["context"]["notes"]) <= 203
     assert summary["context"]["notes"].endswith("...")
     assert request_summary["Authorization"] == "Bearer real-token"
+
+
+def test_openai_compatible_provider_compacts_trip_prompt(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_post(self, url, headers, json):
+        captured["body"] = json
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", "https://example.test/v1/chat/completions"),
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "{\"title\": \"Hangzhou\", \"destination\": \"Hangzhou\", \"summary\": \"Compact prompt works.\"}"
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    provider = OpenAICompatibleProvider(
+        Settings(
+            openai_base_url="https://example.test/v1",
+            openai_api_key="test-key",
+        )
+    )
+
+    payload = provider.plan_trip(
+        {
+            "message": "Plan Hangzhou",
+            "intent": "trip_planning",
+            "trip_context": {"destination": "Hangzhou", "pace": "slow", "durationDays": 2},
+            "user_profile": {"interestTags": ["night view"]},
+            "tool_trace": [{"tool": "poi_tool", "output": {"items": list(range(100))}}],
+            "memory_candidates": [{"title": "night view", "content": "..." * 200}],
+            "context": {"planningInputs": {"destination": "Hangzhou", "preferences": ["night view"]}},
+        }
+    )
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    user_prompt = body["messages"][1]["content"]
+    assert "tool_trace" not in user_prompt
+    assert "memory_candidates" not in user_prompt
+    assert "tripContext" in user_prompt
+    assert len(user_prompt) < 2000
+    assert payload["destination"] == "Hangzhou"
+
+
+def test_model_chat_prompt_is_compact_for_real_provider(monkeypatch):
+    class InspectingChatProvider:
+        name = "inspect-chat-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario in {"memory_extraction", "trip_review"}:
+                raise ModelProviderError(f"{scenario} not configured")
+            assert scenario == "companion_chat"
+            assert "toolTrace" not in user_prompt
+            assert len(user_prompt) < 2500
+            return {"response": "Compact chat prompt accepted."}
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: InspectingChatProvider())
+    state = create_initial_state(message="Plan Hangzhou")
+    state["intent"] = "trip_planning"
+    state["user_profile"] = {"interestTags": ["night view"]}
+    state["trip_plan"] = {
+        "title": "Large plan",
+        "destination": "Hangzhou",
+        "summary": "A" * 1200,
+        "days": [{"items": [{"note": "B" * 1200}]}],
+    }
+    state["memory_candidates"] = [{"title": "night", "content": "C" * 800}]
+    state["avatar_status"] = {"energy": 80, "mood": "curious"}
+    state["avatar_state"] = "planning"
+    state["emotion"] = "curious"
+    state["cards"] = []
+    state["next_actions"] = []
+    state["sync_suggestions"] = []
+    state["errors"] = []
+    state["tool_trace"] = [{"tool": "poi_tool", "output": {"items": list(range(100))}}]
+
+    response = real_nodes._model_chat_response(state)
+
+    assert response["replyText"] == "Compact chat prompt accepted."

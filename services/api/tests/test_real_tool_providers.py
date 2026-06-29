@@ -5,7 +5,7 @@ from app.tools.registry import build_tool_registry
 
 
 def test_tool_registry_returns_explicit_fallback_without_api_key(monkeypatch):
-    monkeypatch.delenv("LANXIN_AMAP_API_KEY", raising=False)
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "")
     get_settings.cache_clear()
 
     registry = build_tool_registry()
@@ -102,8 +102,80 @@ def test_amap_provider_parses_weather_poi_and_route_http_responses(monkeypatch):
 
     get_settings.cache_clear()
 
+
+def test_amap_route_geocodes_named_origin_and_destination(monkeypatch):
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "test-key")
+    monkeypatch.setenv("LANXIN_AMAP_BASE_URL", "https://restapi.amap.com")
+    get_settings.cache_clear()
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    import httpx
+
+    calls: list[tuple[str, dict[str, object]]] = []
+    origin_name = f"西湖-{uuid4().hex}"
+    destination_name = f"灵隐寺-{uuid4().hex}"
+
+    def fake_get(self, url, params=None):
+        params = params or {}
+        calls.append((url, params))
+        if url.endswith("/v5/place/text"):
+            keyword = params.get("keywords")
+            location = "120.143,30.235" if keyword == origin_name else "120.100,30.240"
+            return FakeResponse({
+                "status": "1",
+                "pois": [{
+                    "name": keyword,
+                    "location": location,
+                    "business": {},
+                }],
+            })
+        if url.endswith("/v3/direction/walking"):
+            assert params["origin"] == "120.143,30.235"
+            assert params["destination"] == "120.100,30.240"
+            return FakeResponse({
+                "status": "1",
+                "route": {
+                    "paths": [{
+                        "distance": "1800",
+                        "duration": "1500",
+                        "steps": [{"instruction": "沿北山街向西步行"}],
+                    }]
+                },
+            })
+        raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr(httpx.Client, "get", fake_get)
+
+    registry = build_tool_registry()
+    route = registry.call("route_tool", {
+        "city": "杭州",
+        "origin": origin_name,
+        "destination": destination_name,
+        "mode": "walking",
+    })
+
+    assert route["provider"] == "amap"
+    assert route["fallback"] is False
+    assert route["distanceMeters"] == 1800
+    assert route["resolvedLocations"] == {
+        "originLocation": "120.143,30.235",
+        "destinationLocation": "120.100,30.240",
+    }
+    assert [url for url, _ in calls].count("https://restapi.amap.com/v5/place/text") == 2
+
+    get_settings.cache_clear()
+
 def test_graph_tool_trace_uses_real_registry_fallback_metadata(monkeypatch):
-    monkeypatch.delenv("LANXIN_AMAP_API_KEY", raising=False)
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "")
     get_settings.cache_clear()
 
     from app.agents.travelmate.graph import TravelMateGraph
@@ -205,7 +277,7 @@ def test_amap_provider_opens_circuit_after_repeated_failures(monkeypatch):
 
 
 def test_graph_tool_trace_exposes_error_metadata(monkeypatch):
-    monkeypatch.delenv("LANXIN_AMAP_API_KEY", raising=False)
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "")
     get_settings.cache_clear()
 
     from app.agents.travelmate.graph import TravelMateGraph

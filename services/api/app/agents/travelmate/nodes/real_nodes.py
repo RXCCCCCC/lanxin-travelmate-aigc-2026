@@ -1,4 +1,6 @@
 from copy import deepcopy
+import json
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -25,6 +27,289 @@ def _next_state(state: TravelMateState, node_name: str) -> TravelMateState:
 
 def _contains_any(text: str, words: list[str]) -> bool:
     return any(word in text for word in words)
+
+
+def _planning_inputs(state: TravelMateState) -> dict[str, Any]:
+    context = state.get("context", {})
+    planning_inputs = context.get("planningInputs")
+    return planning_inputs if isinstance(planning_inputs, dict) else {}
+
+
+def _extract_destination_from_message(message: str) -> str | None:
+    text = message.strip()
+    patterns = [
+        r"(?:去|到)([\u4e00-\u9fffA-Za-z]{2,20}?)(?:两天|三天|四天|五天|一周|周末|旅游|旅行|玩|逛|出差|[，。,.！!？?\s])",
+        r"目的地(?:是|为)?([\u4e00-\u9fffA-Za-z]{2,20})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _extract_trip_destination(state: TravelMateState) -> str:
+    planning_inputs = _planning_inputs(state)
+    destination = planning_inputs.get("destination")
+    if isinstance(destination, str) and destination.strip():
+        return destination.strip()
+    from_message = _extract_destination_from_message(state.get("normalized_input") or state.get("message") or "")
+    if from_message:
+        return from_message
+    return "待确认目的地"
+
+
+def _extract_trip_pace(state: TravelMateState) -> str:
+    text = state.get("normalized_input") or state.get("message") or ""
+    planning_inputs = _planning_inputs(state)
+    if planning_inputs.get("tripStyle") == "family_relaxed":
+        return "轻松"
+    if _contains_any(text, ["不想太累", "轻松", "慢一点", "慢节奏", "少走路"]):
+        return "轻松"
+    return "适中"
+
+
+def _extract_trip_days(state: TravelMateState) -> int:
+    text = state.get("normalized_input") or state.get("message") or ""
+    for label, days in [("一天", 1), ("两天", 2), ("三天", 3), ("四天", 4), ("五天", 5)]:
+        if label in text:
+            return days
+    return 2
+
+
+def _parse_nested_json_object(value: object) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        if start < 0:
+            return None
+        try:
+            parsed, _ = json.JSONDecoder().raw_decode(text[start:])
+        except json.JSONDecodeError:
+            return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _unwrap_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    response = payload.get("response")
+    if isinstance(response, dict):
+        nested = _parse_nested_json_object(response.get("content"))
+        if nested:
+            return nested
+    nested = _parse_nested_json_object(response)
+    if nested:
+        return nested
+    return payload
+
+
+def _normalize_memory_candidate(item: dict[str, Any], index: int) -> dict[str, Any]:
+    title = str(item.get("title") or item.get("type") or f"Memory {index + 1}")
+    content = str(item.get("content") or item.get("description") or title)
+    category = str(item.get("category") or item.get("type") or "travel_preference")
+    reason = item.get("reason")
+    if not reason:
+        location = item.get("location")
+        tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+        tag_text = "、".join(str(tag) for tag in tags[:3]) if tags else "旅行偏好"
+        location_text = f"，地点 {location}" if location else ""
+        reason = f"模型识别到与 {tag_text} 相关的旅行记忆{location_text}。"
+    recommended_scope = item.get("recommendedScope")
+    if recommended_scope not in {"longTerm", "currentTrip", "temporary", "ignore"}:
+        recommended_scope = "currentTrip"
+    confidence = item.get("confidence")
+    try:
+        confidence_value = float(confidence)
+    except (TypeError, ValueError):
+        confidence_value = 0.62
+    confidence_value = max(0.0, min(1.0, confidence_value))
+    return {
+        "title": title,
+        "content": content,
+        "category": category,
+        "recommendedScope": recommended_scope,
+        "confidence": confidence_value,
+        "reason": str(reason),
+    }
+
+
+def _normalize_memory_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    unwrapped = _unwrap_provider_payload(payload)
+    if "memoryExtraction" in unwrapped and isinstance(unwrapped.get("memoryExtraction"), dict):
+        return unwrapped
+    candidates = unwrapped.get("candidates")
+    if isinstance(candidates, list):
+        return {
+            "memoryExtraction": {
+                "candidates": [
+                    _normalize_memory_candidate(item, index)
+                    for index, item in enumerate(candidates)
+                    if isinstance(item, dict)
+                ]
+            }
+        }
+    return unwrapped
+
+
+def _normalize_trip_plan_payload(plan: dict[str, Any], state: TravelMateState) -> dict[str, Any]:
+    unwrapped = _unwrap_provider_payload(plan)
+    payload = unwrapped.get("tripPlanning") if isinstance(unwrapped.get("tripPlanning"), dict) else unwrapped
+    if not isinstance(payload, dict):
+        raise ModelProviderError("model returned invalid trip plan payload")
+    normalized = dict(payload)
+    destination = str(normalized.get("destination") or _extract_trip_destination(state))
+    normalized["destination"] = destination
+    if not normalized.get("title"):
+        normalized["title"] = f"{destination}行程建议"
+    if not normalized.get("summary"):
+        response_text = plan.get("response") if isinstance(plan.get("response"), str) else None
+        normalized["summary"] = response_text or f"围绕{destination}生成的旅行建议。"
+    return normalized
+
+
+def _normalize_chat_payload(payload: dict[str, Any], next_state: TravelMateState) -> dict[str, Any]:
+    unwrapped = _unwrap_provider_payload(payload)
+    if "chat" in unwrapped and isinstance(unwrapped.get("chat"), dict):
+        return unwrapped
+    reply_text = unwrapped.get("replyText")
+    if not isinstance(reply_text, str) or not reply_text.strip():
+        reply = unwrapped.get("reply")
+        if isinstance(reply, str):
+            reply_text = reply
+    if not isinstance(reply_text, str) or not reply_text.strip():
+        text_value = unwrapped.get("text")
+        if isinstance(text_value, str):
+            reply_text = text_value
+    if not isinstance(reply_text, str) or not reply_text.strip():
+        response_text = unwrapped.get("response")
+        if isinstance(response_text, str):
+            reply_text = response_text
+    if isinstance(reply_text, str) and reply_text.strip():
+        suggested_questions = unwrapped.get("suggestedQuestions") or unwrapped.get("suggestedUserInput")
+        next_actions = unwrapped.get("nextActions") or next_state.get("next_actions", [])
+        if isinstance(suggested_questions, list):
+            next_actions = list(next_actions) + [
+                {"type": "suggestedQuestion", "label": str(item)}
+                for item in suggested_questions
+                if str(item).strip()
+            ]
+        return {
+            "chat": {
+                "replyText": reply_text,
+                "voiceText": str(unwrapped.get("voiceText") or reply_text),
+                "avatarState": str(unwrapped.get("avatarState") or next_state.get("avatar_state") or "planning"),
+                "emotion": str(unwrapped.get("emotion") or next_state.get("emotion") or "curious"),
+                "cards": unwrapped.get("cards") or next_state.get("cards", []),
+                "memoryCandidates": unwrapped.get("memoryCandidates") or next_state.get("memory_candidates", []),
+                "toolTrace": unwrapped.get("toolTrace") or [],
+                "nextActions": next_actions,
+                "syncSuggestions": unwrapped.get("syncSuggestions") or next_state.get("sync_suggestions", []),
+                "errors": unwrapped.get("errors") or next_state.get("errors", []),
+            }
+        }
+    return unwrapped
+
+
+# Re-declare the text inference helpers with unicode escapes so they stay stable
+# even when the local console/editor path is not using UTF-8.
+def _extract_destination_from_message(message: str) -> str | None:
+    text = message.strip()
+    patterns = [
+        "(?:\u53bb|\u5230)([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u4e24\u5929|\u4e09\u5929|\u56db\u5929|\u4e94\u5929|\u4e00\u5468|\u5468\u672b|\u65c5\u6e38|\u65c5\u884c|\u73a9|\u901b|\u51fa\u5dee|[\uff0c\u3002,.!\uff01\uff1f?\\s])".replace("\\u4e00-\\u9fff", "\u4e00-\u9fff"),
+        "\u76ee\u7684\u5730(?:\u662f|\u4e3a)?([\u4e00-\u9fffA-Za-z]{2,20})".replace("\\u4e00-\\u9fff", "\u4e00-\u9fff"),
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _extract_trip_destination(state: TravelMateState) -> str:
+    planning_inputs = _planning_inputs(state)
+    destination = planning_inputs.get("destination")
+    if isinstance(destination, str) and destination.strip():
+        return destination.strip()
+    from_message = _extract_destination_from_message(state.get("normalized_input") or state.get("message") or "")
+    if from_message:
+        return from_message
+    return "\u5f85\u786e\u8ba4\u76ee\u7684\u5730"
+
+
+def _extract_trip_pace(state: TravelMateState) -> str:
+    text = state.get("normalized_input") or state.get("message") or ""
+    planning_inputs = _planning_inputs(state)
+    if planning_inputs.get("tripStyle") == "family_relaxed":
+        return "\u8f7b\u677e"
+    if _contains_any(
+        text,
+        [
+            "\u4e0d\u60f3\u592a\u7d2f",
+            "\u8f7b\u677e",
+            "\u6162\u4e00\u70b9",
+            "\u6162\u8282\u594f",
+            "\u5c11\u8d70\u8def",
+        ],
+    ):
+        return "\u8f7b\u677e"
+    return "\u9002\u4e2d"
+
+
+def _extract_trip_days(state: TravelMateState) -> int:
+    text = state.get("normalized_input") or state.get("message") or ""
+    for label, days in [
+        ("\u4e00\u5929", 1),
+        ("\u4e24\u5929", 2),
+        ("\u4e09\u5929", 3),
+        ("\u56db\u5929", 4),
+        ("\u4e94\u5929", 5),
+    ]:
+        if label in text:
+            return days
+    return 2
+
+
+def _extract_destination_from_message(message: str) -> str | None:
+    text = message.strip()
+    stop_tokens = [
+        "\u4e24\u5929",
+        "\u4e09\u5929",
+        "\u56db\u5929",
+        "\u4e94\u5929",
+        "\u4e00\u5468",
+        "\u5468\u672b",
+        "\u65c5\u6e38",
+        "\u65c5\u884c",
+        "\u73a9",
+        "\u901b",
+        "\u51fa\u5dee",
+        "\uff0c",
+        "\u3002",
+        ",",
+        ".",
+        " ",
+    ]
+    for marker in ("\u53bb", "\u5230"):
+        index = text.find(marker)
+        if index < 0:
+            continue
+        candidate = text[index + 1 :]
+        end = len(candidate)
+        for token in stop_tokens:
+            token_index = candidate.find(token)
+            if token_index >= 0:
+                end = min(end, token_index)
+        destination = candidate[:end].strip()
+        if len(destination) >= 2:
+            return destination
+    return None
 
 
 def input_normalizer(state: TravelMateState) -> TravelMateState:
@@ -68,6 +353,7 @@ def _model_memory_candidates(next_state: TravelMateState) -> list[dict[str, Any]
         }),
         schema={"task": "memoryExtraction"},
     )
+    payload = _normalize_memory_payload(payload)
     if "memoryExtraction" not in payload:
         raise ModelProviderError("model output missing memoryExtraction")
     output = MemoryExtractionOutput.model_validate(payload["memoryExtraction"])
@@ -184,9 +470,9 @@ def profile_updater(state: TravelMateState) -> TravelMateState:
 def trip_context_builder(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_context_builder")
     next_state["trip_context"] = {
-        "destination": "重庆",
-        "durationDays": 2,
-        "pace": "轻松",
+        "destination": _extract_trip_destination(next_state),
+        "durationDays": _extract_trip_days(next_state),
+        "pace": _extract_trip_pace(next_state),
         "mustKeep": ["洪崖洞夜景", "山城步道"],
     }
     return next_state
@@ -298,7 +584,7 @@ def trip_planner(state: TravelMateState) -> TravelMateState:
                 "message": "真实模型已返回内容，但结构化规划解析仍待接入，当前使用降级规划。",
             })
             raise ModelProviderError("模型返回结构暂未映射为 TripPlan。")
-        next_state["trip_plan"] = _validated_trip_plan(plan)
+        next_state["trip_plan"] = _validated_trip_plan(_normalize_trip_plan_payload(plan, next_state))
         timer.finish(fallback=False)
     except ValidationError as exc:
         fallback_provider = MockModelProvider()
@@ -532,21 +818,50 @@ def _append_chat_model_trace(next_state: TravelMateState, trace: dict[str, Any])
         next_state["response"]["toolTrace"] = next_state["tool_trace"]
 
 
+def _truncate_text(value: object, limit: int = 240) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
+
+
+def _compact_chat_state(next_state: TravelMateState) -> dict[str, Any]:
+    trip_plan = next_state.get("trip_plan", {}) if isinstance(next_state.get("trip_plan"), dict) else {}
+    memories = []
+    for item in next_state.get("memory_candidates", [])[:5]:
+        if isinstance(item, dict):
+            memories.append({
+                "title": _truncate_text(item.get("title"), 80),
+                "content": _truncate_text(item.get("content"), 120),
+                "category": item.get("category"),
+            })
+    return {
+        "message": next_state.get("message"),
+        "intent": next_state.get("intent"),
+        "profile": next_state.get("user_profile", {}),
+        "tripPlan": {
+            "title": _truncate_text(trip_plan.get("title"), 120),
+            "destination": trip_plan.get("destination"),
+            "summary": _truncate_text(trip_plan.get("summary"), 300),
+            "risks": (trip_plan.get("risks") or [])[:4],
+            "profileMatches": (trip_plan.get("profileMatches") or [])[:4],
+        },
+        "memoryCandidates": memories,
+        "avatarStatus": next_state.get("avatar_status", {}),
+    }
+
+
 def _model_chat_response(next_state: TravelMateState) -> dict[str, Any]:
     provider = build_model_provider(get_settings())
     payload = provider.generate_json(
         scenario="companion_chat",
         system_prompt="Return structured TravelMate chat response JSON only.",
-        user_prompt=str({
-            "message": next_state.get("message"),
-            "intent": next_state.get("intent"),
-            "profile": next_state.get("user_profile", {}),
-            "tripPlan": next_state.get("trip_plan", {}),
-            "memoryCandidates": next_state.get("memory_candidates", []),
-            "avatarStatus": next_state.get("avatar_status", {}),
-        }),
+        user_prompt=json.dumps(_compact_chat_state(next_state), ensure_ascii=False),
         schema={"task": "chat"},
     )
+    payload = _normalize_chat_payload(payload, next_state)
     if "chat" not in payload:
         raise ModelProviderError("model output missing chat")
     output = ChatOutput.model_validate(payload["chat"])
@@ -575,6 +890,14 @@ def response_composer(state: TravelMateState) -> TravelMateState:
         "收到，我会按轻松节奏规划重庆两天。因为你喜欢夜景，"
         "我把洪崖洞和南山观景放在傍晚后；因为你不吃香菜，"
         "餐厅建议会标注避开香菜；今天也会减少跨区移动。"
+    )
+    destination = str(trip_plan.get("destination") or _extract_trip_destination(next_state))
+    reply = (
+        f"\u6536\u5230\uff0c\u6211\u4f1a\u5148\u6309\u8f7b\u677e\u8282\u594f\u89c4\u5212{destination}\u884c\u7a0b\u3002"
+        "\u591c\u666f\u4f1a\u4f18\u5148\u653e\u5728\u66f4\u9002\u5408\u89c2\u770b\u7684\u65f6\u6bb5\uff0c"
+        "\u9910\u996e\u4e5f\u4f1a\u63d0\u9192\u907f\u5f00\u4f60\u5df2\u786e\u8ba4\u7684\u5fcc\u53e3\uff0c"
+        "\u5982\u679c\u771f\u5b9e\u6a21\u578b\u6216\u5916\u90e8\u670d\u52a1\u6682\u65f6\u4e0d\u7a33\uff0c"
+        "\u6211\u4e5f\u4f1a\u7528\u5f53\u524d\u8f93\u5165\u5148\u7ed9\u4f60\u53ef\u8c03\u6574\u7684\u7248\u672c\u3002"
     )
     next_state["cards"] = [
         {"type": "tripPlan", "payload": trip_plan},

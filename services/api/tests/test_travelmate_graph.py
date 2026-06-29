@@ -1,4 +1,5 @@
 from app.agents.travelmate.graph import TravelMateGraph
+from app.agents.travelmate.nodes import real_nodes
 from app.agents.travelmate.state import create_initial_state
 
 
@@ -50,3 +51,15 @@ def test_travelmate_graph_requires_explicit_consent_for_dietary_restrictions():
     assert dietary["requiresExplicitConsent"] is True
     assert dietary["recommendedScope"] == "longTerm"
     assert "longTerm" in dietary["scopeOptions"]
+
+
+def test_trip_context_builder_uses_requested_destination_instead_of_fixture():
+    state = create_initial_state(
+        message="周末想去杭州两天，不想太累，喜欢夜景",
+        context={"planningInputs": {"destination": "杭州"}},
+    )
+    normalized = real_nodes.input_normalizer(state)
+
+    result = real_nodes.trip_context_builder(normalized)
+
+    assert result["trip_context"]["destination"] == "杭州"

@@ -133,18 +133,43 @@ class AmapToolProvider:
             return _with_meta(_unconfigured_route(payload, destination), ToolRequestMeta())
         origin = payload.get("originLocation") or payload.get("origin")
         destination_location = payload.get("destinationLocation") or payload.get("destination")
+        meta = ToolRequestMeta()
+        resolved_locations: dict[str, str] = {}
+        try:
+            if origin and not _looks_like_location(origin):
+                origin = self._resolve_location(str(origin), str(payload.get("city") or payload.get("originCity") or ""), meta)
+            if destination_location and not _looks_like_location(destination_location):
+                destination_location = self._resolve_location(
+                    str(destination_location),
+                    str(payload.get("destinationCity") or payload.get("city") or ""),
+                    meta,
+                )
+            if origin:
+                resolved_locations["originLocation"] = str(origin)
+            if destination_location:
+                resolved_locations["destinationLocation"] = str(destination_location)
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            if meta.error_type is None:
+                meta.error_type = exc.__class__.__name__
+            result = _unconfigured_route(payload, destination)
+            result["provider"] = self.name
+            result["fallbackReason"] = f"地点坐标解析失败：{exc}"
+            return _with_meta(result, meta)
         if not origin or not destination_location:
             result = _unconfigured_route(payload, destination)
             result["provider"] = self.name
             result["fallbackReason"] = "路线接口需要 originLocation 与 destinationLocation 坐标。"
             return _with_meta(result, ToolRequestMeta(error_type="missing_coordinates"))
-        meta = ToolRequestMeta()
         try:
             mode = str(payload.get("mode") or "walking").lower()
             if mode == "driving":
-                return self._route_driving(payload, destination, origin, destination_location, meta)
+                result = self._route_driving(payload, destination, origin, destination_location, meta)
+                result["resolvedLocations"] = resolved_locations
+                return result
             if mode == "transit":
-                return self._route_transit(payload, destination, origin, destination_location, meta)
+                result = self._route_transit(payload, destination, origin, destination_location, meta)
+                result["resolvedLocations"] = resolved_locations
+                return result
             if mode == "mixed":
                 driving = self._route_driving(payload, destination, origin, destination_location, ToolRequestMeta())
                 transit = self._route_transit(payload, destination, origin, destination_location, ToolRequestMeta())
@@ -153,6 +178,7 @@ class AmapToolProvider:
                     "fallback": False,
                     "mode": "mixed",
                     "alternatives": [driving, transit],
+                    "resolvedLocations": resolved_locations,
                     "sourceTime": None,
                     "confidence": min(driving.get("confidence", 0), transit.get("confidence", 0)),
                     "navigationLinks": [navigation_link_tool({"destination": destination, "city": payload.get("city")})],
@@ -176,6 +202,7 @@ class AmapToolProvider:
                 "confidence": 0.9,
                 "navigationLinks": [navigation_link_tool({"destination": destination, "city": payload.get("city")})],
                 "rawSource": "amap.direction.walking",
+                "resolvedLocations": resolved_locations,
             }, meta)
         except ToolRateLimitError as exc:
             result = _unconfigured_route(payload, destination)
@@ -268,6 +295,23 @@ class AmapToolProvider:
             "navigationLinks": [navigation_link_tool({"destination": destination, "city": payload.get("city")})],
             "rawSource": "amap.direction.transit.integrated",
         }, meta)
+
+    def _resolve_location(self, name: str, city: str, meta: ToolRequestMeta) -> str:
+        response = self._get(
+            "/v5/place/text",
+            {
+                "keywords": name,
+                "region": city,
+                "city_limit": "false",
+                "show_fields": "business",
+            },
+            meta,
+        )
+        poi = _first(response.get("pois"))
+        location = poi.get("location") if poi else None
+        if not location:
+            raise ValueError(f"未找到地点坐标：{name}")
+        return str(location)
 
     def _get(self, path: str, params: dict[str, Any], meta: ToolRequestMeta) -> dict[str, Any]:
         if self._failure_counts.get(path, 0) >= self.failure_threshold:
@@ -404,6 +448,20 @@ def _to_float(value: Any) -> float | None:
         return float(str(value))
     except (TypeError, ValueError):
         return None
+
+
+def _looks_like_location(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    parts = value.split(",")
+    if len(parts) != 2:
+        return False
+    try:
+        float(parts[0])
+        float(parts[1])
+        return True
+    except ValueError:
+        return False
 
 
 def _weather_hint(condition: str) -> str:
