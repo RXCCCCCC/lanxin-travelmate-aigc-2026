@@ -8,6 +8,7 @@
 - 主链路验收必须使用真实模型、真实用户数据、真实设备能力或真实第三方 API；Mock/固定样例只允许作为异常降级，不计入完成验收。
 - 仓库和远端 `dev` 只保留 Android/vivo 原生平台壳；不要恢复 iOS、macOS、Windows、Linux、Web 平台工程。
 - 涉及账号密钥、真机权限、正式签名、素材授权、推送远程、删除素材、比赛上传等事项必须由负责人确认。
+- 真实 API、发布、部署和提交配置按 `docs/handoff/config-implementation-checklist.md` 逐项执行。
 - AI 后续如继续开发，必须同步更新 `CLAUDE.md`、本文件和相关交接文档，并在提交前运行 GitNexus `detect_changes`。
 
 ## 1. 真实模型验收
@@ -43,7 +44,7 @@
 
 ## 5. Android APK 与发布配置
 
-- [ ] 本机安装 Android SDK `platforms;android-35`；当前预检显示 `E:\localAndroid\build-tools\35.0.0` 已存在，但 `E:\localAndroid\platforms\android-35` 缺失。
+- [x] 本机已在 `G:\develop\Android\Sdk` 安装 Android SDK `platforms;android-35` 与 `build-tools;35.0.0`，并已通过 `python scripts/android_release_preflight.py --json`。
 - [ ] 运行 `python scripts/android_release_preflight.py --json`，确认 Android-only、包名、版本号、SDK、build-tools、CI APK job 和签名状态。
 - [ ] 确认最终 `applicationId`、`versionCode`、`versionName`。
 - [ ] 将 release 构建从 debug signing 替换为正式签名证书。
@@ -87,6 +88,7 @@
 | Docker Compose 预检 | `python scripts/docker_compose_preflight.py --json` |
 | 真实 Provider smoke | `cd services/api && uv run python scripts/real_provider_smoke.py` |
 | 迁移链检查 | `cd services/api && uv run python scripts/migration_plan.py check` |
+| 配置实施清单 | `docs/handoff/config-implementation-checklist.md` |
 | 端到端验收 | `docs/handoff/e2e-acceptance.md` |
 | Demo 脚本 | `docs/handoff/demo-script.md` |
 | 证据包 | `docs/handoff/demo-evidence-pack.md` |

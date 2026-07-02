@@ -257,10 +257,11 @@ def test_amap_provider_opens_circuit_after_repeated_failures(monkeypatch):
 
     monkeypatch.setattr(httpx.Client, "get", failing_get)
 
+    city = f"CircuitCity-{uuid4().hex}"
     registry = build_tool_registry()
-    first = registry.call("weather_tool", {"city": "Hangzhou"})
-    second = registry.call("weather_tool", {"city": "Hangzhou"})
-    third = registry.call("weather_tool", {"city": "Hangzhou"})
+    first = registry.call("weather_tool", {"city": city})
+    second = registry.call("weather_tool", {"city": city})
+    third = registry.call("weather_tool", {"city": city})
 
     assert first["fallback"] is True
     assert first["retryCount"] == 2

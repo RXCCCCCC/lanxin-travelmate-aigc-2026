@@ -38,13 +38,25 @@ class TripReviewPayload {
 
   factory TripReviewPayload.fallback() {
     return const TripReviewPayload(
-      route: '暂无可复盘路线',
-      highlightPhotos: [],
-      newMemories: [],
-      completedTasks: [],
-      avatarStatusChanges: [],
-      nextTripSuggestions: [],
-      temporaryMemoryPromotions: [],
+      route: '离线复盘：暂无可复盘路线',
+      highlightPhotos: ['离线模式下可先整理今天最满意的一张照片'],
+      newMemories: ['离线模式下会先保留本机复盘草稿'],
+      completedTasks: [
+        {
+          'id': 'offline-review-task',
+          'title': '整理今日路线和高光瞬间',
+          'status': 'pending',
+        },
+      ],
+      avatarStatusChanges: ['蓝小心进入离线陪伴模式'],
+      nextTripSuggestions: ['后端恢复后重新生成真实路线复盘'],
+      temporaryMemoryPromotions: [
+        {
+          'id': 'offline-memory-candidate',
+          'title': '离线复盘待同步',
+          'suggestedScope': 'temporary',
+        },
+      ],
     );
   }
 

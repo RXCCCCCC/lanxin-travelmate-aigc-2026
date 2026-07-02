@@ -10,6 +10,7 @@ import 'package:lanxin_travelmate/features/chat/data/agent_chat_service.dart';
 import 'package:lanxin_travelmate/features/home/home_page.dart';
 import 'package:lanxin_travelmate/features/photo/data/photo_experience_service.dart';
 import 'package:lanxin_travelmate/features/photo/photo_page.dart';
+import 'package:lanxin_travelmate/features/trip/data/trip_dashboard_service.dart';
 
 class _StubPhotoExperienceService extends PhotoExperienceService {
   _StubPhotoExperienceService() : super(dio: Dio());
@@ -41,6 +42,18 @@ class _StubPhotoExperienceService extends PhotoExperienceService {
     return const [
       {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景高光'},
     ];
+  }
+}
+
+class _EmptyPhotoDashboardService extends TripDashboardService {
+  _EmptyPhotoDashboardService() : super(dio: Dio());
+
+  @override
+  Future<TripDashboardPayload> fetchDashboard({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
+    return TripDashboardPayload.fallback(userId: userId, tripId: 'photo-trip');
   }
 }
 
@@ -120,14 +133,20 @@ void main() {
   ) async {
     await _pumpAtSize(
       tester,
-      PhotoPage(photoExperienceService: _StubPhotoExperienceService()),
+      PhotoPage(
+        photoExperienceService: _StubPhotoExperienceService(),
+        dashboardService: _EmptyPhotoDashboardService(),
+      ),
       size: const Size(360, 780),
       textScale: 1.4,
       settle: true,
     );
     await _pumpAtSize(
       tester,
-      PhotoPage(photoExperienceService: _StubPhotoExperienceService()),
+      PhotoPage(
+        photoExperienceService: _StubPhotoExperienceService(),
+        dashboardService: _EmptyPhotoDashboardService(),
+      ),
       size: const Size(812, 375),
       settle: true,
     );

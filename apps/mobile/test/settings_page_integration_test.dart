@@ -102,15 +102,7 @@ class _DataStub extends SettingsDataService {
 }
 
 class _MemoryRepositoryStub extends MemoryRepository {
-  _MemoryRepositoryStub(this._memories)
-    : super(
-        AppDatabase(
-          DatabaseConnection(
-            NativeDatabase.memory(),
-            closeStreamsSynchronously: true,
-          ),
-        ),
-      );
+  const _MemoryRepositoryStub(super.database, this._memories);
 
   final List<ConfirmedMemory> _memories;
 
@@ -119,17 +111,29 @@ class _MemoryRepositoryStub extends MemoryRepository {
 }
 
 void main() {
+  AppDatabase newTestDatabase() {
+    final database = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    addTearDown(database.close);
+    return database;
+  }
+
   testWidgets('SettingsPage shows profile and data-control sections', (
     tester,
   ) async {
     final dataStub = _DataStub();
+    final database = newTestDatabase();
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SettingsPage(
             profileService: _ProfileStub(),
             dataService: dataStub,
-            memoryRepository: _MemoryRepositoryStub([
+            memoryRepository: _MemoryRepositoryStub(database, [
               ConfirmedMemory(
                 id: 'local-memory-1',
                 title: 'Local memory',
@@ -259,14 +263,8 @@ void main() {
   ) async {
     final dataStub = _DataStub();
     dataStub.conflictForSingleMemory = false;
-    final database = AppDatabase(
-      DatabaseConnection(
-        NativeDatabase.memory(),
-        closeStreamsSynchronously: true,
-      ),
-    );
+    final database = newTestDatabase();
     final repository = MemoryRepository(database);
-    addTearDown(database.close);
 
     await repository.saveCandidate(
       MemoryCandidate(
@@ -317,14 +315,8 @@ void main() {
     tester,
   ) async {
     final dataStub = _DataStub();
-    final database = AppDatabase(
-      DatabaseConnection(
-        NativeDatabase.memory(),
-        closeStreamsSynchronously: true,
-      ),
-    );
+    final database = newTestDatabase();
     final repository = MemoryRepository(database);
-    addTearDown(database.close);
 
     await repository.saveCandidate(
       MemoryCandidate(
@@ -376,14 +368,8 @@ void main() {
 
   testWidgets('SettingsPage displays local sync history', (tester) async {
     final dataStub = _DataStub();
-    final database = AppDatabase(
-      DatabaseConnection(
-        NativeDatabase.memory(),
-        closeStreamsSynchronously: true,
-      ),
-    );
+    final database = newTestDatabase();
     final repository = MemoryRepository(database);
-    addTearDown(database.close);
 
     await repository.saveCandidate(
       MemoryCandidate(

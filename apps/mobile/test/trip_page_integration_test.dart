@@ -122,6 +122,16 @@ void main() {
     latestAgentResponse.value = null;
   });
 
+  Future<void> enterTextWhenVisible(
+    WidgetTester tester,
+    Finder finder,
+    String text,
+  ) async {
+    await tester.ensureVisible(finder);
+    await tester.pump();
+    await tester.enterText(finder, text);
+  }
+
   testWidgets(
     'TripPage displays alternatives and navigation links from agent plan',
     (tester) async {
@@ -323,15 +333,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('trip-destination-input')),
       '重庆',
     );
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('group-member-a-preferences-input')),
       '慢节奏, 夜景',
     );
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('group-member-b-preferences-input')),
       '预算低, 夜景',
     );
@@ -368,23 +381,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('trip-destination-input')),
       '重庆',
     );
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('group-member-a-name-input')),
       '小林',
     );
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('group-member-a-preferences-input')),
       '慢节奏, 夜景, 不吃香菜',
     );
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('group-member-b-name-input')),
       '阿远',
     );
-    await tester.enterText(
+    await enterTextWhenVisible(
+      tester,
       find.byKey(const ValueKey('group-member-b-preferences-input')),
       '预算低, 夜景, 山城步道',
     );

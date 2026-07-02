@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanxin_travelmate/features/photo/data/photo_experience_service.dart';
+import 'package:lanxin_travelmate/features/photo/data/photo_selection_service.dart';
 import 'package:lanxin_travelmate/features/photo/photo_page.dart';
 import 'package:lanxin_travelmate/features/trip/data/trip_dashboard_service.dart';
 
@@ -129,6 +130,30 @@ class EmptyPhotoDashboardService extends TripDashboardService {
   }
 }
 
+class EmptyTripPhotoDashboardService extends TripDashboardService {
+  EmptyTripPhotoDashboardService() : super(dio: Dio());
+
+  @override
+  Future<TripDashboardPayload> fetchDashboard({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
+    return TripDashboardPayload.fallback(userId: userId, tripId: 'photo-trip');
+  }
+}
+
+class StubPhotoSelectionService extends PhotoSelectionService {
+  @override
+  Future<SelectedPhoto?> pickFromGallery() async {
+    return const SelectedPhoto(
+      localUri: 'content://photos/manual-night.jpg',
+      filename: 'manual-night.jpg',
+      mimeType: 'image/jpeg',
+      source: 'gallery',
+    );
+  }
+}
+
 class StubPhotoDashboardService extends TripDashboardService {
   StubPhotoDashboardService() : super();
 
@@ -174,7 +199,10 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: PhotoPage(photoExperienceService: StubPhotoExperienceService()),
+          home: PhotoPage(
+            photoExperienceService: StubPhotoExperienceService(),
+            dashboardService: EmptyTripPhotoDashboardService(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -228,7 +256,12 @@ void main() {
     final service = StubPhotoExperienceService();
 
     await tester.pumpWidget(
-      MaterialApp(home: PhotoPage(photoExperienceService: service)),
+      MaterialApp(
+        home: PhotoPage(
+          photoExperienceService: service,
+          dashboardService: EmptyTripPhotoDashboardService(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -257,7 +290,13 @@ void main() {
     final service = StubPhotoExperienceService();
 
     await tester.pumpWidget(
-      MaterialApp(home: PhotoPage(photoExperienceService: service)),
+      MaterialApp(
+        home: PhotoPage(
+          photoExperienceService: service,
+          dashboardService: EmptyTripPhotoDashboardService(),
+          photoSelectionService: StubPhotoSelectionService(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -265,8 +304,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(service.createdCandidate, isTrue);
-    expect(find.text('手动导入照片'), findsOneWidget);
-    expect(find.text('已登记候选照片，本地路径不会上传保存'), findsOneWidget);
+    expect(find.text('系统相册照片'), findsOneWidget);
+    expect(find.textContaining('已登记 manual-night.jpg'), findsOneWidget);
   });
   testWidgets(
     'PhotoPage shows empty state and retry action for no photo data',

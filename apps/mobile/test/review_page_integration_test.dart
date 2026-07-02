@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanxin_travelmate/data/agent_response_cache.dart';
+import 'package:lanxin_travelmate/features/profile/data/profile_service.dart';
 import 'package:lanxin_travelmate/features/review/data/trip_review_service.dart';
 import 'package:lanxin_travelmate/features/review/review_page.dart';
 
@@ -32,6 +33,22 @@ class StubTripReviewService extends TripReviewService {
   }
 }
 
+class StubReviewProfileService extends ProfileService {
+  StubReviewProfileService() : super(dio: Dio());
+
+  @override
+  Future<ProfilePayload> fetchProfile({String userId = 'guest'}) async {
+    return const ProfilePayload(
+      userId: 'guest',
+      travelPace: 'slow',
+      dietaryPreferences: ['不吃香菜'],
+      interestTags: ['夜景'],
+      transportPreferences: ['步行'],
+      budgetPreference: 'medium',
+    );
+  }
+}
+
 void main() {
   tearDown(() {
     latestAgentResponse.value = null;
@@ -44,7 +61,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ReviewPage(tripReviewService: StubTripReviewService()),
+          home: ReviewPage(
+            tripReviewService: StubTripReviewService(),
+            profileService: StubReviewProfileService(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
