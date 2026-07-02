@@ -121,9 +121,9 @@ def _normalize_copywriting_payload(
 ) -> dict[str, object]:
     root = payload.get("photoCopywriting")
     if isinstance(root, dict):
-        normalized = dict(root)
-    else:
-        normalized = dict(payload)
+        return {"photoCopywriting": dict(root)}
+
+    normalized = dict(payload)
     fallback = _copywriting_for(candidates, persona, style)
     normalized["photoIds"] = normalized.get("photoIds") if isinstance(normalized.get("photoIds"), list) else fallback["photoIds"]
     normalized["persona"] = _first_text(normalized, ["persona", "tone", "voice"]) or persona

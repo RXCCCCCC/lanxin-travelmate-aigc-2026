@@ -46,6 +46,16 @@ def _trip_context(state: dict[str, Any]) -> dict[str, Any]:
     return trip_context if isinstance(trip_context, dict) else {}
 
 
+def _day_label(days: int) -> str:
+    return {
+        1: "一日",
+        2: "两日",
+        3: "三日",
+        4: "四日",
+        5: "五日",
+    }.get(days, f"{days}日")
+
+
 class MockModelProvider(ModelProvider):
     name = "mock"
 
@@ -73,6 +83,8 @@ class MockModelProvider(ModelProvider):
         weather = tool_context.get("weather") or {}
         pois = tool_context.get("pois") or []
         route = tool_context.get("route") or {}
+        text = str(state.get("normalized_input") or state.get("message") or "")
+        prefers_night_view = "夜景" in text
 
         profile_matches = [
             f"\u5df2\u6309{pace}\u8282\u594f\u7ec4\u7ec7{destination}\u884c\u7a0b\u3002",
@@ -92,7 +104,7 @@ class MockModelProvider(ModelProvider):
             risks.append(f"\u5f53\u524d\u8def\u7ebf\u9884\u8ba1 {route['durationMinutes']} \u5206\u949f\uff0c\u51fa\u884c\u4e2d\u53ef\u6309\u4f53\u529b\u5207\u6362\u5907\u9009\u65b9\u6848\u3002")
 
         return {
-            "title": f"{destination}{duration_days}\u65e5{pace}\u884c\u7a0b\u5efa\u8bae",
+            "title": f"{destination}{_day_label(duration_days)}{pace}{'夜景线' if prefers_night_view else '行程建议'}",
             "destination": destination,
             "summary": f"\u56f4\u7ed5{destination}\u751f\u6210\u7684{pace}\u964d\u7ea7\u884c\u7a0b\uff0c\u4f18\u5148\u51cf\u5c11\u6298\u8fd4\u5e76\u4fdd\u7559\u591c\u666f\u65f6\u95f4\u3002",
             "dateRange": f"{duration_days}\u5929",

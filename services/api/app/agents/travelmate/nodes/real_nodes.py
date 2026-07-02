@@ -198,17 +198,19 @@ def _normalize_memory_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _normalize_trip_plan_payload(plan: dict[str, Any], state: TravelMateState) -> dict[str, Any]:
     unwrapped = _unwrap_provider_payload(plan)
-    payload = unwrapped.get("tripPlanning") if isinstance(unwrapped.get("tripPlanning"), dict) else unwrapped
+    has_explicit_trip_planning = isinstance(unwrapped.get("tripPlanning"), dict)
+    payload = unwrapped.get("tripPlanning") if has_explicit_trip_planning else unwrapped
     if not isinstance(payload, dict):
         raise ModelProviderError("model returned invalid trip plan payload")
     normalized = dict(payload)
-    destination = str(normalized.get("destination") or _extract_trip_destination(state))
-    normalized["destination"] = destination
-    if not normalized.get("title"):
-        normalized["title"] = f"{destination}行程建议"
-    if not normalized.get("summary"):
-        response_text = plan.get("response") if isinstance(plan.get("response"), str) else None
-        normalized["summary"] = response_text or f"围绕{destination}生成的旅行建议。"
+    if not has_explicit_trip_planning:
+        destination = str(normalized.get("destination") or _extract_trip_destination(state))
+        normalized["destination"] = destination
+        if not normalized.get("title"):
+            normalized["title"] = f"{destination}行程建议"
+        if not normalized.get("summary"):
+            response_text = plan.get("response") if isinstance(plan.get("response"), str) else None
+            normalized["summary"] = response_text or f"围绕{destination}生成的旅行建议。"
     return normalized
 
 
@@ -859,31 +861,32 @@ def response_composer(state: TravelMateState) -> TravelMateState:
         "syncSuggestions": next_state["sync_suggestions"],
         "errors": next_state["errors"],
     }
-    try:
-        next_state["response"] = _model_chat_response(next_state)
-    except (AttributeError, ModelProviderError) as exc:
-        _append_chat_model_trace(next_state, {
-            "tool": "model_provider",
-            "provider": get_settings().model_provider,
-            "scenario": "companion_chat",
-            "fallback": True,
-            "errorType": "provider_error",
-            "error": str(exc),
-        })
-    except ValidationError as exc:
-        provider_name = get_settings().model_provider
+    if get_settings().model_provider != "mock":
         try:
-            provider_name = build_model_provider(get_settings()).name
-        except ModelProviderError:
-            pass
-        _append_chat_model_trace(next_state, {
-            "tool": "model_provider",
-            "provider": provider_name,
-            "scenario": "companion_chat",
-            "fallback": True,
-            "errorType": "schema_validation",
-            "error": str(exc),
-        })
+            next_state["response"] = _model_chat_response(next_state)
+        except (AttributeError, ModelProviderError) as exc:
+            _append_chat_model_trace(next_state, {
+                "tool": "model_provider",
+                "provider": get_settings().model_provider,
+                "scenario": "companion_chat",
+                "fallback": True,
+                "errorType": "provider_error",
+                "error": str(exc),
+            })
+        except ValidationError as exc:
+            provider_name = get_settings().model_provider
+            try:
+                provider_name = build_model_provider(get_settings()).name
+            except ModelProviderError:
+                pass
+            _append_chat_model_trace(next_state, {
+                "tool": "model_provider",
+                "provider": provider_name,
+                "scenario": "companion_chat",
+                "fallback": True,
+                "errorType": "schema_validation",
+                "error": str(exc),
+            })
     return next_state
 
 def error_fallback(state: TravelMateState) -> TravelMateState:

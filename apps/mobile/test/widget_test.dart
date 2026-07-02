@@ -3,8 +3,11 @@ import 'package:lanxin_travelmate/app.dart';
 
 void main() {
   testWidgets('App launches smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const LanXinApp());
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('首页'), findsOneWidget);
+    await tester.pumpWidget(const LanXinApp(onRetryPendingSync: _noopRetry));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('lanxiaoxin'), findsOneWidget);
   });
 }
+
+Future<void> _noopRetry() async {}
