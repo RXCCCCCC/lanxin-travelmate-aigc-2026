@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
@@ -114,11 +115,10 @@ class _ReviewPageState extends State<ReviewPage> {
       highlightPhotos: const [],
       newMemories: const [],
       completedTasks: const [],
-      avatarStatusChanges:
-          dashboard.avatarStateEvents
-              .map(_avatarStateEventText)
-              .where((item) => item.isNotEmpty)
-              .toList(),
+      avatarStatusChanges: dashboard.avatarStateEvents
+          .map(_avatarStateEventText)
+          .where((item) => item.isNotEmpty)
+          .toList(),
       nextTripSuggestions: const [],
       temporaryMemoryPromotions: const [],
     );
@@ -173,23 +173,22 @@ class _ReviewPageState extends State<ReviewPage> {
                   ),
                 ),
                 Expanded(
-                  child:
-                      agentReview == null
-                          ? FutureBuilder<TripReviewPayload>(
-                            future: _generatedReview,
-                            builder: (context, snapshot) {
-                              if (snapshot.hasData) {
-                                return _AgentReviewView(
-                                  review: snapshot.data!.toJson(),
-                                );
-                              }
-                              if (snapshot.hasError) {
-                                return const _ReviewErrorState();
-                              }
-                              return const _ReviewLoadingState();
-                            },
-                          )
-                          : _AgentReviewView(review: agentReview),
+                  child: agentReview == null
+                      ? FutureBuilder<TripReviewPayload>(
+                          future: _generatedReview,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              return _AgentReviewView(
+                                review: snapshot.data!.toJson(),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return const _ReviewErrorState();
+                            }
+                            return const _ReviewLoadingState();
+                          },
+                        )
+                      : _AgentReviewView(review: agentReview),
                 ),
               ],
             ),
@@ -293,19 +292,19 @@ class _AgentReviewView extends StatelessWidget {
     final memories = (review['newMemories'] as List<dynamic>? ?? const []).map(
       (e) => e.toString(),
     );
-    final tasks =
-        (review['completedTasks'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    final tasks = (review['completedTasks'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     final states = (review['avatarStatusChanges'] as List<dynamic>? ?? const [])
         .map((e) => e.toString());
     final reminders =
         (review['reminderHighlights'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .toList();
-    final suggestions = (review['nextTripSuggestions'] as List<dynamic>? ??
-            const [])
-        .map((e) => e.toString());
+    final suggestions =
+        (review['nextTripSuggestions'] as List<dynamic>? ?? const []).map(
+          (e) => e.toString(),
+        );
     final promotions =
         (review['temporaryMemoryPromotions'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
@@ -314,6 +313,11 @@ class _AgentReviewView extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.only(bottom: metrics.listBottomPadding),
       children: [
+        _TripRecordSummaryCard(
+          review: review,
+          photoCount: photos.length,
+          memoryCount: memories.length,
+        ),
         if (_reviewProfileContextText(review).isNotEmpty)
           _ReviewProfileContext(text: _reviewProfileContextText(review)),
         GlassBox(
@@ -387,6 +391,163 @@ class _AgentReviewView extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _TripRecordSummaryCard extends StatelessWidget {
+  const _TripRecordSummaryCard({
+    required this.review,
+    required this.photoCount,
+    required this.memoryCount,
+  });
+
+  final Map<String, dynamic> review;
+  final int photoCount;
+  final int memoryCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    final route = review['route']?.toString().trim();
+    final title = (route == null || route.isEmpty) ? '当前旅行记录' : route;
+    return GlassBox(
+      margin: EdgeInsets.fromLTRB(
+        metrics.horizontalPadding,
+        AppTheme.spacingSm,
+        metrics.horizontalPadding,
+        AppTheme.spacingSm,
+      ),
+      opacity: 0.2,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingLg,
+        vertical: AppTheme.spacingMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                child: const Icon(
+                  Icons.travel_explore_rounded,
+                  color: AppTheme.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '旅行记录',
+                      style: TextStyle(
+                        color: AppTheme.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingMd),
+          Row(
+            children: [
+              _RecordMetric(
+                icon: Icons.photo_rounded,
+                label: '$photoCount 张旅拍',
+              ),
+              const SizedBox(width: 8),
+              _RecordMetric(
+                icon: Icons.bubble_chart_rounded,
+                label: '$memoryCount 条记忆',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingMd),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/photo'),
+                  icon: const Icon(Icons.photo_library_rounded, size: 18),
+                  label: const Text('查看旅拍'),
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingSm),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: null,
+                  icon: const Icon(Icons.auto_stories_rounded, size: 18),
+                  label: const Text('查看复盘'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecordMetric extends StatelessWidget {
+  const _RecordMetric({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 34),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.20),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          border: Border.all(color: Colors.white.withOpacity(0.28)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: AppTheme.primary, size: 16),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

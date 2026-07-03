@@ -21,22 +21,21 @@ final appRouter = GoRouter(
   routes: [
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
-      builder:
-          (context, state, child) => _ShellBackScope(
-            location: state.uri.path,
-            child: ScaffoldWithNav(child: child),
-          ),
+      builder: (context, state, child) => _ShellBackScope(
+        location: state.uri.path,
+        child: ScaffoldWithNav(child: child),
+      ),
       routes: [
         GoRoute(path: '/', builder: (_, __) => const HomePage()),
         GoRoute(path: '/trip', builder: (_, __) => const TripPage()),
-        GoRoute(path: '/photo', builder: (_, __) => const PhotoPage()),
+        GoRoute(path: '/review', builder: (_, __) => const ReviewPage()),
         GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
       ],
     ),
     GoRoute(path: '/chat', builder: (_, __) => const ChatPage()),
+    GoRoute(path: '/photo', builder: (_, __) => const PhotoPage()),
     GoRoute(path: '/memory', builder: (_, __) => const MemoryPage()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
-    GoRoute(path: '/review', builder: (_, __) => const ReviewPage()),
     GoRoute(path: '/reminder', builder: (_, __) => const ReminderPage()),
   ],
 );
@@ -99,15 +98,15 @@ class ScaffoldWithNav extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(icon: Icons.home_rounded, label: '首页', path: '/'),
-                _NavItem(icon: Icons.map_rounded, label: '规划', path: '/trip'),
+                _NavItem(icon: Icons.map_rounded, label: '行程', path: '/trip'),
                 _NavItem(
-                  icon: Icons.photo_library_rounded,
-                  label: '旅拍',
-                  path: '/photo',
+                  icon: Icons.auto_stories_rounded,
+                  label: '复盘',
+                  path: '/review',
                 ),
                 _NavItem(
                   icon: Icons.settings_rounded,
-                  label: '设置',
+                  label: '我的',
                   path: '/settings',
                 ),
               ],

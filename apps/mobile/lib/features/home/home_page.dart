@@ -4,7 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
+import '../../data/agent_response_cache.dart';
+import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
+import '../chat/data/agent_chat_service.dart';
 import '../trip/data/trip_dashboard_service.dart';
 
 /// 首页 — 完全复刻参考图
@@ -23,8 +26,25 @@ class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _floatCtrl;
   late final TripDashboardService _dashboardService;
+  late final AgentChatService _agentChatService;
+  final _chatController = TextEditingController();
+  final _panelScrollController = ScrollController();
+  final _messages = <ChatMessage>[
+    const ChatMessage(
+      id: 'home-welcome',
+      sender: MessageSender.assistant,
+      text: '告诉我你想去哪、什么时候出发、有什么偏好，我会在这里直接陪你规划。',
+      time: '现在',
+      avatarState: AvatarState.hello,
+    ),
+  ];
   _HomeDashboardSummary _dashboardSummary = const _HomeDashboardSummary();
+  AvatarState _avatarState = AvatarState.hello;
   bool _showHeroAvatar = false;
+  bool _isSending = false;
+  int _memoryCandidateCount = 0;
+  late final String _sessionId;
+  late final String _tripId;
 
   @override
   void initState() {
@@ -34,6 +54,10 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(milliseconds: 3400),
     )..repeat(reverse: true);
     _dashboardService = widget.dashboardService ?? TripDashboardService();
+    _agentChatService = AgentChatService();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _sessionId = 'home-session-$now';
+    _tripId = 'home-trip-$now';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _showHeroAvatar = true);
@@ -55,7 +79,63 @@ class _HomePageState extends State<HomePage>
   @override
   void dispose() {
     _floatCtrl.dispose();
+    _chatController.dispose();
+    _panelScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendHomeMessage() async {
+    final text = _chatController.text.trim();
+    if (text.isEmpty || _isSending) return;
+    setState(() {
+      _isSending = true;
+      _messages.add(
+        ChatMessage(
+          id: 'home-user-${DateTime.now().millisecondsSinceEpoch}',
+          sender: MessageSender.user,
+          text: text,
+          time: TimeOfDay.now().format(context),
+        ),
+      );
+    });
+    _chatController.clear();
+    _scrollPanelToBottom();
+
+    final response = await _agentChatService.sendMessage(
+      text,
+      sessionId: _sessionId,
+      userId: 'guest',
+      tripId: _tripId,
+      context: {'entry': 'home_companion', 'surface': 'avatar_home'},
+    );
+    if (!mounted) return;
+    latestAgentResponse.value = response;
+    setState(() {
+      _isSending = false;
+      _avatarState = response.avatarState;
+      _memoryCandidateCount = response.memoryCandidates.length;
+      _messages.add(
+        ChatMessage(
+          id: 'home-assistant-${DateTime.now().millisecondsSinceEpoch}',
+          sender: MessageSender.assistant,
+          text: response.replyText,
+          time: TimeOfDay.now().format(context),
+          avatarState: response.avatarState,
+        ),
+      );
+    });
+    _scrollPanelToBottom();
+  }
+
+  void _scrollPanelToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_panelScrollController.hasClients) return;
+      _panelScrollController.animateTo(
+        _panelScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
@@ -65,10 +145,13 @@ class _HomePageState extends State<HomePage>
         statusBarColor: Colors.transparent,
       ),
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: Colors.transparent,
         body: LayoutBuilder(
           builder: (context, c) {
             final metrics = context.responsive;
+            final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+            final keyboardVisible = keyboardInset > 0;
             final viewportHeight = c.maxHeight;
             final h = metrics.isLandscape
                 ? math.max(viewportHeight, 700.0)
@@ -79,6 +162,9 @@ class _HomePageState extends State<HomePage>
             final panelHeight = (h * (compact ? 0.34 : 0.37))
                 .clamp(230.0, compact ? 270.0 : 320.0)
                 .toDouble();
+            final effectivePanelHeight = keyboardVisible
+                ? math.min(panelHeight, compact ? 226.0 : 250.0)
+                : panelHeight;
             final avatarHeight = h * (compact ? 0.50 : 0.58);
             final avatarTop = compact ? topSafe + 92.0 : h * 0.08;
 
@@ -120,7 +206,10 @@ class _HomePageState extends State<HomePage>
                     children: [
                       GestureDetector(
                         onTap: () => context.go('/chat'),
-                        child: _IntegrationButton(compact: compact),
+                        child: _IntegrationButton(
+                          compact: compact,
+                          label: compact ? '展开' : '聊天历史',
+                        ),
                       ),
                       const SizedBox(height: 8),
                       if (!compact) const _NoticePill(),
@@ -158,7 +247,7 @@ class _HomePageState extends State<HomePage>
                   child: IgnorePointer(
                     child: _showHeroAvatar
                         ? Image.asset(
-                            AvatarState.hello.assetPath,
+                            _avatarState.assetPath,
                             fit: BoxFit.contain,
                             cacheWidth: 720,
                             filterQuality: FilterQuality.medium,
@@ -216,12 +305,25 @@ class _HomePageState extends State<HomePage>
                 ],
 
                 // ── 底部磨砂玻璃聊天面板（~37%）──
-                Positioned(
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
                   left: sidePadding,
                   right: sidePadding,
-                  bottom: 10,
-                  height: panelHeight,
-                  child: const _ChatGlassPanel(),
+                  bottom: 10 + keyboardInset,
+                  height: effectivePanelHeight,
+                  child: _ChatGlassPanel(
+                    controller: _chatController,
+                    scrollController: _panelScrollController,
+                    messages: _messages,
+                    isSending: _isSending,
+                    memoryCandidateCount: _memoryCandidateCount,
+                    onSend: _sendHomeMessage,
+                    onOpenHistory: () => context.go('/chat'),
+                    onOpenTrip: () => context.go('/trip'),
+                    onOpenMemory: () => context.go('/memory'),
+                    onOpenReview: () => context.go('/review'),
+                  ),
                 ),
               ],
             );
@@ -415,8 +517,9 @@ class _WeatherCard extends StatelessWidget {
 }
 
 class _IntegrationButton extends StatelessWidget {
-  const _IntegrationButton({this.compact = false});
+  const _IntegrationButton({this.compact = false, this.label = '真实联调'});
   final bool compact;
+  final String label;
   @override
   Widget build(BuildContext context) {
     return GlassBox(
@@ -428,7 +531,7 @@ class _IntegrationButton extends StatelessWidget {
           const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 20),
           if (!compact) const SizedBox(width: 7),
           Text(
-            '真实联调',
+            label,
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
@@ -752,87 +855,176 @@ class _MemoryCapsuleBadge extends StatelessWidget {
 // ══════════════════════════════════════════════════════════
 
 class _ChatGlassPanel extends StatelessWidget {
-  const _ChatGlassPanel();
+  const _ChatGlassPanel({
+    required this.controller,
+    required this.scrollController,
+    required this.messages,
+    required this.isSending,
+    required this.memoryCandidateCount,
+    required this.onSend,
+    required this.onOpenHistory,
+    required this.onOpenTrip,
+    required this.onOpenMemory,
+    required this.onOpenReview,
+  });
+
+  final TextEditingController controller;
+  final ScrollController scrollController;
+  final List<ChatMessage> messages;
+  final bool isSending;
+  final int memoryCandidateCount;
+  final VoidCallback onSend;
+  final VoidCallback onOpenHistory;
+  final VoidCallback onOpenTrip;
+  final VoidCallback onOpenMemory;
+  final VoidCallback onOpenReview;
+
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    return GestureDetector(
-      onTap: () => context.go('/chat'),
-      child: GlassBox(
-        borderRadius: BorderRadius.circular(32),
-        padding: EdgeInsets.fromLTRB(
-          metrics.isCompactPhone ? 12 : 16,
-          metrics.isCompactPhone ? 12 : 14,
-          metrics.isCompactPhone ? 12 : 16,
-          10,
-        ),
-        opacity: 0.18,
-        blur: 30.0,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _ChatBubble(
-                    isUser: false,
-                    text: '告诉我你的目的地、时间和偏好，我会调用后端 Agent 生成真实规划。',
-                    avatarPath: AvatarState.hello.assetPath,
-                  ),
-                ],
+    final visibleMessages = messages.length <= 3
+        ? messages
+        : messages.sublist(messages.length - 3);
+    return GlassBox(
+      borderRadius: BorderRadius.circular(30),
+      padding: EdgeInsets.fromLTRB(
+        metrics.isCompactPhone ? 12 : 16,
+        metrics.isCompactPhone ? 12 : 14,
+        metrics.isCompactPhone ? 12 : 16,
+        10,
+      ),
+      opacity: 0.20,
+      blur: 30.0,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.forum_rounded,
+                color: Color(0xFF215ECA),
+                size: 18,
               ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  '和蓝小心直接聊',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Color(0xFF06224E),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (memoryCandidateCount > 0)
+                _TinySignal(label: '$memoryCandidateCount 条记忆'),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: onOpenHistory,
+                child: const _TinySignal(label: '展开'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView.separated(
+              controller: scrollController,
+              padding: EdgeInsets.zero,
+              itemCount: visibleMessages.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, index) {
+                final message = visibleMessages[index];
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: _ChatBubble(
+                    key: ValueKey(message.id),
+                    isUser: message.sender == MessageSender.user,
+                    text: message.text,
+                    avatarPath:
+                        (message.avatarState ?? AvatarState.hello).assetPath,
+                  ),
+                );
+              },
             ),
-            // 输入栏
-            GlassBox(
-              borderRadius: BorderRadius.circular(24),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              opacity: 0.10,
-              blur: 16,
-              child: Row(
-                children: const [
-                  Icon(Icons.mic_rounded, color: Color(0xFF5F8FBF), size: 22),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '去聊天页联调 Agent...',
-                      style: TextStyle(color: Color(0xFF8FABC4), fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          GlassBox(
+            borderRadius: BorderRadius.circular(22),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            opacity: 0.12,
+            blur: 16,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.mic_rounded,
+                  color: Color(0xFF5F8FBF),
+                  size: 21,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 2,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => onSend(),
+                    style: const TextStyle(
+                      color: Color(0xFF06224E),
+                      fontSize: 14,
+                      height: 1.25,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: isSending ? '蓝小心正在思考...' : '在首页直接告诉蓝小心...',
+                      hintStyle: const TextStyle(
+                        color: Color(0xFF7B98B8),
+                        fontSize: 13,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
                     ),
                   ),
-                  Icon(
-                    Icons.emoji_emotions_outlined,
-                    color: Color(0xFF5F8FBF),
-                    size: 21,
+                ),
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: IconButton(
+                    onPressed: isSending ? null : onSend,
+                    tooltip: '发送',
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      isSending ? Icons.more_horiz_rounded : Icons.send_rounded,
+                      color: const Color(0xFF215ECA),
+                      size: 22,
+                    ),
                   ),
-                  SizedBox(width: 10),
-                  Icon(
-                    Icons.photo_library_outlined,
-                    color: Color(0xFF5F8FBF),
-                    size: 21,
-                  ),
-                  SizedBox(width: 10),
-                  Icon(
-                    Icons.add_circle_outline,
-                    color: Color(0xFF5F8FBF),
-                    size: 22,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-            // 快捷指令
-            Row(
-              children: const [
-                _QuickChip(icon: Icons.route_rounded, label: '规划路线'),
-                SizedBox(width: 6),
-                _QuickChip(icon: Icons.bubble_chart_rounded, label: '记忆胶囊'),
-                SizedBox(width: 6),
-                _QuickChip(icon: Icons.edit_road_rounded, label: '调整行程'),
-                SizedBox(width: 6),
-                _QuickChip(icon: Icons.auto_stories_rounded, label: '生成复盘'),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              _QuickChip(
+                icon: Icons.route_rounded,
+                label: '行程',
+                onTap: onOpenTrip,
+              ),
+              const SizedBox(width: 6),
+              _QuickChip(
+                icon: Icons.bubble_chart_rounded,
+                label: '记忆',
+                onTap: onOpenMemory,
+              ),
+              const SizedBox(width: 6),
+              _QuickChip(
+                icon: Icons.auto_stories_rounded,
+                label: '复盘',
+                onTap: onOpenReview,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -840,6 +1032,7 @@ class _ChatGlassPanel extends StatelessWidget {
 
 class _ChatBubble extends StatelessWidget {
   const _ChatBubble({
+    super.key,
     required this.isUser,
     required this.text,
     this.avatarPath,
@@ -958,43 +1151,81 @@ class _ChatBubble extends StatelessWidget {
   }
 }
 
-class _QuickChip extends StatelessWidget {
-  const _QuickChip({required this.icon, required this.label});
-  final IconData icon;
+class _TinySignal extends StatelessWidget {
+  const _TinySignal({required this.label});
+
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 32),
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.22),
-              Colors.white.withOpacity(0.12),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.35), width: 0.8),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.32), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF215ECA),
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
         ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 13, color: const Color(0xFF4A7FCC)),
-              const SizedBox(width: 3),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF2B5BA9),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _QuickChip extends StatelessWidget {
+  const _QuickChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 34),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.24),
+                Colors.white.withOpacity(0.13),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.35),
+              width: 0.8,
+            ),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 14, color: const Color(0xFF4A7FCC)),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF2B5BA9),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -14,6 +14,7 @@ class ChatBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = context.responsive;
     final isUser = message.sender == MessageSender.user;
+    final maxBubbleWidth = MediaQuery.sizeOf(context).width * 0.78;
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -39,42 +40,59 @@ class ChatBubble extends StatelessWidget {
             const SizedBox(width: AppTheme.spacingSm),
           ],
           Flexible(
-            child: GlassBox(
-              opacity: isUser ? 0.35 : 0.18,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacingLg,
-                vertical: AppTheme.spacingMd,
-              ),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(AppTheme.radiusLg),
-                topRight: const Radius.circular(AppTheme.radiusLg),
-                bottomLeft: Radius.circular(
-                  isUser ? AppTheme.radiusLg : AppTheme.spacingSm,
-                ),
-                bottomRight: Radius.circular(
-                  isUser ? AppTheme.spacingSm : AppTheme.radiusLg,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.text,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 15,
-                      height: 1.5,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.96, end: 1),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              builder: (context, scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: child,
+                );
+              },
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+                child: GlassBox(
+                  opacity: isUser ? 0.35 : 0.18,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingLg,
+                    vertical: AppTheme.spacingMd,
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(AppTheme.radiusLg),
+                    topRight: const Radius.circular(AppTheme.radiusLg),
+                    bottomLeft: Radius.circular(
+                      isUser ? AppTheme.radiusLg : AppTheme.spacingSm,
+                    ),
+                    bottomRight: Radius.circular(
+                      isUser ? AppTheme.spacingSm : AppTheme.radiusLg,
                     ),
                   ),
-                  const SizedBox(height: AppTheme.spacingXs),
-                  Text(
-                    message.time,
-                    style: TextStyle(
-                      color: AppTheme.textSecondary.withOpacity(0.6),
-                      fontSize: 11,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        message.text,
+                        style: const TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 15,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spacingXs),
+                      Text(
+                        message.time,
+                        style: TextStyle(
+                          color: AppTheme.textSecondary.withOpacity(0.6),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
