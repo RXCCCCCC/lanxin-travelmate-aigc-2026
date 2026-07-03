@@ -28,6 +28,10 @@
 
 ### 2026-07-04
 
+- Added read-only `scripts/public_submission_hygiene.py` to check final public submission hygiene: tracked env files, local secret ignore patterns, placeholder-only `.env.example` sensitive values, public handoff text secret markers, and privacy/demo review coverage.
+- `scripts/submission_readiness_report.py` now aggregates `public_submission_hygiene` as a manual-aware final submission check, keeping secret/privacy review visible beside APK, PPT, video, screenshots, and platform upload readiness.
+- Validation passed: `uv run pytest tests/test_public_submission_hygiene.py tests/test_submission_readiness_report.py tests/test_mobile_privacy_boundaries.py tests/test_privacy_routes.py -q`; `python -m py_compile scripts/public_submission_hygiene.py scripts/submission_readiness_report.py`; `python scripts/public_submission_hygiene.py --json`; `python scripts/submission_readiness_report.py --json --skip-git`.
+
 - Added read-only `scripts/submission_package_manifest.py` to track final competition package slots: code repository, Android APK, presentation deck, demo video, screenshots, API evidence, privacy/material review, and platform upload.
 - `scripts/submission_readiness_report.py` now aggregates `submission_package_manifest` as a manual-aware final submission check, keeping human-only artifacts visible without marking them as automated.
 - Added `pillow>=12.0.0` to `services/api` dependencies because submission readiness and avatar asset tests inspect PNG transparency through Pillow.
