@@ -1038,19 +1038,25 @@ class _ChatGlassPanel extends StatelessWidget {
             children: [
               _QuickChip(
                 icon: Icons.route_rounded,
-                label: '行程',
+                label: '规划路线',
                 onTap: onOpenTrip,
               ),
               const SizedBox(width: 6),
               _QuickChip(
                 icon: Icons.bubble_chart_rounded,
-                label: '记忆',
+                label: '记忆胶囊',
                 onTap: onOpenMemory,
               ),
               const SizedBox(width: 6),
               _QuickChip(
+                icon: Icons.tune_rounded,
+                label: '调整行程',
+                onTap: onOpenTrip,
+              ),
+              const SizedBox(width: 6),
+              _QuickChip(
                 icon: Icons.auto_stories_rounded,
-                label: '复盘',
+                label: '生成复盘',
                 onTap: onOpenReview,
               ),
             ],
