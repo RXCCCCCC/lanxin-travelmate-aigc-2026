@@ -30,6 +30,7 @@ def test_submission_readiness_report_aggregates_release_docs_and_preflights():
     assert checks["submission_checklist_covers_real_capabilities"]["ok"] is True
     assert checks["prd_p0_demo_loop_covered"]["ok"] is True
     assert checks["competition_submission_materials_covered"]["ok"] is True
+    assert checks["avatar_assets_transparent"]["ok"] is True
     assert checks["android_release_preflight"]["ok"] is True
     assert checks["android_device_readiness"]["manual"] is True
     assert "manifest_declares_runtime_permissions" in checks["android_device_readiness"]["detail"]

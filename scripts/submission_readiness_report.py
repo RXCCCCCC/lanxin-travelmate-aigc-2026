@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from PIL import Image
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -104,6 +105,42 @@ def _missing_marker_groups(text: str, marker_groups: dict[str, tuple[str, ...]])
     }
 
 
+def _collect_avatar_asset_readiness(repo_root: Path) -> dict[str, Any]:
+    avatar_source = (
+        repo_root / "apps" / "mobile" / "lib" / "core" / "constants" / "avatar_states.dart"
+    )
+    avatar_dir = repo_root / "apps" / "mobile" / "assets" / "avatars"
+    source_text = _read_text(avatar_source)
+    asset_names = sorted(
+        {
+            stripped.split("'", maxsplit=2)[1]
+            for line in source_text.splitlines()
+            if (stripped := line.strip()).startswith("'lanxiaoxin_")
+        }
+    )
+    offenders: list[str] = []
+    for name in asset_names:
+        path = avatar_dir / f"{name}.png"
+        if not path.exists():
+            offenders.append(f"{path.relative_to(repo_root)} missing")
+            continue
+        try:
+            alpha = Image.open(path).convert("RGBA").getchannel("A")
+        except OSError as exc:
+            offenders.append(f"{path.relative_to(repo_root)} unreadable: {exc}")
+            continue
+        if alpha.getextrema()[0] != 0:
+            offenders.append(f"{path.relative_to(repo_root)} has no transparent pixels")
+
+    return {
+        "ok": bool(asset_names) and not offenders,
+        "detail": {
+            "checked": [f"assets/avatars/{name}.png" for name in asset_names],
+            "offenders": offenders,
+        },
+    }
+
+
 def collect_submission_readiness(
     repo_root: Path,
     *,
@@ -117,6 +154,7 @@ def collect_submission_readiness(
         repo_root,
         run_docker_config=run_docker_config,
     )
+    avatar_asset_report = _collect_avatar_asset_readiness(repo_root)
 
     todo_text = _read_text(repo_root / "docs" / "todo.md")
     shared_state_text = _read_text(repo_root / "docs" / "handoff" / "ai-shared-state.md")
@@ -179,6 +217,7 @@ def collect_submission_readiness(
             "ok": not competition_missing,
             "detail": competition_missing,
         },
+        "avatar_assets_transparent": avatar_asset_report,
         "android_release_preflight": {
             "ok": android_report["ok"],
             "detail": android_report["checks"],

@@ -30,7 +30,8 @@
 
 - 已完成首页蓝小心白底矩形的仓库内可执行修复：`apps/mobile/assets/avatars/lanxiaoxin_*.png` 运行时头像资产已批量转为带 alpha 的透明 PNG，`project/img/lanxiaoxin/` 仍保留源素材对照。
 - 新增 `services/api/tests/test_mobile_avatar_assets.py`，静态检查 `AvatarState` 引用的运行时头像 PNG 必须包含真实透明像素，避免重新接入不透明白底素材。
-- 验证通过：`uv run pytest services/api/tests/test_mobile_avatar_assets.py -q`；`cd apps/mobile && flutter test --no-pub test/avatar_states_test.dart`。
+- `scripts/submission_readiness_report.py` 已新增 `avatar_assets_transparent` 检查，把蓝小心运行时头像透明度纳入最终提交就绪总览。
+- 验证通过：`uv run pytest services/api/tests/test_submission_readiness_report.py services/api/tests/test_mobile_avatar_assets.py -q`；`python scripts/submission_readiness_report.py --json --skip-git`；`python -m py_compile scripts/submission_readiness_report.py`；`cd apps/mobile && flutter test --no-pub test/avatar_states_test.dart`。
 - `docs/todo.md` 已把蓝小心白底矩形从未完成项更新为已完成；最终视觉风格、素材授权、真机权限、正式签名、Demo/PPT 和比赛上传仍按人工事项保留。
 
 ### 2026-07-03
