@@ -48,8 +48,8 @@
 - [x] 已运行 `python scripts/android_release_preflight.py --json`，确认 Android-only、包名、版本号、SDK、build-tools、CI APK job 和签名状态；release 仍需正式签名。
 - [ ] 确认最终 `applicationId`、`versionCode`、`versionName`。
 - [ ] 将 release 构建从 debug signing 替换为正式签名证书。
-- [x] 本机完成 Android debug APK 构建，并在 Android 模拟器安装启动。
-- [ ] 在 CI 或真机完成最终 APK 构建/安装启动验收；release 包仍需正式签名。
+- [x] 本机完成 Android debug APK 构建；最新产物为 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`。
+- [ ] 在 CI、Android 模拟器或真机完成最新 APK 安装启动验收；release 包仍需正式签名。
 
 ## 6. Docker/Postgres 与部署验收
 
