@@ -28,6 +28,11 @@
 
 ### 2026-07-04
 
+- Added read-only `scripts/demo_evidence_readiness.py` to check Demo/PPT evidence readiness without starting services, reading secrets, or inspecting media content.
+- `scripts/submission_readiness_report.py` now aggregates `demo_evidence_readiness` as a manual-aware final submission check, so Demo screenshots, video, PPT, privacy, fallback, and platform upload evidence stay visible in one report.
+- `docs/handoff/demo-evidence-pack.md` now explicitly labels no-key tool evidence as `fallback/unconfigured` and states social/publishing content must be confirmed by the user before publishing.
+- Validation passed: `uv run pytest services/api/tests/test_demo_evidence_readiness.py services/api/tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/demo_evidence_readiness.py scripts/submission_readiness_report.py`; `python scripts/demo_evidence_readiness.py --json`; `python scripts/submission_readiness_report.py --json --skip-git`; `git diff --check` only reported LF-to-CRLF working-copy warnings.
+- GitNexus `detect_changes(scope=staged)` reported low risk across 6 changed files and no affected indexed processes.
 - Added `readme_runnable_handoff` to `scripts/submission_readiness_report.py`, covering root/mobile README run, validation, APK build, and Android device-channel handoff markers.
 - Replaced `apps/mobile/README.md` Flutter template with Android/vivo runbook: backend URL variants, emulator/physical-device `adb reverse`, validation commands, and `photo_picker`/`location`/`voice`/`notifications` MethodChannel notes.
 - Validation passed: `uv run pytest services/api/tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`; `git diff --check` only reported LF-to-CRLF working-copy warnings.

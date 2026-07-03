@@ -21,6 +21,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from android_release_preflight import collect_android_release_preflight
 from android_device_readiness_report import collect_android_device_readiness
+from demo_evidence_readiness import collect_demo_evidence_readiness
 from docker_compose_preflight import collect_docker_compose_preflight
 
 
@@ -173,6 +174,7 @@ def collect_submission_readiness(
         run_docker_config=run_docker_config,
     )
     avatar_asset_report = _collect_avatar_asset_readiness(repo_root)
+    demo_evidence_report = collect_demo_evidence_readiness(repo_root)
 
     todo_text = _read_text(repo_root / "docs" / "todo.md")
     shared_state_text = _read_text(repo_root / "docs" / "handoff" / "ai-shared-state.md")
@@ -244,6 +246,11 @@ def collect_submission_readiness(
         "competition_submission_materials_covered": {
             "ok": not competition_missing,
             "detail": competition_missing,
+        },
+        "demo_evidence_readiness": {
+            "ok": demo_evidence_report["ok"],
+            "detail": demo_evidence_report["checks"],
+            "manual": True,
         },
         "avatar_assets_transparent": avatar_asset_report,
         "android_release_preflight": {
