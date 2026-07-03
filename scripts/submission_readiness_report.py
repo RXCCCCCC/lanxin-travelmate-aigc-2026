@@ -23,6 +23,7 @@ from android_release_preflight import collect_android_release_preflight
 from android_device_readiness_report import collect_android_device_readiness
 from demo_evidence_readiness import collect_demo_evidence_readiness
 from docker_compose_preflight import collect_docker_compose_preflight
+from submission_package_manifest import collect_submission_package_manifest
 
 
 REQUIRED_HANDOFF_DOCS = (
@@ -175,6 +176,7 @@ def collect_submission_readiness(
     )
     avatar_asset_report = _collect_avatar_asset_readiness(repo_root)
     demo_evidence_report = collect_demo_evidence_readiness(repo_root)
+    submission_package_report = collect_submission_package_manifest(repo_root)
 
     todo_text = _read_text(repo_root / "docs" / "todo.md")
     shared_state_text = _read_text(repo_root / "docs" / "handoff" / "ai-shared-state.md")
@@ -250,6 +252,11 @@ def collect_submission_readiness(
         "demo_evidence_readiness": {
             "ok": demo_evidence_report["ok"],
             "detail": demo_evidence_report["checks"],
+            "manual": True,
+        },
+        "submission_package_manifest": {
+            "ok": submission_package_report["ok"],
+            "detail": submission_package_report["checks"],
             "manual": True,
         },
         "avatar_assets_transparent": avatar_asset_report,

@@ -28,6 +28,11 @@
 
 ### 2026-07-04
 
+- Added read-only `scripts/submission_package_manifest.py` to track final competition package slots: code repository, Android APK, presentation deck, demo video, screenshots, API evidence, privacy/material review, and platform upload.
+- `scripts/submission_readiness_report.py` now aggregates `submission_package_manifest` as a manual-aware final submission check, keeping human-only artifacts visible without marking them as automated.
+- Added `pillow>=12.0.0` to `services/api` dependencies because submission readiness and avatar asset tests inspect PNG transparency through Pillow.
+- Validation passed: `uv run pytest tests/test_submission_package_manifest.py tests/test_submission_readiness_report.py tests/test_mobile_avatar_assets.py -q`; `python -m py_compile scripts/submission_package_manifest.py scripts/submission_readiness_report.py`; `python scripts/submission_package_manifest.py --json`; `python scripts/submission_readiness_report.py --json --skip-git`.
+
 - Added read-only `scripts/demo_evidence_readiness.py` to check Demo/PPT evidence readiness without starting services, reading secrets, or inspecting media content.
 - `scripts/submission_readiness_report.py` now aggregates `demo_evidence_readiness` as a manual-aware final submission check, so Demo screenshots, video, PPT, privacy, fallback, and platform upload evidence stay visible in one report.
 - `docs/handoff/demo-evidence-pack.md` now explicitly labels no-key tool evidence as `fallback/unconfigured` and states social/publishing content must be confirmed by the user before publishing.

@@ -31,6 +31,8 @@ def test_submission_readiness_report_aggregates_release_docs_and_preflights():
     assert checks["readme_runnable_handoff"]["ok"] is True
     assert checks["prd_p0_demo_loop_covered"]["ok"] is True
     assert checks["competition_submission_materials_covered"]["ok"] is True
+    assert checks["submission_package_manifest"]["ok"] is True
+    assert checks["submission_package_manifest"]["manual"] is True
     assert checks["demo_evidence_readiness"]["ok"] is True
     assert checks["demo_evidence_readiness"]["manual"] is True
     assert checks["avatar_assets_transparent"]["ok"] is True

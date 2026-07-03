@@ -13,6 +13,7 @@ dependencies = [
     "loguru>=0.7.3",
     "alembic>=1.17.2",
     "psycopg[binary]>=3.3.2",
+    "pillow>=12.0.0",
 ]
 
 [dependency-groups]
