@@ -1,11 +1,11 @@
 # 蓝心同行：懂你的全旅程 AI 旅伴
 
-本仓库用于 2026 年 AIGC 创新赛应用赛道作品“蓝心同行”。当前已形成可运行的 Flutter App + FastAPI + LangGraph Agent 骨架，支持本地演示“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的 P0 闭环；模型默认 Mock，天气/POI/路线工具已接入高德 Provider，无 Key 时明确降级。
+本仓库用于 2026 年 AIGC 创新赛应用赛道作品“蓝心同行”。当前已形成可运行的 Flutter App + FastAPI + LangGraph Agent 链路，支持本地演示“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的 P0 闭环；后端支持蓝心/OpenAI 兼容真实模型 Provider，高德天气/POI/路线工具已接入真实 Provider，无 Key 或服务异常时明确降级，不把 Mock/固定样例计入真实验收。
 
 ## 当前结构
 
 - `apps/mobile/`：Flutter 移动端原型，含蓝小心状态、聊天页、记忆、规划、提醒、复盘页面。
-- `services/api/`：FastAPI 后端，使用 uv 管理依赖，内置 LangGraph TravelMate Agent Mock 流程。
+- `services/api/`：FastAPI 后端，使用 uv 管理依赖，内置 LangGraph TravelMate Agent、真实模型 Provider、外部工具注册器和审计日志。
 - `docs/todo.md`：全项目未完成待办总表。
 - `docs/product/`：PRD、开发路线、UI 计划和比赛材料整理。
 - `docs/engineering/`：技术设计、API 契约、Agent 图、开发路线和贡献说明。
@@ -26,7 +26,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 健康检查：`http://127.0.0.1:8000/api/health`
 - Swagger：`http://127.0.0.1:8000/docs`
 
-Mock 聊天接口：
+聊天接口 smoke：
 
 ```powershell
 cd services/api
@@ -90,6 +90,14 @@ flutter build apk --debug
 
 本机执行 `flutter build apk --debug` 前先运行 `python scripts/android_release_preflight.py --json`；当前预检会检查 Android-only 平台壳、`applicationId`、版本号、SDK 35、build-tools 35.0.0 和 release 签名状态。本机需要安装 Android SDK `platforms;android-35`；CI 的 Android APK job 会自动安装 Android SDK 35、`build-tools;35.0.0` 并运行 strict 预检。
 
+提交就绪总览：
+
+```powershell
+python scripts/submission_readiness_report.py --json
+```
+
+该脚本只读聚合 Git 工作区、Android-only 平台壳、PRD P0 演示闭环、比赛提交材料、交接文档、Android 预检和 Docker Compose 预检；不会启动服务、构建 APK、读取密钥值或修改文件。
+
 Docker：
 
 ```powershell
@@ -129,7 +137,7 @@ GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时�
 5. Flutter 聊天页发送“周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜”后展示蓝小心回复。
 6. 聊天页出现记忆候选，点击“确认记忆胶囊”后写入本地 Drift SQLite。
 7. 记忆页可看到已确认胶囊，并支持编辑/删除。
-8. 规划、提醒、复盘页优先展示本次 Agent Mock 响应。
+8. 规划、提醒、复盘页优先展示本次 Agent/后端状态；未配置真实能力时必须明确显示降级原因。
 9. P1 演示可继续验证：规划页备选方案/高德导航入口、多人偏好协调并带入规划、提醒页三类模拟触发、旅拍页文案生成/盲盒任务接受-完成-跳过、盲盒完成奖励数值、复盘页独立生成。
 10. `uv run pytest`、`flutter analyze`、`flutter test --concurrency=1` 可作为基础验收命令；本机先执行 `python scripts/android_release_preflight.py --json`，有 Android SDK 35 时再执行 `flutter build apk --debug`。
 
