@@ -1,6 +1,6 @@
 """add group coordination records
 
-Revision ID: 0003_add_group_coordination_records
+Revision ID: 0003_group_coordination
 Revises: 0002_add_reminder_events
 Create Date: 2026-06-20 00:00:00.000000
 
@@ -10,7 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "0003_add_group_coordination_records"
+revision: str = "0003_group_coordination"
 down_revision: Union[str, Sequence[str], None] = "0002_add_reminder_events"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

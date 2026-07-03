@@ -1,7 +1,7 @@
 """add trip route points
 
 Revision ID: 0005_add_trip_route_points
-Revises: 0004_add_blind_box_task_records
+Revises: 0004_blind_box_tasks
 Create Date: 2026-06-20 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "0005_add_trip_route_points"
-down_revision: Union[str, Sequence[str], None] = "0004_add_blind_box_task_records"
+down_revision: Union[str, Sequence[str], None] = "0004_blind_box_tasks"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

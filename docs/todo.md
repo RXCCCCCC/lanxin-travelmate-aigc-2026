@@ -55,7 +55,7 @@
 
 - [x] 本机已安装 Docker，并已运行 `python scripts/docker_compose_preflight.py --json`。
 - [x] 已通过 `docker compose -f infra/docker-compose.yml config` 配置验证。
-- [ ] 手动启动 Docker Desktop/daemon 后，运行 `docker compose -f infra/docker-compose.yml up --build`，确认 Postgres 初始化、API 启动前 `alembic upgrade head`、`/api/health` 正常；当前命令因 `com.docker.service` 未运行且当前会话无权启动服务而阻塞。
+- [x] 已运行 `docker compose -f infra/docker-compose.yml up --build -d`，确认 Postgres 初始化、API 启动前 `alembic upgrade head`、容器内与宿主机 `/api/health` 正常。
 - [ ] 如要公网演示，确认服务器、域名、HTTPS、环境变量和数据库备份策略。
 - [ ] 生产或公开环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用示例默认值。
 

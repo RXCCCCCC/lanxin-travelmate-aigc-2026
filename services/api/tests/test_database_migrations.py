@@ -85,7 +85,18 @@ def test_migration_plan_script_validates_revision_chain():
     )
 
     assert "OK: " in result.stdout
-    assert "head=0007_add_tool_call_log_user_id" in result.stdout
+    assert "head=0007_tool_call_user_id" in result.stdout
+
+
+def test_alembic_revision_ids_fit_default_version_table():
+    versions = sorted((ROOT / "migrations" / "versions").glob("*.py"))
+    assert versions
+
+    for path in versions:
+        text = path.read_text(encoding="utf-8")
+        revision_line = next(line for line in text.splitlines() if line.startswith("revision: str = "))
+        revision = revision_line.split("=", 1)[1].strip().strip('"')
+        assert len(revision) <= 32, f"{path.name} revision id is too long for alembic_version"
 
 
 def test_database_migration_rollback_documentation_exists():

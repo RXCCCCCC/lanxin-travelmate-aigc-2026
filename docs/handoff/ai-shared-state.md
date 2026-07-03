@@ -31,9 +31,10 @@
 - 本地 `dev` 已 fast-forward 到 `origin/dev` 最新提交 `155c2f0`，工作区同步后保持干净。
 - 已运行 `python scripts/android_release_preflight.py --json`，Android-only、包名、版本、SDK 35、build-tools 35.0.0、CI APK job 和预检链路均通过；release 仍需人工配置正式签名。
 - 已运行 `python scripts/docker_compose_preflight.py --json`，Docker Compose 文件、API/Postgres 连接、健康检查、命名卷、迁移启动命令和 `docker compose config` 均通过。
-- `docker compose -f infra/docker-compose.yml up --build -d` 尚未完成：Docker CLI 可用，但 `desktop-linux`/`default` daemon 管道不存在，`com.docker.service` 为 `Stopped`，当前会话无权启动该服务；需人工先启动 Docker Desktop 后继续验收。
-- `docs/todo.md` 已更新：删除已完成的预检待办，只保留真机权限验收、最终 APK/签名、Docker 实际 `up --build`、隐私素材确认、Demo/PPT 和比赛上传等人工事项。
-- 下一步 AI 可在 Docker Desktop 启动后继续做 Docker 实际启动验证，或继续做轻量文档/脚本修补；Android 真机、正式签名、素材授权和比赛提交仍需负责人介入。
+- 已修复全新 Postgres 初始化时 Alembic revision id 超过默认 `alembic_version.version_num varchar(32)` 的问题；当前 head 为 `0007_tool_call_user_id`，并新增测试约束 revision id 长度不超过 32。
+- 已运行 `docker compose -f infra/docker-compose.yml up --build -d`，Postgres healthy，API 容器 Up，迁移从 `0001_initial_schema` 升级到 `0007_tool_call_user_id`，容器内和宿主机 `/api/health` 均返回 ok。
+- `docs/todo.md` 已更新：删除已完成的预检和 Docker 实际启动待办，只保留真机权限验收、最终 APK/签名、公网部署、隐私素材确认、Demo/PPT 和比赛上传等人工事项。
+- 下一步 AI 可继续做轻量文档/脚本修补；Android 真机、正式签名、素材授权、公网部署和比赛提交仍需负责人介入。
 
 ### 2026-06-29
 

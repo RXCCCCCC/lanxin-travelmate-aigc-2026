@@ -1,7 +1,7 @@
 """add blind box task records
 
-Revision ID: 0004_add_blind_box_task_records
-Revises: 0003_add_group_coordination_records
+Revision ID: 0004_blind_box_tasks
+Revises: 0003_group_coordination
 Create Date: 2026-06-20 00:00:00.000000
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "0004_add_blind_box_task_records"
-down_revision: Union[str, Sequence[str], None] = "0003_add_group_coordination_records"
+revision: str = "0004_blind_box_tasks"
+down_revision: Union[str, Sequence[str], None] = "0003_group_coordination"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
