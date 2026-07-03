@@ -2,10 +2,11 @@ services:
   api:
     build:
       context: ../services/api
+    env_file:
+      - ../services/api/.env
     ports:
       - "8000:8000"
     environment:
-      LANXIN_MODEL_PROVIDER: mock
       LANXIN_DATABASE_URL: postgresql+psycopg://lanxin:lanxin_dev@postgres:5432/lanxin_travelmate
     depends_on:
       postgres:

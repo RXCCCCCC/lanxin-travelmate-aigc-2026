@@ -225,6 +225,66 @@ def test_graph_uses_valid_model_chat_output(monkeypatch):
     assert model_trace[-1]["fallback"] is False
 
 
+def test_model_chat_response_preserves_extracted_memory_candidates(monkeypatch):
+    class ChatMemoryProvider:
+        name = "chat-memory-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            if scenario == "memory_extraction":
+                return {
+                    "memoryExtraction": {
+                        "candidates": [
+                            {
+                                "title": "模型抽取偏好",
+                                "content": "用户希望周末行程轻松，并优先安排夜景。",
+                                "category": "travel_preference",
+                                "recommendedScope": "currentTrip",
+                                "confidence": 0.9,
+                                "reason": "用户明确说明节奏和兴趣。",
+                            }
+                        ]
+                    }
+                }
+            if scenario == "trip_review":
+                raise ModelProviderError("review not configured")
+            assert scenario == "companion_chat"
+            return {
+                "chat": {
+                    "replyText": "Model chat reply",
+                    "voiceText": "Model chat reply",
+                    "avatarState": "planning",
+                    "emotion": "curious",
+                    "cards": [],
+                    "memoryCandidates": [
+                        {
+                            "id": "chat-memory",
+                            "title": "聊天追加偏好",
+                            "content": "聊天模型建议本次保留夜景备选。",
+                            "recommendedScope": "currentTrip",
+                        }
+                    ],
+                    "toolTrace": [],
+                    "nextActions": [],
+                    "syncSuggestions": [],
+                    "errors": [],
+                }
+            }
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: ChatMemoryProvider())
+    state = create_initial_state(message="周末想去杭州两天，不想太累，喜欢夜景，我不吃香菜")
+
+    result = TravelMateGraph().invoke(state)
+
+    titles = [item["title"] for item in result["response"]["memoryCandidates"]]
+    assert "聊天追加偏好" in titles
+    assert "模型抽取偏好" in titles
+    assert "喜欢夜景" in titles
+    assert "不吃香菜" in titles
+
+
 def test_graph_falls_back_when_model_chat_schema_is_invalid(monkeypatch):
     class InvalidChatProvider:
         name = "invalid-chat-provider"

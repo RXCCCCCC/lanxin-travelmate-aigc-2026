@@ -33,9 +33,12 @@
 - 已运行 `python scripts/docker_compose_preflight.py --json`，Docker Compose 文件、API/Postgres 连接、健康检查、命名卷、迁移启动命令和 `docker compose config` 均通过。
 - 已修复全新 Postgres 初始化时 Alembic revision id 超过默认 `alembic_version.version_num varchar(32)` 的问题；当前 head 为 `0007_tool_call_user_id`，并新增测试约束 revision id 长度不超过 32。
 - 已运行 `docker compose -f infra/docker-compose.yml up --build -d`，Postgres healthy，API 容器 Up，迁移从 `0001_initial_schema` 升级到 `0007_tool_call_user_id`，容器内和宿主机 `/api/health` 均返回 ok。
-- 已重新运行 `flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000`，Android debug APK 构建通过，产物为 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`；当前 `adb devices` 为空，最新 APK 安装启动仍需连接模拟器或真机后验收。
-- `docs/todo.md` 已更新：删除已完成的预检和 Docker 实际启动待办，只保留真机权限验收、最终 APK/签名、公网部署、隐私素材确认、Demo/PPT 和比赛上传等人工事项。
-- 下一步 AI 可继续做轻量文档/脚本修补；Android 真机、正式签名、素材授权、公网部署和比赛提交仍需负责人介入。
+- 已重新运行 `flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000`，Android debug APK 构建通过，产物为 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`。
+- 已在 Android 模拟器 `emulator-5554` 安装最新 debug APK，执行 `adb reverse tcp:8000 tcp:8000` 后完成首页启动、聊天页打开、键盘不遮挡输入栏和 `/api/agent/chat` 真实联调验收；截图保存在 `E:\tmp\lanxin_home_latest_2.png`、`E:\tmp\lanxin_chat_open_latest.png`、`E:\tmp\lanxin_current_after_input_timeout.png`。
+- 已修复真实模型输出兼容问题：`TripPlanningOutput.alternatives` 支持真实模型返回字符串列表，`recommendedScope` 支持 `shortTerm` 等别名，最终聊天响应会合并 companion chat、模型记忆抽取和规则候选，不再覆盖前序记忆。
+- 已调整 `infra/docker-compose.yml` 读取 `services/api/.env` 的真实模型/高德配置，并保留 Postgres 数据库连接覆盖；宿主机 `127.0.0.1:8000` Docker API smoke 验证记忆抽取、规划推理、旅行复盘、角色化对话均为真实 Provider `fallback=false`，工具 provider 包含 `amap`。
+- `docs/todo.md` 已更新：删除已完成的预检、Docker 实际启动和模拟器最新 APK 启动待办，只保留真机权限验收、最终 APK/签名、公网部署、隐私素材确认、Demo/PPT 和比赛上传等人工事项。
+- 下一步 AI 可继续完善真机验收辅助脚本、Demo 证据包和前端展示细节；Android 真机、正式签名、素材授权、公网部署和比赛提交仍需负责人介入。
 
 ### 2026-06-29
 

@@ -15,7 +15,8 @@
 
 - [x] 已配置 OpenAI 兼容真实模型，并运行 `cd services/api && uv run python scripts/real_provider_smoke.py`；结果为 `provider=openai_compatible ok=True`。
 - [x] 已验证真实旅拍文案接口：`/api/photo/copywriting` 返回 `provider=openai_compatible fallback=false`，朋友圈/小红书/日记/Vlog/复盘建议字段齐全。
-- [ ] 人工验收五类真实模型效果：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘。当前代码链路已支持真实 Provider，但角色化对话/规划在外部服务慢响应时仍可能 fallback。
+- [x] 已修复真实 Agent 输出兼容问题，并通过 Docker API 验证记忆抽取、规划推理、旅行复盘、角色化对话均为真实 Provider `fallback=false`。
+- [ ] 人工验收五类真实模型效果质量：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘是否符合比赛演示口径。
 - [x] 已补齐 Agent、行程规划/复盘、旅拍文案等模型调用审计落库，并通过 `GET /api/audit/model-calls` 定向测试验证请求摘要不泄露敏感原文。
 - [ ] 最终演示数据库中人工确认五类真实场景 `fallback=false`，并再次检查日志不含密钥、Token、密码或完整敏感原文。
 
@@ -35,7 +36,7 @@
 
 ## 4. Android/vivo 真机能力验收
 
-- [x] 稳定 Android 模拟器验收环境已准备并完成一轮 debug APK 安装启动、首页和聊天真实联调验收。
+- [x] 稳定 Android 模拟器验收环境已准备；最新 debug APK 已安装启动，首页和聊天页真实后端联调通过，审计日志可见 `openai_compatible`/`amap` 调用记录。
 - [ ] 准备 vivo/Android 真机做最终设备能力验收。
 - [ ] 验证相册选择、相机拍摄、定位、麦克风、系统语音识别、中文 TTS、Android 13+ 通知权限和通知展示。
 - [ ] 验证拒绝权限时页面展示明确中文提示，不白屏、不卡死、不写入伪造数据。
@@ -49,13 +50,15 @@
 - [ ] 确认最终 `applicationId`、`versionCode`、`versionName`。
 - [ ] 将 release 构建从 debug signing 替换为正式签名证书。
 - [x] 本机完成 Android debug APK 构建；最新产物为 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`。
-- [ ] 在 CI、Android 模拟器或真机完成最新 APK 安装启动验收；release 包仍需正式签名。
+- [x] 已在 Android 模拟器完成最新 debug APK 安装启动验收，并通过 `adb reverse tcp:8000 tcp:8000` 连到本机 FastAPI/Docker API。
+- [ ] 在 CI 或 vivo/Android 真机完成最新 APK 安装启动验收；release 包仍需正式签名。
 
 ## 6. Docker/Postgres 与部署验收
 
 - [x] 本机已安装 Docker，并已运行 `python scripts/docker_compose_preflight.py --json`。
 - [x] 已通过 `docker compose -f infra/docker-compose.yml config` 配置验证。
 - [x] 已运行 `docker compose -f infra/docker-compose.yml up --build -d`，确认 Postgres 初始化、API 启动前 `alembic upgrade head`、容器内与宿主机 `/api/health` 正常。
+- [x] Docker API 已读取 `services/api/.env` 的真实模型/高德配置，数据库连接仍由 compose 覆盖到 Postgres；宿主机 `127.0.0.1:8000` 真实 Agent smoke 返回 `openai_compatible`/`openai`/`amap` 且 `fallback=false`。
 - [ ] 如要公网演示，确认服务器、域名、HTTPS、环境变量和数据库备份策略。
 - [ ] 生产或公开环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用示例默认值。
 

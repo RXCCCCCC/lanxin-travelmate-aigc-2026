@@ -1,7 +1,7 @@
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 
 class MemoryCandidateOutput(BaseModel):
@@ -11,6 +11,26 @@ class MemoryCandidateOutput(BaseModel):
     recommendedScope: Literal["longTerm", "currentTrip", "temporary", "ignore"]
     confidence: float = Field(ge=0, le=1)
     reason: str
+
+    @field_validator("recommendedScope", mode="before")
+    @classmethod
+    def normalize_recommended_scope(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        aliases = {
+            "shortTerm": "currentTrip",
+            "short_term": "currentTrip",
+            "session": "currentTrip",
+            "thisTrip": "currentTrip",
+            "trip": "currentTrip",
+            "long_term": "longTerm",
+            "permanent": "longTerm",
+            "temp": "temporary",
+            "temporaryOnly": "temporary",
+            "discard": "ignore",
+            "doNotSave": "ignore",
+        }
+        return aliases.get(value, value)
 
 
 class MemoryExtractionOutput(BaseModel):
@@ -28,6 +48,26 @@ class TripPlanningOutput(BaseModel):
     alternatives: list[dict[str, Any]] = Field(default_factory=list)
     fallback: bool = False
     fallbackReason: str | None = None
+
+    @field_validator("alternatives", mode="before")
+    @classmethod
+    def normalize_alternatives(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value
+        normalized: list[Any] = []
+        for index, item in enumerate(value, start=1):
+            if isinstance(item, str):
+                normalized.append(
+                    {
+                        "id": f"alt-{index}",
+                        "title": f"备选方案 {index}",
+                        "summary": item,
+                        "bestFor": "真实模型返回的文本备选方案",
+                    }
+                )
+            else:
+                normalized.append(item)
+        return normalized
 
 
 class ChatOutput(BaseModel):

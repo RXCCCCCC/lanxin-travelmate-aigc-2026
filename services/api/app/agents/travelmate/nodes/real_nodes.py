@@ -326,13 +326,30 @@ def _model_memory_trace(next_state: TravelMateState, *, provider: str, error_typ
     })
 
 
+def _merge_memory_candidates(
+    model_candidates: list[dict[str, Any]],
+    rule_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged = list(model_candidates)
+    seen_titles = {str(item.get("title", "")).strip() for item in model_candidates}
+    for candidate in rule_candidates:
+        title = str(candidate.get("title", "")).strip()
+        if title and title not in seen_titles:
+            merged.append(candidate)
+            seen_titles.add(title)
+    return merged
+
+
 def memory_extractor(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "memory_extractor")
     text = next_state["normalized_input"]
     try:
         model_candidates = _model_memory_candidates(next_state)
         if model_candidates:
-            next_state["memory_candidates"] = model_candidates
+            next_state["memory_candidates"] = _merge_memory_candidates(
+                model_candidates,
+                build_rule_memory_candidates(text),
+            )
             next_state.setdefault("tool_trace", []).append({
                 "tool": "model_provider",
                 "provider": model_candidates[0].get("provider"),
@@ -817,7 +834,10 @@ def _model_chat_response(next_state: TravelMateState) -> dict[str, Any]:
     output = ChatOutput.model_validate(payload["chat"])
     result = output.model_dump()
     result["cards"] = result["cards"] or next_state.get("cards", [])
-    result["memoryCandidates"] = result["memoryCandidates"] or next_state.get("memory_candidates", [])
+    result["memoryCandidates"] = _merge_memory_candidates(
+        result["memoryCandidates"] or [],
+        next_state.get("memory_candidates", []),
+    )
     result["nextActions"] = result["nextActions"] or next_state.get("next_actions", [])
     result["syncSuggestions"] = result["syncSuggestions"] or next_state.get("sync_suggestions", [])
     result["errors"] = result["errors"] or next_state.get("errors", [])

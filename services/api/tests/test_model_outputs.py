@@ -1,7 +1,9 @@
 from app.agents.travelmate.schemas import (
     ChatOutput,
+    MemoryExtractionOutput,
     ModelTaskOutput,
     PhotoCopywritingOutput,
+    TripPlanningOutput,
     TripReviewOutput,
     parse_model_output,
 )
@@ -83,6 +85,68 @@ def test_parse_model_output_accepts_trip_review_contract():
     assert result.tripReview.route == "Start -> Viewpoint -> Hotel"
     assert result.tripReview.temporaryMemoryPromotions[0]["suggestedScope"] == "longTerm"
     assert result.fallback is False
+
+
+def test_parse_model_output_normalizes_string_trip_plan_alternatives():
+    result = parse_model_output(
+        """
+        {
+          "tripPlanning": {
+            "title": "Hangzhou relaxed weekend",
+            "destination": "Hangzhou",
+            "summary": "Keep the route light and reserve night-view time.",
+            "profileMatches": ["slow pace", "night views"],
+            "risks": ["weekend crowds"],
+            "alternatives": [
+              "If West Lake is crowded, switch to a canal night walk.",
+              "If walking feels tiring, take a short boat segment."
+            ]
+          }
+        }
+        """
+    )
+
+    assert result.fallback is False
+    assert isinstance(result.tripPlanning, TripPlanningOutput)
+    assert result.tripPlanning.alternatives == [
+        {
+            "id": "alt-1",
+            "title": "备选方案 1",
+            "summary": "If West Lake is crowded, switch to a canal night walk.",
+            "bestFor": "真实模型返回的文本备选方案",
+        },
+        {
+            "id": "alt-2",
+            "title": "备选方案 2",
+            "summary": "If walking feels tiring, take a short boat segment.",
+            "bestFor": "真实模型返回的文本备选方案",
+        },
+    ]
+
+
+def test_parse_model_output_normalizes_memory_scope_aliases():
+    result = parse_model_output(
+        """
+        {
+          "memoryExtraction": {
+            "candidates": [
+              {
+                "title": "No cilantro",
+                "content": "The user avoids cilantro during this trip.",
+                "category": "dietary_preference",
+                "recommendedScope": "shortTerm",
+                "confidence": 0.82,
+                "reason": "The user said no cilantro."
+              }
+            ]
+          }
+        }
+        """
+    )
+
+    assert result.fallback is False
+    assert isinstance(result.memoryExtraction, MemoryExtractionOutput)
+    assert result.memoryExtraction.candidates[0].recommendedScope == "currentTrip"
 
 
 def test_parse_model_output_marks_invalid_structured_payload_as_fallback():
