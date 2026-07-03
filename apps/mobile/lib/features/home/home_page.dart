@@ -167,8 +167,8 @@ class _HomePageState extends State<HomePage>
             final effectivePanelHeight = keyboardVisible
                 ? math.min(panelHeight, compact ? 226.0 : 250.0)
                 : panelHeight;
-            final avatarHeight = h * (compact ? 0.50 : 0.58);
-            final avatarTop = compact ? topSafe + 92.0 : h * 0.08;
+            final avatarHeight = h * (compact ? 0.46 : 0.54);
+            final avatarBottom = panelHeight * (compact ? 0.28 : 0.34);
 
             final content = Stack(
               children: [
@@ -239,7 +239,7 @@ class _HomePageState extends State<HomePage>
                   builder: (context, child) {
                     final t = math.sin(_floatCtrl.value * math.pi * 2);
                     return Positioned(
-                      top: avatarTop + t * 6,
+                      bottom: avatarBottom + t * 6,
                       left: -8,
                       right: -8,
                       height: avatarHeight,
@@ -364,7 +364,7 @@ class _BrandBlock extends StatelessWidget {
               end: Alignment.bottomRight,
             ).createShader(r),
             child: Text(
-              'lanxiaoxin',
+              '蓝小心',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: compact ? 27 : 32,
@@ -376,7 +376,7 @@ class _BrandBlock extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'AI Travel Companion',
+            '全旅程智能伙伴',
             style: TextStyle(
               color: const Color(0xFF275DBF).withOpacity(0.75),
               fontSize: 12.5,
@@ -417,7 +417,7 @@ class _HomeDashboardSummary {
 
   String get summaryLine {
     if (memoryCount == 0 && reminderCount == 0) return '等待真实旅程数据';
-    return '$memoryCount memories · $reminderCount reminders';
+    return '$memoryCount 条记忆 · $reminderCount 条提醒';
   }
 }
 

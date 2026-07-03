@@ -192,34 +192,33 @@ class _MemoryPageState extends State<MemoryPage> {
     final contentController = TextEditingController(text: item.capsule.content);
     final shouldSave = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('编辑记忆胶囊'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: '标题'),
-                ),
-                TextField(
-                  controller: contentController,
-                  decoration: const InputDecoration(labelText: '内容'),
-                  maxLines: 3,
-                ),
-              ],
+      builder: (context) => AlertDialog(
+        title: const Text('编辑记忆胶囊'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: '标题'),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('保存'),
-              ),
-            ],
+            TextField(
+              controller: contentController,
+              decoration: const InputDecoration(labelText: '内容'),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
           ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
     );
     if (shouldSave != true || item.storedId == null) return;
     await _repository.updateMemory(
@@ -272,7 +271,7 @@ class _MemoryPageState extends State<MemoryPage> {
                   ),
                   IconButton(
                     key: const ValueKey('sync-selected-memories'),
-                    tooltip: 'sync selected memories',
+                    tooltip: '同步已选记忆',
                     onPressed: _syncSelectedMemories,
                     icon: const Icon(
                       Icons.cloud_upload_rounded,
@@ -338,13 +337,13 @@ class _MemoryPageState extends State<MemoryPage> {
                           child: Text(
                             _tabs[i],
                             style: TextStyle(
-                              color:
-                                  selected
-                                      ? AppTheme.primary
-                                      : AppTheme.textSecondary,
+                              color: selected
+                                  ? AppTheme.primary
+                                  : AppTheme.textSecondary,
                               fontSize: 14,
-                              fontWeight:
-                                  selected ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                             ),
                           ),
                         ),
@@ -356,93 +355,90 @@ class _MemoryPageState extends State<MemoryPage> {
             ),
             // 记忆胶囊列表
             Expanded(
-              child:
-                  _filtered.isEmpty
-                      ? _EmptyMemoryState(
-                        onRetry: () {
-                          _loadStoredMemories();
-                          _loadDashboardMemories();
-                        },
-                      )
-                      : ListView.builder(
-                        padding: EdgeInsets.only(
-                          bottom: metrics.listBottomPadding + 48,
-                        ),
-                        itemCount: _filtered.length,
-                        itemBuilder: (_, i) {
-                          final item = _filtered[i];
-                          if (item.storedId == null) {
-                            return MemoryCapsuleCard(capsule: item.capsule);
-                          }
-                          return Column(
-                            children: [
-                              MemoryCapsuleCard(capsule: item.capsule),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppTheme.spacingLg,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Material(
-                                      type: MaterialType.transparency,
-                                      child: Checkbox(
-                                        key: ValueKey(
-                                          'select-memory-${item.storedId}',
-                                        ),
-                                        value: _selectedMemoryIds.contains(
-                                          item.storedId,
-                                        ),
-                                        onChanged: (selected) {
-                                          setState(() {
-                                            if (selected == true) {
-                                              _selectedMemoryIds.add(
-                                                item.storedId!,
-                                              );
-                                            } else {
-                                              _selectedMemoryIds.remove(
-                                                item.storedId,
-                                              );
-                                            }
-                                          });
-                                        },
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ),
-                                    const Text(
-                                      '选择同步',
-                                      style: TextStyle(
-                                        color: AppTheme.textMuted,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    TextButton.icon(
-                                      onPressed: () => _editStoredMemory(item),
-                                      icon: const Icon(
-                                        Icons.edit_rounded,
-                                        size: 16,
-                                      ),
-                                      label: const Text('编辑'),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    TextButton.icon(
-                                      onPressed:
-                                          () => _deleteStoredMemory(
-                                            item.storedId!,
-                                          ),
-                                      icon: const Icon(
-                                        Icons.delete_outline_rounded,
-                                        size: 16,
-                                      ),
-                                      label: const Text('删除'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+              child: _filtered.isEmpty
+                  ? _EmptyMemoryState(
+                      onRetry: () {
+                        _loadStoredMemories();
+                        _loadDashboardMemories();
+                      },
+                    )
+                  : ListView.builder(
+                      padding: EdgeInsets.only(
+                        bottom: metrics.listBottomPadding + 48,
                       ),
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) {
+                        final item = _filtered[i];
+                        if (item.storedId == null) {
+                          return MemoryCapsuleCard(capsule: item.capsule);
+                        }
+                        return Column(
+                          children: [
+                            MemoryCapsuleCard(capsule: item.capsule),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spacingLg,
+                              ),
+                              child: Row(
+                                children: [
+                                  Material(
+                                    type: MaterialType.transparency,
+                                    child: Checkbox(
+                                      key: ValueKey(
+                                        'select-memory-${item.storedId}',
+                                      ),
+                                      value: _selectedMemoryIds.contains(
+                                        item.storedId,
+                                      ),
+                                      onChanged: (selected) {
+                                        setState(() {
+                                          if (selected == true) {
+                                            _selectedMemoryIds.add(
+                                              item.storedId!,
+                                            );
+                                          } else {
+                                            _selectedMemoryIds.remove(
+                                              item.storedId,
+                                            );
+                                          }
+                                        });
+                                      },
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const Text(
+                                    '选择同步',
+                                    style: TextStyle(
+                                      color: AppTheme.textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () => _editStoredMemory(item),
+                                    icon: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text('编辑'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                        _deleteStoredMemory(item.storedId!),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text('删除'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ],
         ),

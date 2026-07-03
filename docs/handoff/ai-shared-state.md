@@ -30,9 +30,10 @@
 
 - 已按用户真机验收反馈调整 Android 前端信息架构：底部 Tab 改为“首页/行程/复盘/我的”，`/photo` 不再作为底部 Tab，而是保留为复盘记录里的旅拍入口。
 - 首页已从“点击跳转聊天页”改为蓝小心同屏直聊：底部玻璃面板支持直接输入、发送到真实 Agent 服务、展示最近对话、更新蓝小心状态，并保留“展开”进入独立聊天历史页。
+- 首页蓝小心人物图已先下移到底部陪伴区域，品牌和设置页已收口为中文文案；当前白底矩形来自素材本身，最终仍需透明 PNG/WebP 或抠图资产替换。
 - 已补小屏/键盘适配：首页直聊输入时面板随键盘上移并压缩高度；聊天气泡增加最大宽度约束和轻量出现动画，降低重叠、过宽和留白问题。
 - 真机 `8507100b` 已识别并安装最新 debug APK；`adb reverse tcp:8000 tcp:8000` 后首页直聊已验证可聚焦、键盘不遮挡、消息发送到真实后端并返回回复。
-- 当前明显视觉遗留：蓝小心人物素材在首页有白底矩形，后续需要替换透明 PNG/WebP、抠图资产或调整素材渲染方式。
+- 当前明显视觉遗留：蓝小心人物素材在首页仍有白底矩形，后续需要替换透明 PNG/WebP、抠图资产或调整素材渲染方式。
 - 本地 `dev` 已 fast-forward 到 `origin/dev` 最新提交 `155c2f0`，工作区同步后保持干净。
 - 已运行 `python scripts/android_release_preflight.py --json`，Android-only、包名、版本、SDK 35、build-tools 35.0.0、CI APK job 和预检链路均通过；release 仍需人工配置正式签名。
 - 已运行 `python scripts/docker_compose_preflight.py --json`，Docker Compose 文件、API/Postgres 连接、健康检查、命名卷、迁移启动命令和 `docker compose config` 均通过。

@@ -37,8 +37,8 @@
 ## 4. Android/vivo 真机能力验收
 
 - [x] 稳定 Android 模拟器验收环境已准备；最新 debug APK 已安装启动，首页和聊天页真实后端联调通过，审计日志可见 `openai_compatible`/`amap` 调用记录。
-- [x] 已在 vivo/Android 真机安装最新 APK，并验收“首页蓝小心同屏直聊、底部 Tab：首页/行程/复盘/我的、旅拍入口归入复盘记录、键盘不遮挡输入框、基础消息发送与真实后端回复”。
-- [ ] 优化首页蓝小心人物素材白底矩形问题，替换透明 PNG/WebP、抠图资产或调整素材渲染方式。
+- [x] 已在 vivo/Android 真机安装最新 APK，并验收“首页蓝小心同屏直聊、人物图先下移到底部陪伴区域、底部 Tab：首页/行程/复盘/我的、旅拍入口归入复盘记录、键盘不遮挡输入框、基础消息发送与真实后端回复”。
+- [ ] 优化首页蓝小心人物素材白底矩形问题：当前已通过布局下移临时缓解，但最终仍需替换透明 PNG/WebP、抠图资产或调整素材渲染方式。
 - [ ] 准备 vivo/Android 真机做最终设备能力验收。
 - [ ] 验证相册选择、相机拍摄、定位、麦克风、系统语音识别、中文 TTS、Android 13+ 通知权限和通知展示。
 - [ ] 验证拒绝权限时页面展示明确中文提示，不白屏、不卡死、不写入伪造数据。
@@ -53,7 +53,7 @@
 - [ ] 将 release 构建从 debug signing 替换为正式签名证书。
 - [x] 本机完成 Android debug APK 构建；最新产物为 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`。
 - [x] 已在 Android 模拟器完成最新 debug APK 安装启动验收，并通过 `adb reverse tcp:8000 tcp:8000` 连到本机 FastAPI/Docker API。
-- [ ] 在 CI 或 vivo/Android 真机完成最新 APK 安装启动验收；release 包仍需正式签名。
+- [x] 已在 vivo/Android 真机完成最新 debug APK 安装启动验收；release 包仍需正式签名。
 
 ## 6. Docker/Postgres 与部署验收
 

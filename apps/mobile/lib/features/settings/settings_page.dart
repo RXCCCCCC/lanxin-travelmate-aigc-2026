@@ -123,10 +123,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final result = await _dataService.exportMemories();
     if (!mounted) return;
     setState(() {
-      _dataActionMessage =
-          result.status == 'ok'
-              ? '已导出 ${result.itemCount} 条记忆'
-              : '导出失败，请检查网络后重试';
+      _dataActionMessage = result.status == 'ok'
+          ? '已导出 ${result.itemCount} 条记忆'
+          : '导出失败，请检查网络后重试';
     });
   }
 
@@ -139,8 +138,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final result = await _dataService.clearAllMemories();
     if (!mounted) return;
     setState(() {
-      _dataActionMessage =
-          result.status == 'ok' ? '已清空 ${result.deleted} 条记忆' : '清空失败，请检查网络后重试';
+      _dataActionMessage = result.status == 'ok'
+          ? '已清空 ${result.deleted} 条记忆'
+          : '清空失败，请检查网络后重试';
     });
   }
 
@@ -153,10 +153,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final result = await _dataService.clearCurrentTrip();
     if (!mounted) return;
     setState(() {
-      _dataActionMessage =
-          result.status == 'ok'
-              ? '已清空 ${result.deleted} 个当前旅行记录'
-              : '清空失败，请检查网络后重试';
+      _dataActionMessage = result.status == 'ok'
+          ? '已清空 ${result.deleted} 个当前旅行记录'
+          : '清空失败，请检查网络后重试';
     });
   }
 
@@ -170,8 +169,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     final profileCount = result.revoked['profile'] as int? ?? 0;
     setState(() {
-      _dataActionMessage =
-          result.status == 'ok' ? '已撤销 $profileCount 个云端画像副本' : '撤销失败，请检查网络后重试';
+      _dataActionMessage = result.status == 'ok'
+          ? '已撤销 $profileCount 个云端画像副本'
+          : '撤销失败，请检查网络后重试';
     });
   }
 
@@ -200,10 +200,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final memoryCount = result.revoked['memories'] as int? ?? 0;
     final tripCount = result.revoked['trips'] as int? ?? 0;
     setState(() {
-      _dataActionMessage =
-          result.status == 'ok'
-              ? '\u{5DF2}\u{64A4}\u{9500} $memoryCount \u{6761}\u{8BB0}\u{5FC6}\u{548C} $tripCount \u{4E2A}\u{65C5}\u{7A0B}\u{4E91}\u{7AEF}\u{526F}\u{672C}'
-              : '\u{64A4}\u{9500}\u{5931}\u{8D25}\u{FF0C}\u{8BF7}\u{68C0}\u{67E5}\u{7F51}\u{7EDC}\u{540E}\u{91CD}\u{8BD5}';
+      _dataActionMessage = result.status == 'ok'
+          ? '\u{5DF2}\u{64A4}\u{9500} $memoryCount \u{6761}\u{8BB0}\u{5FC6}\u{548C} $tripCount \u{4E2A}\u{65C5}\u{7A0B}\u{4E91}\u{7AEF}\u{526F}\u{672C}'
+          : '\u{64A4}\u{9500}\u{5931}\u{8D25}\u{FF0C}\u{8BF7}\u{68C0}\u{67E5}\u{7F51}\u{7EDC}\u{540E}\u{91CD}\u{8BD5}';
     });
   }
 
@@ -225,10 +224,9 @@ class _SettingsPageState extends State<SettingsPage> {
         _dataActionMessage =
             '\u{672A}\u{68C0}\u{6D4B}\u{5230}\u{540C}\u{6B65}\u{51B2}\u{7A81}';
       } else {
-        _dataActionMessage =
-            conflictStrategy == 'clientWins'
-                ? '\u{5DF2}\u{4F7F}\u{7528}\u{672C}\u{673A}\u{7248}\u{672C}\u{8986}\u{76D6}\u{4E91}\u{7AEF}'
-                : '\u{5DF2}\u{68C0}\u{6D4B}\u{5230}\u{51B2}\u{7A81}\u{FF0C}\u{9ED8}\u{8BA4}\u{4FDD}\u{7559}\u{4E91}\u{7AEF}\u{7248}\u{672C}';
+        _dataActionMessage = conflictStrategy == 'clientWins'
+            ? '\u{5DF2}\u{4F7F}\u{7528}\u{672C}\u{673A}\u{7248}\u{672C}\u{8986}\u{76D6}\u{4E91}\u{7AEF}'
+            : '\u{5DF2}\u{68C0}\u{6D4B}\u{5230}\u{51B2}\u{7A81}\u{FF0C}\u{9ED8}\u{8BA4}\u{4FDD}\u{7559}\u{4E91}\u{7AEF}\u{7248}\u{672C}';
       }
     });
   }
@@ -290,22 +288,21 @@ class _SettingsPageState extends State<SettingsPage> {
   }) async {
     final result = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(title),
-            content: Text(message),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                key: const ValueKey('confirm-destructive-action'),
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('确认'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
           ),
+          FilledButton(
+            key: const ValueKey('confirm-destructive-action'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
     );
     return result ?? false;
   }
@@ -383,22 +380,21 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     SizedBox(
                       width: 48,
-                      child:
-                          _saving
-                              ? const Center(
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppTheme.primary,
-                                  ),
+                      child: _saving
+                          ? const Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.primary,
                                 ),
-                              )
-                              : const Icon(
-                                Icons.cloud_done_rounded,
-                                color: AppTheme.primary,
                               ),
+                            )
+                          : const Icon(
+                              Icons.cloud_done_rounded,
+                              color: AppTheme.primary,
+                            ),
                     ),
                   ],
                 ),
@@ -420,8 +416,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: _OptionWrap(
                         options: _personalityOptions,
                         selectedValue: profile.personality,
-                        onSelected:
-                            (value) => _save(_copyProfile(personality: value)),
+                        onSelected: (value) =>
+                            _save(_copyProfile(personality: value)),
                       ),
                     ),
                     _SettingsSection(
@@ -433,10 +429,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           _OptionWrap(
                             options: _proactivityOptions,
                             selectedValue: profile.proactivityLevel,
-                            onSelected:
-                                (value) => _save(
-                                  _copyProfile(proactivityLevel: value),
-                                ),
+                            onSelected: (value) =>
+                                _save(_copyProfile(proactivityLevel: value)),
                             showRawValue: true,
                           ),
                           const SizedBox(height: AppTheme.spacingSm),
@@ -452,8 +446,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: _OptionWrap(
                         options: _syncOptions,
                         selectedValue: profile.syncStrategy,
-                        onSelected:
-                            (value) => _save(_copyProfile(syncStrategy: value)),
+                        onSelected: (value) =>
+                            _save(_copyProfile(syncStrategy: value)),
                         showRawValue: true,
                       ),
                     ),
@@ -466,39 +460,33 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: '主动提醒',
                             subtitle: '饭点、天气、路线变化时允许蓝小心提醒',
                             value: profile.notificationEnabled,
-                            onChanged:
-                                (value) => _save(
-                                  _copyProfile(notificationEnabled: value),
-                                ),
+                            onChanged: (value) =>
+                                _save(_copyProfile(notificationEnabled: value)),
                           ),
                           _ToggleItem(
                             title: '语音播报',
                             subtitle: '行程提醒与复盘支持语音表达',
                             value: profile.voiceEnabled,
-                            onChanged:
-                                (value) =>
-                                    _save(_copyProfile(voiceEnabled: value)),
+                            onChanged: (value) =>
+                                _save(_copyProfile(voiceEnabled: value)),
                           ),
                           _ToggleItem(
                             title: '优先文字模式',
                             subtitle: '弱网或安静场景下优先展示文字回复',
                             value: profile.textModePreferred,
-                            onChanged:
-                                (value) => _save(
-                                  _copyProfile(textModePreferred: value),
-                                ),
+                            onChanged: (value) =>
+                                _save(_copyProfile(textModePreferred: value)),
                           ),
                         ],
                       ),
                     ),
                     _SettingsSection(
-                      title: '自定义 Prompt',
+                      title: '自定义提示词',
                       icon: Icons.record_voice_over_rounded,
                       child: _PromptEditor(
                         initialValue: profile.customPrompt ?? '',
-                        onSubmitted:
-                            (value) =>
-                                _save(_copyProfile(customPrompt: value.trim())),
+                        onSubmitted: (value) =>
+                            _save(_copyProfile(customPrompt: value.trim())),
                       ),
                     ),
                     _SettingsSection(
@@ -647,6 +635,13 @@ class _ProfileSettingsSummary extends StatelessWidget {
   final ProfilePayload profile;
   final bool loading;
 
+  String _labelForOption(List<_OptionItem> options, String value) {
+    for (final option in options) {
+      if (option.value == value) return option.label;
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GlassBox(
@@ -680,20 +675,32 @@ class _ProfileSettingsSummary extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _SettingValueChip(label: profile.personality),
-              _SettingValueChip(label: profile.proactivityLevel),
-              _SettingValueChip(label: profile.syncStrategy),
               _SettingValueChip(
-                label:
-                    profile.notificationEnabled
-                        ? 'notification:on'
-                        : 'notification:off',
+                label: _labelForOption(
+                  _SettingsPageState._personalityOptions,
+                  profile.personality,
+                ),
               ),
               _SettingValueChip(
-                label: profile.voiceEnabled ? 'voice:on' : 'voice:off',
+                label: _labelForOption(
+                  _SettingsPageState._proactivityOptions,
+                  profile.proactivityLevel,
+                ),
               ),
               _SettingValueChip(
-                label: profile.textModePreferred ? 'text:on' : 'text:off',
+                label: _labelForOption(
+                  _SettingsPageState._syncOptions,
+                  profile.syncStrategy,
+                ),
+              ),
+              _SettingValueChip(
+                label: profile.notificationEnabled ? '主动提醒已开启' : '主动提醒已关闭',
+              ),
+              _SettingValueChip(
+                label: profile.voiceEnabled ? '语音已开启' : '语音已关闭',
+              ),
+              _SettingValueChip(
+                label: profile.textModePreferred ? '优先文字' : '文字优先关闭',
               ),
             ],
           ),
@@ -735,18 +742,17 @@ class _OptionWrap extends StatelessWidget {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children:
-            options.map((option) {
-              final selected = option.value == selectedValue;
-              return GestureDetector(
-                onTap: () => onSelected(option.value),
-                child: _SettingValueChip(
-                  label: showRawValue ? option.value : option.label,
-                  helper: showRawValue ? option.label : option.value,
-                  selected: selected,
-                ),
-              );
-            }).toList(),
+        children: options.map((option) {
+          final selected = option.value == selectedValue;
+          return GestureDetector(
+            onTap: () => onSelected(option.value),
+            child: _SettingValueChip(
+              label: showRawValue ? option.value : option.label,
+              helper: showRawValue ? option.label : option.value,
+              selected: selected,
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -770,16 +776,14 @@ class _SettingValueChip extends StatelessWidget {
       constraints: BoxConstraints(minHeight: metrics.minTouchTarget - 10),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color:
-            selected
-                ? AppTheme.primary.withOpacity(0.2)
-                : Colors.white.withOpacity(0.24),
+        color: selected
+            ? AppTheme.primary.withOpacity(0.2)
+            : Colors.white.withOpacity(0.24),
         borderRadius: BorderRadius.circular(AppTheme.radiusSm),
         border: Border.all(
-          color:
-              selected
-                  ? AppTheme.primary.withOpacity(0.36)
-                  : Colors.white.withOpacity(0.3),
+          color: selected
+              ? AppTheme.primary.withOpacity(0.36)
+              : Colors.white.withOpacity(0.3),
         ),
       ),
       child: Column(
@@ -927,18 +931,16 @@ class _PrivacyDataControls extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children:
-                  firstPermissions
-                      .map(
-                        (item) => _SettingValueChip(
-                          label: item.label,
-                          helper:
-                              item.fallback.isEmpty
-                                  ? item.permission
-                                  : item.fallback,
-                        ),
-                      )
-                      .toList(),
+              children: firstPermissions
+                  .map(
+                    (item) => _SettingValueChip(
+                      label: item.label,
+                      helper: item.fallback.isEmpty
+                          ? item.permission
+                          : item.fallback,
+                    ),
+                  )
+                  .toList(),
             ),
           ],
           if (actionMessage != null) ...[
@@ -1117,13 +1119,13 @@ class _SyncHistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor =
-        item.status == 'synced' ? const Color(0xFF217A4B) : AppTheme.primary;
+    final statusColor = item.status == 'synced'
+        ? const Color(0xFF217A4B)
+        : AppTheme.primary;
     final operation = '${item.entityType}/${item.operation}';
-    final detail =
-        item.lastError == null || item.lastError!.isEmpty
-            ? item.entityId
-            : '${item.entityId} / ${item.lastError}';
+    final detail = item.lastError == null || item.lastError!.isEmpty
+        ? item.entityId
+        : '${item.entityId} / ${item.lastError}';
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(
@@ -1246,11 +1248,10 @@ class _RevokeSelectedSyncPanelState extends State<_RevokeSelectedSyncPanel> {
               width: double.infinity,
               child: FilledButton.icon(
                 key: const ValueKey('revoke-selected-sync-button'),
-                onPressed:
-                    () => widget.onSubmit(
-                      _splitIds(_memoryController.text),
-                      _splitIds(_tripController.text),
-                    ),
+                onPressed: () => widget.onSubmit(
+                  _splitIds(_memoryController.text),
+                  _splitIds(_tripController.text),
+                ),
                 icon: const Icon(Icons.cloud_off_rounded, size: 18),
                 label: const Text(
                   '\u{64A4}\u{9500}\u{6307}\u{5B9A}\u{540C}\u{6B65}',
@@ -1293,10 +1294,9 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final conflict =
-        widget.result?.conflicts.isNotEmpty == true
-            ? widget.result!.conflicts.first
-            : null;
+    final conflict = widget.result?.conflicts.isNotEmpty == true
+        ? widget.result!.conflicts.first
+        : null;
     return Padding(
       padding: const EdgeInsets.only(top: AppTheme.spacingSm),
       child: Container(
@@ -1392,18 +1392,15 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
   }
 
   SyncMemoryDraft _draft() {
-    final id =
-        _idController.text.trim().isEmpty
-            ? 'memory-draft'
-            : _idController.text.trim();
-    final title =
-        _titleController.text.trim().isEmpty
-            ? 'client title'
-            : _titleController.text.trim();
-    final content =
-        _contentController.text.trim().isEmpty
-            ? title
-            : _contentController.text.trim();
+    final id = _idController.text.trim().isEmpty
+        ? 'memory-draft'
+        : _idController.text.trim();
+    final title = _titleController.text.trim().isEmpty
+        ? 'client title'
+        : _titleController.text.trim();
+    final content = _contentController.text.trim().isEmpty
+        ? title
+        : _contentController.text.trim();
     return SyncMemoryDraft(
       id: id,
       title: title,
