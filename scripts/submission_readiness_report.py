@@ -61,6 +61,24 @@ COMPETITION_SUBMISSION_MARKERS = {
     "platform_upload": ("平台上传", "最终提交"),
 }
 
+README_RUNNABLE_MARKERS = {
+    "root_backend": ("uv run uvicorn", "/api/health", "/docs"),
+    "root_mobile": ("flutter run", "API_BASE_URL", "flutter build apk --debug"),
+    "root_validation": (
+        "uv run pytest",
+        "flutter analyze",
+        "submission_readiness_report.py --json",
+    ),
+    "mobile_android": ("Android", "flutter run", "API_BASE_URL"),
+    "mobile_validation": ("flutter analyze", "flutter test", "flutter build apk --debug"),
+    "mobile_device_channels": (
+        "photo_picker",
+        "location",
+        "voice",
+        "notifications",
+    ),
+}
+
 MANUAL_BLOCKERS = (
     "人工验收五类真实模型效果质量，并确认最终演示数据库 fallback=false",
     "确认高德/地图天气数据展示授权和计费额度",
@@ -163,6 +181,8 @@ def collect_submission_readiness(
     evidence_text = _read_text(repo_root / "docs" / "handoff" / "demo-evidence-pack.md")
     presentation_text = _read_text(repo_root / "docs" / "handoff" / "presentation-outline.md")
     competition_text = _read_text(repo_root / "docs" / "product" / "材料中有用的信息.md")
+    root_readme_text = _read_text(repo_root / "README.md")
+    mobile_readme_text = _read_text(repo_root / "apps" / "mobile" / "README.md")
     git_status = _run_git_status(repo_root) if run_git else {"ok": True, "detail": "skipped"}
 
     docs_missing = [
@@ -182,6 +202,10 @@ def collect_submission_readiness(
     competition_missing = _missing_marker_groups(
         "\n".join((competition_text, checklist_text, todo_text, presentation_text)),
         COMPETITION_SUBMISSION_MARKERS,
+    )
+    readme_missing = _missing_marker_groups(
+        "\n".join((root_readme_text, mobile_readme_text)),
+        README_RUNNABLE_MARKERS,
     )
 
     checks = {
@@ -208,6 +232,10 @@ def collect_submission_readiness(
             and "Android/vivo 验收" in checklist_text
             and "Demo 素材" in checklist_text,
             "detail": "docs/handoff/submission-checklist.md",
+        },
+        "readme_runnable_handoff": {
+            "ok": not readme_missing,
+            "detail": readme_missing,
         },
         "prd_p0_demo_loop_covered": {
             "ok": not p0_demo_missing,

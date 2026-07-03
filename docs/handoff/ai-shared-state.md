@@ -28,6 +28,11 @@
 
 ### 2026-07-04
 
+- Added `readme_runnable_handoff` to `scripts/submission_readiness_report.py`, covering root/mobile README run, validation, APK build, and Android device-channel handoff markers.
+- Replaced `apps/mobile/README.md` Flutter template with Android/vivo runbook: backend URL variants, emulator/physical-device `adb reverse`, validation commands, and `photo_picker`/`location`/`voice`/`notifications` MethodChannel notes.
+- Validation passed: `uv run pytest services/api/tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`; `git diff --check` only reported LF-to-CRLF working-copy warnings.
+- GitNexus `detect_changes(scope=all)` reported low risk, 3 changed files, and no affected indexed processes.
+
 - 已完成首页蓝小心白底矩形的仓库内可执行修复：`apps/mobile/assets/avatars/lanxiaoxin_*.png` 运行时头像资产已批量转为带 alpha 的透明 PNG，`project/img/lanxiaoxin/` 仍保留源素材对照。
 - 新增 `services/api/tests/test_mobile_avatar_assets.py`，静态检查 `AvatarState` 引用的运行时头像 PNG 必须包含真实透明像素，避免重新接入不透明白底素材。
 - `scripts/submission_readiness_report.py` 已新增 `avatar_assets_transparent` 检查，把蓝小心运行时头像透明度纳入最终提交就绪总览。
