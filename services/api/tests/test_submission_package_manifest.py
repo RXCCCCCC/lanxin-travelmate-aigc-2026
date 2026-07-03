@@ -28,6 +28,7 @@ def test_submission_package_manifest_tracks_required_competition_artifacts():
         "api_evidence",
         "privacy_and_material_review",
         "platform_upload",
+        "competition_scoring_narrative",
     }
 
     assert expected_slots.issubset(checks)
@@ -49,3 +50,23 @@ def test_submission_package_manifest_links_to_authoritative_handoff_docs():
     assert "docs/handoff/demo-evidence-pack.md" in docs
     assert "docs/handoff/presentation-outline.md" in docs
     assert "docs/todo.md" in docs
+
+
+def test_submission_package_manifest_checks_competition_scoring_narrative():
+    module = _load_manifest_module()
+    report = module.collect_submission_package_manifest(REPO_ROOT)
+    check = report["checks"]["competition_scoring_narrative"]
+
+    expected_dimensions = {
+        "innovation",
+        "application_value",
+        "completion",
+        "large_model_usage",
+        "technical_feasibility",
+        "demo_storyline",
+    }
+
+    assert check["ok"] is True
+    assert check["manual"] is True
+    assert set(check["detail"]["covered"]) == expected_dimensions
+    assert check["detail"]["missing"] == {}

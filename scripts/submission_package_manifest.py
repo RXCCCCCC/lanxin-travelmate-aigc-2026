@@ -22,6 +22,22 @@ AUTHORITATIVE_DOCS = (
     "docs/todo.md",
 )
 
+SCORING_NARRATIVE_DOCS = (
+    "docs/handoff/presentation-outline.md",
+    "docs/handoff/submission-checklist.md",
+    "docs/handoff/demo-evidence-pack.md",
+    "docs/product/PRD.md",
+)
+
+SCORING_NARRATIVE_DIMENSIONS = {
+    "innovation": ("创新", "核心创新"),
+    "application_value": ("应用价值", "价值"),
+    "completion": ("完成度", "当前完成度", "完成"),
+    "large_model_usage": ("大模型", "模型 Provider", "Agent"),
+    "technical_feasibility": ("技术可行性", "技术架构", "架构"),
+    "demo_storyline": ("Demo", "演示路径", "demo-script", "Demo故事线"),
+}
+
 ANDROID_APK_CANDIDATES = (
     "apps/mobile/build/app/outputs/flutter-apk/app-release.apk",
     "apps/mobile/build/app/outputs/flutter-apk/app-debug.apk",
@@ -105,6 +121,38 @@ def _slot(
     }
 
 
+def _collect_competition_scoring_narrative(repo_root: Path) -> dict[str, Any]:
+    docs: dict[str, str] = {}
+    for relative_path in SCORING_NARRATIVE_DOCS:
+        path = repo_root / relative_path
+        if path.exists():
+            docs[relative_path] = path.read_text(encoding="utf-8")
+
+    covered: dict[str, dict[str, Any]] = {}
+    missing: dict[str, list[str]] = {}
+    for dimension, markers in SCORING_NARRATIVE_DIMENSIONS.items():
+        matches: dict[str, list[str]] = {}
+        for relative_path, text in docs.items():
+            found = [marker for marker in markers if marker in text]
+            if found:
+                matches[relative_path] = found
+        if matches:
+            covered[dimension] = {"markers": matches}
+        else:
+            missing[dimension] = list(markers)
+
+    return {
+        "covered": sorted(covered),
+        "missing": missing,
+        "sources": sorted(docs),
+        "expectedSources": list(SCORING_NARRATIVE_DOCS),
+        "note": (
+            "Checks whether submission/PPT materials cover competition judging "
+            "narrative dimensions; final slide export and review remain manual."
+        ),
+    }
+
+
 def collect_submission_package_manifest(repo_root: Path) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     authoritative_docs = [
@@ -113,6 +161,7 @@ def collect_submission_package_manifest(repo_root: Path) -> dict[str, Any]:
         if (repo_root / relative_path).exists()
     ]
     docs_complete = len(authoritative_docs) == len(AUTHORITATIVE_DOCS)
+    scoring_narrative = _collect_competition_scoring_narrative(repo_root)
 
     checks: dict[str, dict[str, Any]] = {
         "code_repository": {
@@ -170,6 +219,11 @@ def collect_submission_package_manifest(repo_root: Path) -> dict[str, Any]:
             manual=True,
             note="Competition platform upload is intentionally manual and not automated by Codex.",
         ),
+        "competition_scoring_narrative": {
+            "ok": not scoring_narrative["missing"],
+            "manual": True,
+            "detail": scoring_narrative,
+        },
     }
 
     return {

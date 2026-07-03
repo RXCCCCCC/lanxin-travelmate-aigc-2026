@@ -28,6 +28,10 @@
 
 ### 2026-07-04
 
+- Added `competition_scoring_narrative` to `scripts/submission_package_manifest.py`, checking PPT/checklist/evidence/PRD text for judging-story coverage: innovation, application value, completion, large-model usage, technical feasibility, and demo storyline.
+- The check remains manual-aware because final PPT export, team info, screenshots/video, review, and platform upload still require human confirmation; missing scoring-story coverage will now be visible in readiness JSON instead of being implicit.
+- Validation passed: `uv run pytest tests/test_submission_package_manifest.py -q`; `python scripts/submission_package_manifest.py --json`; `python scripts/submission_readiness_report.py --json`.
+
 - Added `manualPendingChecks` and `readyForUpload=false` to `scripts/submission_readiness_report.py`, separating automated preflight health from final upload readiness while manual blockers remain.
 - Current readiness JSON now surfaces nested manual pending checks for Android device permissions/package mismatch and Docker config availability instead of hiding them behind aggregate `ok=true`.
 - Validation passed: `uv run pytest tests/test_submission_readiness_report.py tests/test_public_submission_hygiene.py tests/test_demo_evidence_readiness.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`.
