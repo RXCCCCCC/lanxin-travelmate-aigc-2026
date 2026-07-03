@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/layout/responsive_metrics.dart';
+import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 
 class AdaptiveTopBar extends StatelessWidget {
@@ -33,7 +33,7 @@ class AdaptiveTopBar extends StatelessWidget {
                 width: metrics.minTouchTarget,
                 height: metrics.minTouchTarget,
                 child: IconButton(
-                  onPressed: onBack ?? () => context.pop(),
+                  onPressed: onBack ?? () => navigateBackOrHome(context),
                   padding: EdgeInsets.zero,
                   icon: const Icon(
                     Icons.arrow_back_rounded,

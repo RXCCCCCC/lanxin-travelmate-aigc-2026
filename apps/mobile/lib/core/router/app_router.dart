@@ -21,7 +21,11 @@ final appRouter = GoRouter(
   routes: [
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) => ScaffoldWithNav(child: child),
+      builder:
+          (context, state, child) => _ShellBackScope(
+            location: state.uri.path,
+            child: ScaffoldWithNav(child: child),
+          ),
       routes: [
         GoRoute(path: '/', builder: (_, __) => const HomePage()),
         GoRoute(path: '/trip', builder: (_, __) => const TripPage()),
@@ -36,6 +40,28 @@ final appRouter = GoRouter(
     GoRoute(path: '/reminder', builder: (_, __) => const ReminderPage()),
   ],
 );
+
+class _ShellBackScope extends StatelessWidget {
+  const _ShellBackScope({required this.location, required this.child});
+
+  final String location;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final isHome = location == '/';
+    final hasRouteStack = GoRouter.of(context).canPop();
+    return PopScope(
+      canPop: isHome || hasRouteStack,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !isHome) {
+          context.go('/');
+        }
+      },
+      child: child,
+    );
+  }
+}
 
 class ScaffoldWithNav extends StatelessWidget {
   const ScaffoldWithNav({super.key, required this.child});
@@ -69,7 +95,7 @@ class ScaffoldWithNav extends StatelessWidget {
           ),
           child: SizedBox(
             height: metrics.bottomNavHeight,
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(icon: Icons.home_rounded, label: '首页', path: '/'),

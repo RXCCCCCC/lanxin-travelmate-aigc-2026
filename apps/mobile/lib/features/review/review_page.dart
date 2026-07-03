@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
+import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/agent_response_cache.dart';
 import '../../shared/widgets/glass_box.dart';
@@ -114,10 +114,11 @@ class _ReviewPageState extends State<ReviewPage> {
       highlightPhotos: const [],
       newMemories: const [],
       completedTasks: const [],
-      avatarStatusChanges: dashboard.avatarStateEvents
-          .map(_avatarStateEventText)
-          .where((item) => item.isNotEmpty)
-          .toList(),
+      avatarStatusChanges:
+          dashboard.avatarStateEvents
+              .map(_avatarStateEventText)
+              .where((item) => item.isNotEmpty)
+              .toList(),
       nextTripSuggestions: const [],
       temporaryMemoryPromotions: const [],
     );
@@ -150,7 +151,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => context.pop(),
+                        onPressed: () => navigateBackOrHome(context),
                         icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: AppTheme.textPrimary,
@@ -172,22 +173,23 @@ class _ReviewPageState extends State<ReviewPage> {
                   ),
                 ),
                 Expanded(
-                  child: agentReview == null
-                      ? FutureBuilder<TripReviewPayload>(
-                          future: _generatedReview,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              return _AgentReviewView(
-                                review: snapshot.data!.toJson(),
-                              );
-                            }
-                            if (snapshot.hasError) {
-                              return const _ReviewErrorState();
-                            }
-                            return const _ReviewLoadingState();
-                          },
-                        )
-                      : _AgentReviewView(review: agentReview),
+                  child:
+                      agentReview == null
+                          ? FutureBuilder<TripReviewPayload>(
+                            future: _generatedReview,
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData) {
+                                return _AgentReviewView(
+                                  review: snapshot.data!.toJson(),
+                                );
+                              }
+                              if (snapshot.hasError) {
+                                return const _ReviewErrorState();
+                              }
+                              return const _ReviewLoadingState();
+                            },
+                          )
+                          : _AgentReviewView(review: agentReview),
                 ),
               ],
             ),
@@ -291,19 +293,19 @@ class _AgentReviewView extends StatelessWidget {
     final memories = (review['newMemories'] as List<dynamic>? ?? const []).map(
       (e) => e.toString(),
     );
-    final tasks = (review['completedTasks'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final tasks =
+        (review['completedTasks'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     final states = (review['avatarStatusChanges'] as List<dynamic>? ?? const [])
         .map((e) => e.toString());
     final reminders =
         (review['reminderHighlights'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .toList();
-    final suggestions =
-        (review['nextTripSuggestions'] as List<dynamic>? ?? const []).map(
-          (e) => e.toString(),
-        );
+    final suggestions = (review['nextTripSuggestions'] as List<dynamic>? ??
+            const [])
+        .map((e) => e.toString());
     final promotions =
         (review['temporaryMemoryPromotions'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()

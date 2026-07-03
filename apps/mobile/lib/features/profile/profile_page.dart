@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/layout/responsive_metrics.dart';
+import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/glass_box.dart';
 import 'data/profile_service.dart';
@@ -60,7 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => context.pop(),
+                    onPressed: () => navigateBackOrHome(context),
                     icon: const Icon(
                       Icons.arrow_back_rounded,
                       color: AppTheme.textPrimary,
@@ -119,9 +119,8 @@ class _ProfileViewModel {
       dietaryPreferences: _fallbackList(payload.dietaryPreferences),
       travelPace: payload.travelPace.isEmpty ? '未设置' : payload.travelPace,
       transportPreferences: _fallbackList(payload.transportPreferences),
-      budgetPreference: payload.budgetPreference.isEmpty
-          ? '未设置'
-          : payload.budgetPreference,
+      budgetPreference:
+          payload.budgetPreference.isEmpty ? '未设置' : payload.budgetPreference,
       interestTags: _fallbackList(payload.interestTags),
     );
   }
@@ -202,57 +201,62 @@ class _ProfileList extends StatelessWidget {
           icon: Icons.restaurant_rounded,
           title: '饮食偏好',
           values: profile.dietaryPreferences,
-          onEdit: () => _openEditor(
-            context,
-            field: _ProfileField.dietary,
-            title: '饮食偏好',
-            initialValue: profile.dietaryPreferences.join(', '),
-          ),
+          onEdit:
+              () => _openEditor(
+                context,
+                field: _ProfileField.dietary,
+                title: '饮食偏好',
+                initialValue: profile.dietaryPreferences.join(', '),
+              ),
         ),
         _ProfileCard(
           icon: Icons.directions_walk_rounded,
           title: '旅行节奏',
           values: [profile.travelPace],
-          onEdit: () => _openEditor(
-            context,
-            field: _ProfileField.pace,
-            title: '旅行节奏',
-            initialValue: profile.travelPace,
-          ),
+          onEdit:
+              () => _openEditor(
+                context,
+                field: _ProfileField.pace,
+                title: '旅行节奏',
+                initialValue: profile.travelPace,
+              ),
         ),
         _ProfileCard(
           icon: Icons.directions_bus_rounded,
           title: '交通偏好',
           values: profile.transportPreferences,
-          onEdit: () => _openEditor(
-            context,
-            field: _ProfileField.transport,
-            title: '交通偏好',
-            initialValue: profile.transportPreferences.join(', '),
-          ),
+          onEdit:
+              () => _openEditor(
+                context,
+                field: _ProfileField.transport,
+                title: '交通偏好',
+                initialValue: profile.transportPreferences.join(', '),
+              ),
         ),
         _ProfileCard(
           icon: Icons.account_balance_wallet_rounded,
           title: '预算水平',
           values: [profile.budgetPreference],
-          onEdit: () => _openEditor(
-            context,
-            field: _ProfileField.budget,
-            title: '预算水平',
-            initialValue: profile.budgetPreference,
-          ),
+          onEdit:
+              () => _openEditor(
+                context,
+                field: _ProfileField.budget,
+                title: '预算水平',
+                initialValue: profile.budgetPreference,
+              ),
         ),
         _ProfileCard(
           icon: Icons.local_offer_rounded,
           title: '兴趣标签',
           values: profile.interestTags,
           isTags: true,
-          onEdit: () => _openEditor(
-            context,
-            field: _ProfileField.interests,
-            title: '兴趣标签',
-            initialValue: profile.interestTags.join(', '),
-          ),
+          onEdit:
+              () => _openEditor(
+                context,
+                field: _ProfileField.interests,
+                title: '兴趣标签',
+                initialValue: profile.interestTags.join(', '),
+              ),
         ),
       ],
     );
@@ -267,11 +271,12 @@ class _ProfileList extends StatelessWidget {
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _ProfileEditSheet(
-        title: title,
-        initialValue: initialValue,
-        multiValue: field.isList,
-      ),
+      builder:
+          (context) => _ProfileEditSheet(
+            title: title,
+            initialValue: initialValue,
+            multiValue: field.isList,
+          ),
     );
     if (result == null) return;
     onSave(_updatedProfile(field, result));
@@ -282,21 +287,22 @@ class _ProfileList extends StatelessWidget {
     final listValue = _splitValues(rawValue);
     return ProfilePayload(
       userId: current.userId,
-      travelPace: field == _ProfileField.pace
-          ? rawValue.trim()
-          : current.travelPace,
-      dietaryPreferences: field == _ProfileField.dietary
-          ? listValue
-          : current.dietaryPreferences,
-      interestTags: field == _ProfileField.interests
-          ? listValue
-          : current.interestTags,
-      transportPreferences: field == _ProfileField.transport
-          ? listValue
-          : current.transportPreferences,
-      budgetPreference: field == _ProfileField.budget
-          ? rawValue.trim()
-          : current.budgetPreference,
+      travelPace:
+          field == _ProfileField.pace ? rawValue.trim() : current.travelPace,
+      dietaryPreferences:
+          field == _ProfileField.dietary
+              ? listValue
+              : current.dietaryPreferences,
+      interestTags:
+          field == _ProfileField.interests ? listValue : current.interestTags,
+      transportPreferences:
+          field == _ProfileField.transport
+              ? listValue
+              : current.transportPreferences,
+      budgetPreference:
+          field == _ProfileField.budget
+              ? rawValue.trim()
+              : current.budgetPreference,
       personality: current.personality,
       proactivityLevel: current.proactivityLevel,
       syncStrategy: current.syncStrategy,
@@ -395,18 +401,16 @@ class _ProfileCard extends StatelessWidget {
             const SizedBox(height: AppTheme.spacingMd),
             isTags
                 ? Wrap(
-                    spacing: AppTheme.spacingSm,
-                    runSpacing: AppTheme.spacingSm,
-                    children: values
-                        .map((value) => _TagChip(value: value))
-                        .toList(),
-                  )
+                  spacing: AppTheme.spacingSm,
+                  runSpacing: AppTheme.spacingSm,
+                  children:
+                      values.map((value) => _TagChip(value: value)).toList(),
+                )
                 : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: values
-                        .map((value) => _ValueLine(value: value))
-                        .toList(),
-                  ),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children:
+                      values.map((value) => _ValueLine(value: value)).toList(),
+                ),
           ],
         ),
       ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
+import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/agent_response_cache.dart';
 import '../../shared/widgets/glass_box.dart';
@@ -175,9 +175,10 @@ class _TripPageState extends State<TripPage> {
       }
       _originCoordinateController.text = location.coordinateText;
       final accuracy = location.accuracyMeters;
-      _locationNotice = accuracy == null
-          ? '已填入真实定位坐标'
-          : '已填入真实定位坐标，精度约 ${accuracy.toStringAsFixed(0)} 米';
+      _locationNotice =
+          accuracy == null
+              ? '已填入真实定位坐标'
+              : '已填入真实定位坐标，精度约 ${accuracy.toStringAsFixed(0)} 米';
     });
   }
 
@@ -239,19 +240,20 @@ class _TripPageState extends State<TripPage> {
         'interests': preferences,
         'pace':
             preferences.any(
-              (item) => item.contains('慢') || item.contains('slow'),
-            )
-            ? 'slow'
-            : 'balanced',
+                  (item) => item.contains('慢') || item.contains('slow'),
+                )
+                ? 'slow'
+                : 'balanced',
         'budget':
             preferences.any(
-              (item) => item.contains('预算') || item.contains('low'),
-            )
-            ? 'low'
-            : 'medium',
-        'dietary': preferences
-            .where((item) => item.contains('不吃') || item.contains('忌口'))
-            .toList(),
+                  (item) => item.contains('预算') || item.contains('low'),
+                )
+                ? 'low'
+                : 'medium',
+        'dietary':
+            preferences
+                .where((item) => item.contains('不吃') || item.contains('忌口'))
+                .toList(),
       },
     );
   }
@@ -341,7 +343,7 @@ class _TripPageState extends State<TripPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => context.pop(),
+                        onPressed: () => navigateBackOrHome(context),
                         icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: AppTheme.textPrimary,
@@ -364,63 +366,68 @@ class _TripPageState extends State<TripPage> {
                 ),
                 // 内容
                 Expanded(
-                  child: visiblePlan == null
-                      ? ListView(
-                          padding: EdgeInsets.only(
-                            bottom: metrics.listBottomPadding,
+                  child:
+                      visiblePlan == null
+                          ? ListView(
+                            padding: EdgeInsets.only(
+                              bottom: metrics.listBottomPadding,
+                            ),
+                            children: [
+                              _TripPlanInputCard(
+                                destinationController: _destinationController,
+                                originCoordinateController:
+                                    _originCoordinateController,
+                                destinationCoordinateController:
+                                    _destinationCoordinateController,
+                                startDateController: _startDateController,
+                                endDateController: _endDateController,
+                                companionsController: _companionsController,
+                                preferencesController: _preferencesController,
+                                budget: _budget,
+                                transportMode: _transportMode,
+                                loading: _creatingPlan,
+                                errorText: _planError,
+                                locationNotice: _locationNotice,
+                                locatingOrigin: _locatingOrigin,
+                                onBudgetChanged: (value) {
+                                  setState(() => _budget = value);
+                                },
+                                onTransportChanged: (value) {
+                                  setState(() => _transportMode = value);
+                                },
+                                onCreatePlan: _createPlan,
+                                onUseCurrentLocation:
+                                    _fillOriginFromCurrentLocation,
+                              ),
+                              _GroupCoordinationCard(
+                                memberANameController: _memberANameController,
+                                memberAPreferencesController:
+                                    _memberAPreferencesController,
+                                memberBNameController: _memberBNameController,
+                                memberBPreferencesController:
+                                    _memberBPreferencesController,
+                                loading: _coordinatingGroup,
+                                errorText: _groupError,
+                                coordination: _groupCoordination,
+                                onCoordinate: _coordinateGroup,
+                              ),
+                              _NoPlanStateCard(onRetry: _loadDashboardPlan),
+                            ],
+                          )
+                          : _AgentTripPlanView(
+                            plan: visiblePlan,
+                            onEditPlan: () => _editCurrentPlan(visiblePlan),
+                            onWeatherReplan:
+                                _createdPlan == null
+                                    ? null
+                                    : () => _createPlan(
+                                      replanReason: 'weather_risk',
+                                    ),
+                            routePoints:
+                                agentPlan == null
+                                    ? _dashboardRoutePoints
+                                    : const {},
                           ),
-                          children: [
-                            _TripPlanInputCard(
-                              destinationController: _destinationController,
-                              originCoordinateController:
-                                  _originCoordinateController,
-                              destinationCoordinateController:
-                                  _destinationCoordinateController,
-                              startDateController: _startDateController,
-                              endDateController: _endDateController,
-                              companionsController: _companionsController,
-                              preferencesController: _preferencesController,
-                              budget: _budget,
-                              transportMode: _transportMode,
-                              loading: _creatingPlan,
-                              errorText: _planError,
-                              locationNotice: _locationNotice,
-                              locatingOrigin: _locatingOrigin,
-                              onBudgetChanged: (value) {
-                                setState(() => _budget = value);
-                              },
-                              onTransportChanged: (value) {
-                                setState(() => _transportMode = value);
-                              },
-                              onCreatePlan: _createPlan,
-                              onUseCurrentLocation:
-                                  _fillOriginFromCurrentLocation,
-                            ),
-                            _GroupCoordinationCard(
-                              memberANameController: _memberANameController,
-                              memberAPreferencesController:
-                                  _memberAPreferencesController,
-                              memberBNameController: _memberBNameController,
-                              memberBPreferencesController:
-                                  _memberBPreferencesController,
-                              loading: _coordinatingGroup,
-                              errorText: _groupError,
-                              coordination: _groupCoordination,
-                              onCoordinate: _coordinateGroup,
-                            ),
-                            _NoPlanStateCard(onRetry: _loadDashboardPlan),
-                          ],
-                        )
-                      : _AgentTripPlanView(
-                          plan: visiblePlan,
-                          onEditPlan: () => _editCurrentPlan(visiblePlan),
-                          onWeatherReplan: _createdPlan == null
-                              ? null
-                              : () => _createPlan(replanReason: 'weather_risk'),
-                          routePoints: agentPlan == null
-                              ? _dashboardRoutePoints
-                              : const {},
-                        ),
                 ),
               ],
             ),
@@ -592,13 +599,14 @@ class _GroupCoordinationCard extends StatelessWidget {
               child: OutlinedButton.icon(
                 key: const ValueKey('trip-coordinate-group-button'),
                 onPressed: loading ? null : onCoordinate,
-                icon: loading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.balance_rounded),
+                icon:
+                    loading
+                        ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.balance_rounded),
                 label: Text(loading ? '协调中' : '生成折中方案'),
               ),
             ),
@@ -616,18 +624,19 @@ class _GroupCoordinationResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final conflicts = (coordination['conflicts'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final conflicts =
+        (coordination['conflicts'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     final compromise =
         coordination['compromisePlan'] as Map<String, dynamic>? ?? const {};
     final privacy =
         coordination['privacySummary'] as Map<String, dynamic>? ?? const {};
-    final sharedInterests =
-        (compromise['sharedInterests'] as List<dynamic>? ?? const [])
-            .map((item) => item.toString())
-            .where((item) => item.isNotEmpty)
-            .join(' / ');
+    final sharedInterests = (compromise['sharedInterests'] as List<dynamic>? ??
+            const [])
+        .map((item) => item.toString())
+        .where((item) => item.isNotEmpty)
+        .join(' / ');
     final sensitiveMemberDetailsHidden =
         privacy['sensitiveMemberDetailsHidden'] == true;
     final sensitiveMemberCount = privacy['sensitiveMemberCount'] as int? ?? 0;
@@ -893,13 +902,14 @@ class _TripPlanInputCard extends StatelessWidget {
               child: FilledButton.icon(
                 key: const ValueKey('trip-create-plan-button'),
                 onPressed: loading ? null : onCreatePlan,
-                icon: loading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_rounded),
+                icon:
+                    loading
+                        ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.auto_awesome_rounded),
                 label: Text(loading ? '生成中' : '生成行程'),
               ),
             ),
@@ -978,14 +988,15 @@ class _OptionRow extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: options.entries.map((entry) {
-            return ChoiceChip(
-              key: ValueKey('$keyPrefix-${entry.key}'),
-              label: Text(entry.value),
-              selected: selected == entry.key,
-              onSelected: (_) => onChanged(entry.key),
-            );
-          }).toList(),
+          children:
+              options.entries.map((entry) {
+                return ChoiceChip(
+                  key: ValueKey('$keyPrefix-${entry.key}'),
+                  label: Text(entry.value),
+                  selected: selected == entry.key,
+                  onSelected: (_) => onChanged(entry.key),
+                );
+              }).toList(),
         ),
       ],
     );
@@ -1090,18 +1101,20 @@ class _AgentTripPlanView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final days = (plan['days'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final days =
+        (plan['days'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     final risks = (plan['risks'] as List<dynamic>? ?? const []).map(
       (e) => e.toString(),
     );
     final matches = (plan['profileMatches'] as List<dynamic>? ?? const []).map(
       (e) => e.toString(),
     );
-    final alternatives = (plan['alternatives'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final alternatives =
+        (plan['alternatives'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     final navigationLinks =
         (plan['navigationLinks'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
@@ -1167,9 +1180,10 @@ class _AgentTripPlanView extends StatelessWidget {
           ),
         ],
         ...days.map((day) {
-          final items = (day['items'] as List<dynamic>? ?? const [])
-              .whereType<Map<String, dynamic>>()
-              .toList();
+          final items =
+              (day['items'] as List<dynamic>? ?? const [])
+                  .whereType<Map<String, dynamic>>()
+                  .toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1709,9 +1723,10 @@ class _RoutePointsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = context.responsive;
     final route = routePoints['route']?.toString() ?? '';
-    final points = (routePoints['points'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final points =
+        (routePoints['points'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     return GlassBox(
       margin: EdgeInsets.symmetric(
         horizontal: metrics.horizontalPadding,

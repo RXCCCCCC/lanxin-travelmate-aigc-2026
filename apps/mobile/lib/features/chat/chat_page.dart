@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
+import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/agent_response_cache.dart';
 import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
@@ -122,16 +123,18 @@ class _ChatPageState extends State<ChatPage> {
       );
     });
     _scrollToBottom();
-    final voiceText = response.voiceText.trim().isNotEmpty
-        ? response.voiceText
-        : response.replyText;
+    final voiceText =
+        response.voiceText.trim().isNotEmpty
+            ? response.voiceText
+            : response.replyText;
     final spoken = await _voiceInteractionService.speak(voiceText);
     if (!mounted) return;
     setState(() {
-      _voiceNotice = spoken
-          ? null
-          : (_voiceInteractionService.lastFailureMessage ??
-                '系统语音播报暂不可用，已保留文字回复');
+      _voiceNotice =
+          spoken
+              ? null
+              : (_voiceInteractionService.lastFailureMessage ??
+                  '系统语音播报暂不可用，已保留文字回复');
     });
   }
 
@@ -225,7 +228,7 @@ class _ChatPageState extends State<ChatPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => context.pop(),
+                        onPressed: () => navigateBackOrHome(context),
                         icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: AppTheme.textPrimary,
@@ -238,11 +241,12 @@ class _ChatPageState extends State<ChatPage> {
                           AvatarState.hello.assetPath,
                           width: 28,
                           height: 28,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.smart_toy_rounded,
-                            color: AppTheme.primary,
-                            size: 22,
-                          ),
+                          errorBuilder:
+                              (_, __, ___) => const Icon(
+                                Icons.smart_toy_rounded,
+                                color: AppTheme.primary,
+                                size: 22,
+                              ),
                         ),
                       ),
                       const SizedBox(width: AppTheme.spacingSm),
@@ -284,9 +288,10 @@ class _ChatPageState extends State<ChatPage> {
                     count: _pendingMemoryCandidates.length,
                     candidates: _pendingMemoryCandidates,
                     statusText: _memoryStatusText,
-                    onConfirm: _pendingMemoryCandidates.isEmpty
-                        ? null
-                        : _confirmMemoryCandidates,
+                    onConfirm:
+                        _pendingMemoryCandidates.isEmpty
+                            ? null
+                            : _confirmMemoryCandidates,
                   ),
                 if (_memoryConflictSuggestion != null)
                   _MemoryConflictPanel(suggestion: _memoryConflictSuggestion!),
@@ -302,22 +307,22 @@ class _ChatPageState extends State<ChatPage> {
                       children: [
                         _QuickChip(
                           label: '规划路线',
-                          onTap: () => context.go('/trip'),
+                          onTap: () => context.push('/trip'),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _QuickChip(
                           label: '记忆胶囊',
-                          onTap: () => context.go('/memory'),
+                          onTap: () => context.push('/memory'),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _QuickChip(
                           label: '调整行程',
-                          onTap: () => context.go('/trip'),
+                          onTap: () => context.push('/trip'),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _QuickChip(
                           label: '生成复盘',
-                          onTap: () => context.go('/review'),
+                          onTap: () => context.push('/review'),
                         ),
                       ],
                     ),
@@ -376,9 +381,10 @@ class _ChatPageState extends State<ChatPage> {
                           child: Tooltip(
                             message: '语音输入',
                             child: IconButton(
-                              onPressed: _isListening || _isSending
-                                  ? null
-                                  : _listenAndFillInput,
+                              onPressed:
+                                  _isListening || _isSending
+                                      ? null
+                                      : _listenAndFillInput,
                               icon: Icon(
                                 _isListening
                                     ? Icons.more_horiz_rounded
@@ -460,12 +466,14 @@ class _MemoryCandidatePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final sensitiveCount = candidates
-        .where((candidate) => candidate.sensitivity == 'sensitive')
-        .length;
-    final personalCount = candidates
-        .where((candidate) => candidate.sensitivity == 'personal')
-        .length;
+    final sensitiveCount =
+        candidates
+            .where((candidate) => candidate.sensitivity == 'sensitive')
+            .length;
+    final personalCount =
+        candidates
+            .where((candidate) => candidate.sensitivity == 'personal')
+            .length;
     final requiresExplicitConsent = candidates.any(
       (candidate) => candidate.requiresExplicitConsent,
     );

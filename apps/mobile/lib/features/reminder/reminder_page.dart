@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
+import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/agent_response_cache.dart';
 import '../../shared/widgets/glass_box.dart';
@@ -127,10 +127,11 @@ class _ReminderPageState extends State<ReminderPage> {
     );
     if (!mounted) return;
     setState(() {
-      _notificationStatus = delivered
-          ? '$source提醒已发送到系统通知'
-          : (_notificationDeliveryService.lastFailureMessage ??
-                '系统通知暂不可用，已保留应用内提醒');
+      _notificationStatus =
+          delivered
+              ? '$source提醒已发送到系统通知'
+              : (_notificationDeliveryService.lastFailureMessage ??
+                  '系统通知暂不可用，已保留应用内提醒');
     });
   }
 
@@ -141,11 +142,12 @@ class _ReminderPageState extends State<ReminderPage> {
       builder: (context, response, _) {
         final metrics = context.responsive;
         final agentReminders = agentCardPayloadList(response, 'reminders');
-        final activeAgentReminders = _simulatedReminders.isNotEmpty
-            ? _simulatedReminders
-            : (agentReminders.isNotEmpty
-                  ? agentReminders
-                  : (_dashboardReminders.isNotEmpty
+        final activeAgentReminders =
+            _simulatedReminders.isNotEmpty
+                ? _simulatedReminders
+                : (agentReminders.isNotEmpty
+                    ? agentReminders
+                    : (_dashboardReminders.isNotEmpty
                         ? _dashboardReminders
                         : _evaluatedReminders));
         return Container(
@@ -167,7 +169,7 @@ class _ReminderPageState extends State<ReminderPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => context.pop(),
+                        onPressed: () => navigateBackOrHome(context),
                         icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: AppTheme.textPrimary,
@@ -209,42 +211,49 @@ class _ReminderPageState extends State<ReminderPage> {
                       children: [
                         _TriggerChip(
                           label: '拍照触发',
-                          onTap: () => _simulateTrigger('behavior', {
-                            'event': 'newPhoto',
-                          }),
+                          onTap:
+                              () => _simulateTrigger('behavior', {
+                                'event': 'newPhoto',
+                              }),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _TriggerChip(
                           label: '状态触发',
-                          onTap: () =>
-                              _simulateTrigger('status', {'energy': 32}),
+                          onTap:
+                              () => _simulateTrigger('status', {'energy': 32}),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _TriggerChip(
                           label: '天气触发',
-                          onTap: () => _simulateTrigger('external', {
-                            'event': 'weatherChanged',
-                          }),
+                          onTap:
+                              () => _simulateTrigger('external', {
+                                'event': 'weatherChanged',
+                              }),
                         ),
                       ],
                     ),
                   ),
                 ),
                 Expanded(
-                  child: activeAgentReminders.isEmpty
-                      ? _EmptyReminderState(onRetry: _loadProfileAndEvaluate)
-                      : ListView(
-                          padding: EdgeInsets.only(
-                            top: AppTheme.spacingSm,
-                            bottom: metrics.listBottomPadding,
+                  child:
+                      activeAgentReminders.isEmpty
+                          ? _EmptyReminderState(
+                            onRetry: _loadProfileAndEvaluate,
+                          )
+                          : ListView(
+                            padding: EdgeInsets.only(
+                              top: AppTheme.spacingSm,
+                              bottom: metrics.listBottomPadding,
+                            ),
+                            children:
+                                activeAgentReminders
+                                    .map(
+                                      (reminder) => _AgentReminderCard(
+                                        reminder: reminder,
+                                      ),
+                                    )
+                                    .toList(),
                           ),
-                          children: activeAgentReminders
-                              .map(
-                                (reminder) =>
-                                    _AgentReminderCard(reminder: reminder),
-                              )
-                              .toList(),
-                        ),
                 ),
               ],
             ),
@@ -383,9 +392,10 @@ class _ProfileReminderContext extends StatelessWidget {
       ...profile.interestTags.take(2),
       ...profile.dietaryPreferences.take(1),
     ];
-    final status = suppressedReason == 'cooldown'
-        ? '冷却 ${cooldownRemainingSeconds ~/ 60} 分钟'
-        : '实时评估';
+    final status =
+        suppressedReason == 'cooldown'
+            ? '冷却 ${cooldownRemainingSeconds ~/ 60} 分钟'
+            : '实时评估';
     return GlassBox(
       opacity: 0.2,
       margin: EdgeInsets.fromLTRB(
