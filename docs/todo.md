@@ -1,6 +1,6 @@
 # 蓝心同行 Todo：剩余人工介入清单
 
-> 更新时间：2026-06-29
+> 更新时间：2026-07-03
 > 口径：本文件只保留当前无法由 AI 在仓库内独立完成的事项。已完成的 FastAPI/LangGraph/Flutter Android 主链路、真实数据接口、结构化 Provider 接口、审计、端侧设备通道、CI/预检脚本、交接文档不再重复列为待办。
 
 ## 总原则
@@ -44,8 +44,8 @@
 
 ## 5. Android APK 与发布配置
 
-- [x] 本机已在 `G:\develop\Android\Sdk` 安装 Android SDK `platforms;android-35` 与 `build-tools;35.0.0`，并已通过 `python scripts/android_release_preflight.py --json`。
-- [ ] 运行 `python scripts/android_release_preflight.py --json`，确认 Android-only、包名、版本号、SDK、build-tools、CI APK job 和签名状态。
+- [x] 本机已在 `E:\localAndroid` 安装 Android SDK `platforms;android-35` 与 `build-tools;35.0.0`。
+- [x] 已运行 `python scripts/android_release_preflight.py --json`，确认 Android-only、包名、版本号、SDK、build-tools、CI APK job 和签名状态；release 仍需正式签名。
 - [ ] 确认最终 `applicationId`、`versionCode`、`versionName`。
 - [ ] 将 release 构建从 debug signing 替换为正式签名证书。
 - [x] 本机完成 Android debug APK 构建，并在 Android 模拟器安装启动。
@@ -53,9 +53,9 @@
 
 ## 6. Docker/Postgres 与部署验收
 
-- [ ] 本机或 CI 环境安装 Docker，并运行 `python scripts/docker_compose_preflight.py --json`。
-- [ ] 运行 `docker compose -f infra/docker-compose.yml config` 验证 compose 配置。
-- [ ] 运行 `docker compose -f infra/docker-compose.yml up --build`，确认 Postgres 初始化、API 启动前 `alembic upgrade head`、`/api/health` 正常。
+- [x] 本机已安装 Docker，并已运行 `python scripts/docker_compose_preflight.py --json`。
+- [x] 已通过 `docker compose -f infra/docker-compose.yml config` 配置验证。
+- [ ] 手动启动 Docker Desktop/daemon 后，运行 `docker compose -f infra/docker-compose.yml up --build`，确认 Postgres 初始化、API 启动前 `alembic upgrade head`、`/api/health` 正常；当前命令因 `com.docker.service` 未运行且当前会话无权启动服务而阻塞。
 - [ ] 如要公网演示，确认服务器、域名、HTTPS、环境变量和数据库备份策略。
 - [ ] 生产或公开环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用示例默认值。
 
