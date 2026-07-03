@@ -15,6 +15,7 @@
 - [ ] 后端：`cd services/api && uv run pytest`。
 - [ ] Flutter：`cd apps/mobile && flutter analyze`。
 - [ ] Android 预检：`python scripts/android_release_preflight.py --json`。
+- [ ] Android/vivo 真机只读预检：`python scripts/android_device_readiness_report.py --json`，仅读取 adb、设备、安装包、权限和系统能力；交互质量仍需人工验收。
 - [ ] 提交就绪总览：`python scripts/submission_readiness_report.py --json`，覆盖 PRD P0 演示闭环、比赛提交材料、Android/Docker 预检和人工阻塞项。
 - [ ] GitNexus：提交前已运行 `node .gitnexus\run.cjs detect_changes --repo lanxin-travelmate-aigc-2026`。
 - [ ] CI：Flutter analyze/test、Python pytest、Backend Docker build、Android debug APK build 通过。

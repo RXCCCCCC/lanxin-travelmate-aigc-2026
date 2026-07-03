@@ -128,6 +128,14 @@ cd <repo-root>
 python scripts/android_release_preflight.py --json
 ```
 
+Android/vivo 真机只读预检：
+```powershell
+cd <repo-root>
+python scripts/android_device_readiness_report.py --json
+```
+
+该脚本只读取 adb、设备属性、已安装包、`adb reverse`、`dumpsys package`、Manifest 权限一致性以及相机/相册/语音识别/TTS 系统能力，不安装 APK、不启动 App、不授予或撤销权限。若本机没有 adb 或没有连接真机，会标记为人工项而不是伪装通过。
+
 预检会报告 Android-only 平台壳、包名、版本号、SDK 35、build-tools 35.0.0、CI APK job 和 release 签名状态。当前 release 仍使用 debug signing，最终公开发布前必须替换为正式签名。
 
 提交就绪总览：
@@ -136,6 +144,8 @@ python scripts/android_release_preflight.py --json
 cd <repo-root>
 python scripts/submission_readiness_report.py --json
 ```
+
+提交就绪总览也会调用 Android/vivo 真机只读预检；该项仍是设备/人工验收入口，不会把无 adb、无真机或未授权的交互质量伪装为完成。
 
 总览脚本会聚合 Git 工作区、Android-only 平台壳、PRD P0 演示闭环、比赛提交材料、关键交接文档、`docs/todo.md` 人工事项口径、Android 预检和 Docker Compose 预检。它不会启动服务、构建 APK、读取密钥值或修改文件；如只想检查仓库结构与文档，可加 `--skip-git`，避免被本地未跟踪素材影响。
 

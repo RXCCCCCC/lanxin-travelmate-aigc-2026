@@ -38,6 +38,7 @@
 
 - [x] 稳定 Android 模拟器验收环境已准备；最新 debug APK 已安装启动，首页和聊天页真实后端联调通过，审计日志可见 `openai_compatible`/`amap` 调用记录。
 - [x] 已在 vivo/Android 真机安装最新 APK，并验收“首页蓝小心同屏直聊、人物图先下移到底部陪伴区域、底部 Tab：首页/行程/复盘/我的、旅拍入口归入复盘记录、键盘不遮挡输入框、基础消息发送与真实后端回复”。
+- [x] 已新增只读真机就绪脚本 `python scripts/android_device_readiness_report.py --json`，可读取 adb、设备、安装包、权限、Manifest 对齐和相机/相册/语音识别/TTS 系统能力；脚本不安装 APK、不启动 App、不修改权限。
 - [ ] 优化首页蓝小心人物素材白底矩形问题：当前已通过布局下移临时缓解，但最终仍需替换透明 PNG/WebP、抠图资产或调整素材渲染方式。
 - [ ] 准备 vivo/Android 真机做最终设备能力验收。
 - [ ] 验证相册选择、相机拍摄、定位、麦克风、系统语音识别、中文 TTS、Android 13+ 通知权限和通知展示。
@@ -90,6 +91,7 @@
 | 事项 | 文件/命令 |
 | --- | --- |
 | Android 发布预检 | `python scripts/android_release_preflight.py --json` |
+| Android/vivo 真机只读预检 | `python scripts/android_device_readiness_report.py --json` |
 | Docker Compose 预检 | `python scripts/docker_compose_preflight.py --json` |
 | 真实 Provider smoke | `cd services/api && uv run python scripts/real_provider_smoke.py` |
 | 迁移链检查 | `cd services/api && uv run python scripts/migration_plan.py check` |

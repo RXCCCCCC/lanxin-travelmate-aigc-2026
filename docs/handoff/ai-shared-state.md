@@ -28,6 +28,12 @@
 
 ### 2026-07-03
 
+- 本轮新增只读 Android/vivo 真机就绪脚本 `scripts/android_device_readiness_report.py`，读取 adb、在线设备、SDK、设备品牌/型号、安装包路径、`adb reverse`、`dumpsys package`、Manifest/设备 requested permissions 一致性、运行时权限授权状态、launcher activity，以及相机/相册/语音识别/TTS 系统能力；脚本不安装 APK、不启动 App、不授予或撤销权限。
+- `scripts/submission_readiness_report.py` 已聚合 Android/vivo 真机只读预检，并将该项保留为 manual 口径，避免把无 adb、无真机、未授权权限或交互质量问题伪装为完成。
+- 新增 `services/api/tests/test_android_device_readiness_report.py`，并更新 `services/api/tests/test_submission_readiness_report.py`；验证通过：`cd services/api && uv run pytest tests/test_android_device_readiness_report.py tests/test_submission_readiness_report.py -q`，`python -m py_compile scripts/android_device_readiness_report.py scripts/submission_readiness_report.py`。
+- 本机 `python scripts/android_device_readiness_report.py --json` 当前识别到 `emulator-5554`，App 已安装且系统相机/相册/语音/TTS 能力可解析；运行时权限仍未授权，且 `READ_EXTERNAL_STORAGE` 因 Android 13+ 权限映射显示为设备端差异，均按人工验收项保留。
+- `docs/handoff/e2e-acceptance.md` 与 `docs/handoff/submission-checklist.md` 已补充真机只读预检命令；`docs/todo.md` 仍保留真实 vivo 交互权限验收、正式签名、素材授权、Demo/PPT 和平台上传等人工事项。
+
 - 已按用户真机验收反馈调整 Android 前端信息架构：底部 Tab 改为“首页/行程/复盘/我的”，`/photo` 不再作为底部 Tab，而是保留为复盘记录里的旅拍入口。
 - 首页已从“点击跳转聊天页”改为蓝小心同屏直聊：底部玻璃面板支持直接输入、发送到真实 Agent 服务、展示最近对话、更新蓝小心状态，并保留“展开”进入独立聊天历史页。
 - 首页蓝小心人物图已先下移到底部陪伴区域，品牌和设置页已收口为中文文案；当前白底矩形来自素材本身，最终仍需透明 PNG/WebP 或抠图资产替换。

@@ -19,6 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from android_release_preflight import collect_android_release_preflight
+from android_device_readiness_report import collect_android_device_readiness
 from docker_compose_preflight import collect_docker_compose_preflight
 
 
@@ -111,6 +112,7 @@ def collect_submission_readiness(
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     android_report = collect_android_release_preflight(repo_root)
+    android_device_report = collect_android_device_readiness(repo_root)
     docker_report = collect_docker_compose_preflight(
         repo_root,
         run_docker_config=run_docker_config,
@@ -180,6 +182,11 @@ def collect_submission_readiness(
         "android_release_preflight": {
             "ok": android_report["ok"],
             "detail": android_report["checks"],
+        },
+        "android_device_readiness": {
+            "ok": android_device_report["ok"],
+            "detail": android_device_report["checks"],
+            "manual": True,
         },
         "docker_compose_preflight": {
             "ok": docker_report["ok"],
