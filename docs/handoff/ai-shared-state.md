@@ -28,6 +28,10 @@
 
 ### 2026-07-04
 
+- Updated `scripts/android_device_readiness_report.py` to treat Android 13+ filtering of legacy `READ_EXTERNAL_STORAGE` as an explicit platform compatibility detail instead of a package/manifest mismatch or missing runtime grant.
+- Current Android readiness JSON now reports `ignoredByPlatform` and `ignoredReasons` for the legacy storage permission while keeping real missing grants for location, camera, microphone, notification, and media image access as manual pending checks.
+- Validation passed: `uv run pytest tests/test_android_device_readiness_report.py tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/android_device_readiness_report.py scripts/submission_readiness_report.py`; `python scripts/android_device_readiness_report.py --json`; `python scripts/submission_readiness_report.py --json`.
+
 - Added `competition_scoring_narrative` to `scripts/submission_package_manifest.py`, checking PPT/checklist/evidence/PRD text for judging-story coverage: innovation, application value, completion, large-model usage, technical feasibility, and demo storyline.
 - The check remains manual-aware because final PPT export, team info, screenshots/video, review, and platform upload still require human confirmation; missing scoring-story coverage will now be visible in readiness JSON instead of being implicit.
 - Validation passed: `uv run pytest tests/test_submission_package_manifest.py -q`; `python scripts/submission_package_manifest.py --json`; `python scripts/submission_readiness_report.py --json`.

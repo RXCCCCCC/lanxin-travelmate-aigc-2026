@@ -60,6 +60,13 @@ SYSTEM_CAPABILITY_QUERIES = {
     ],
 }
 
+PLATFORM_FILTERED_PERMISSIONS = {
+    "android.permission.READ_EXTERNAL_STORAGE": {
+        "minSdk": 33,
+        "reason": "Android 13+ replaces legacy external storage reads with scoped media permissions.",
+    },
+}
+
 
 def _run_adb(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -152,6 +159,19 @@ def _parse_package_metadata(dumpsys_output: str) -> dict[str, Any]:
 def _parse_sdk_int(output: str) -> int | None:
     text = output.strip()
     return int(text) if text.isdigit() else None
+
+
+def _platform_filtered_permissions(
+    permissions: list[str],
+    *,
+    sdk_int: int | None,
+) -> dict[str, str]:
+    filtered: dict[str, str] = {}
+    for permission in permissions:
+        rule = PLATFORM_FILTERED_PERMISSIONS.get(permission)
+        if rule and sdk_int and sdk_int >= rule["minSdk"]:
+            filtered[permission] = rule["reason"]
+    return filtered
 
 
 def collect_android_device_readiness(
@@ -247,8 +267,20 @@ def collect_android_device_readiness(
         requested = _requested_permissions(dumpsys_result.stdout)
         package_metadata = _parse_package_metadata(dumpsys_result.stdout)
         expected_runtime = [permission for permission in RUNTIME_PERMISSIONS if permission in manifest_permissions]
-        missing_grants = [permission for permission in expected_runtime if permission not in granted]
-        missing_requested = [permission for permission in manifest_permissions if permission not in requested]
+        platform_filtered = _platform_filtered_permissions(
+            list(dict.fromkeys([*manifest_permissions, *expected_runtime])),
+            sdk_int=sdk_int,
+        )
+        missing_grants = [
+            permission
+            for permission in expected_runtime
+            if permission not in granted and permission not in platform_filtered
+        ]
+        missing_requested = [
+            permission
+            for permission in manifest_permissions
+            if permission not in requested and permission not in platform_filtered
+        ]
         checks["runtime_permissions_queryable"] = _manual(
             dumpsys_result.returncode == 0,
             {"stderr": dumpsys_result.stderr.strip()},
@@ -259,11 +291,21 @@ def collect_android_device_readiness(
         )
         checks["device_package_matches_manifest_permissions"] = _manual(
             not missing_requested,
-            {"requested": sorted(requested), "manifestOnly": missing_requested},
+            {
+                "requested": sorted(requested),
+                "manifestOnly": missing_requested,
+                "ignoredByPlatform": sorted(platform_filtered),
+                "ignoredReasons": platform_filtered,
+            },
         )
         checks["runtime_permissions_granted_or_exercised"] = _manual(
             not missing_grants,
-            {"granted": sorted(granted), "missing": missing_grants},
+            {
+                "granted": sorted(granted),
+                "missing": missing_grants,
+                "ignoredByPlatform": sorted(platform_filtered),
+                "ignoredReasons": platform_filtered,
+            },
         )
         checks["launch_activity_declared"] = _manual(
             "android.intent.action.MAIN" in dumpsys_result.stdout

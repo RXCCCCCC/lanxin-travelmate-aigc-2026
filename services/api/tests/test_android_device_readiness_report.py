@@ -133,3 +133,62 @@ def test_device_report_surfaces_missing_runtime_grants_as_manual():
     assert permission_check["ok"] is False
     assert permission_check["manual"] is True
     assert "android.permission.ACCESS_FINE_LOCATION" in permission_check["detail"]["missing"]
+
+
+def test_device_report_ignores_legacy_storage_permission_on_android_13_plus():
+    module = _load_device_module()
+
+    def fake_adb(args):
+        if args == ["devices", "-l"]:
+            return _result("List of devices attached\nabc123 device product:vivo model:V2301 device:PD2301\n")
+        if args[-2:] == ["getprop", "ro.build.version.sdk"]:
+            return _result("35\n")
+        if args[-2:] == ["getprop", "ro.product.brand"]:
+            return _result("vivo\n")
+        if args[-2:] == ["getprop", "ro.product.manufacturer"]:
+            return _result("vivo\n")
+        if args[-2:] == ["getprop", "ro.product.model"]:
+            return _result("V2301A\n")
+        if args[-2:] == ["getprop", "ro.product.device"]:
+            return _result("PD2301\n")
+        if args[-3:] == ["pm", "path", "com.lanxin.lanxin_travelmate"]:
+            return _result("package:/data/app/~~abc/base.apk\n")
+        if args[-2:] == ["reverse", "--list"]:
+            return _result("")
+        if args[-3:] == ["dumpsys", "package", "com.lanxin.lanxin_travelmate"]:
+            permissions = ["android.permission.INTERNET"] + [
+                permission
+                for permission in module.RUNTIME_PERMISSIONS
+                if permission != "android.permission.READ_EXTERNAL_STORAGE"
+            ]
+            permission_lines = "\n".join(
+                f"    {permission}\n    {permission}: granted=true"
+                for permission in permissions
+            )
+            return _result(
+                "versionCode=7 targetSdk=35\n"
+                "versionName=0.7.0\n"
+                "android.intent.action.MAIN\n"
+                "android.intent.category.LAUNCHER\n"
+                f"{permission_lines}\n"
+            )
+        if "query-activities" in args:
+            return _result("ActivityInfo{camera}\n")
+        if "query-services" in args:
+            return _result("ServiceInfo{service}\n")
+        return _result("")
+
+    report = module.collect_android_device_readiness(REPO_ROOT, adb_runner=fake_adb)
+    package_check = report["checks"]["device_package_matches_manifest_permissions"]
+    grant_check = report["checks"]["runtime_permissions_granted_or_exercised"]
+
+    assert package_check["ok"] is True
+    assert package_check["detail"]["manifestOnly"] == []
+    assert package_check["detail"]["ignoredByPlatform"] == [
+        "android.permission.READ_EXTERNAL_STORAGE"
+    ]
+    assert grant_check["ok"] is True
+    assert grant_check["detail"]["missing"] == []
+    assert grant_check["detail"]["ignoredByPlatform"] == [
+        "android.permission.READ_EXTERNAL_STORAGE"
+    ]
