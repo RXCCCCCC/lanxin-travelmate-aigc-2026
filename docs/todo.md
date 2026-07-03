@@ -93,6 +93,7 @@
 | Docker Compose 预检 | `python scripts/docker_compose_preflight.py --json` |
 | 真实 Provider smoke | `cd services/api && uv run python scripts/real_provider_smoke.py` |
 | 迁移链检查 | `cd services/api && uv run python scripts/migration_plan.py check` |
+| 提交就绪总览 | `python scripts/submission_readiness_report.py --json` |
 | 配置实施清单 | `docs/handoff/config-implementation-checklist.md` |
 | 端到端验收 | `docs/handoff/e2e-acceptance.md` |
 | Demo 脚本 | `docs/handoff/demo-script.md` |

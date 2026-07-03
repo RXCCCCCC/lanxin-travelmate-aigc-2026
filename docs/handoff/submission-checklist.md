@@ -15,6 +15,7 @@
 - [ ] 后端：`cd services/api && uv run pytest`。
 - [ ] Flutter：`cd apps/mobile && flutter analyze`。
 - [ ] Android 预检：`python scripts/android_release_preflight.py --json`。
+- [ ] 提交就绪总览：`python scripts/submission_readiness_report.py --json`。
 - [ ] GitNexus：提交前已运行 `node .gitnexus\run.cjs detect_changes --repo lanxin-travelmate-aigc-2026`。
 - [ ] CI：Flutter analyze/test、Python pytest、Backend Docker build、Android debug APK build 通过。
 
@@ -61,4 +62,3 @@
 - [ ] PPT、视频、文档和代码分支一致。
 - [ ] 平台上传后下载/预览确认无损坏。
 - [ ] 最终提交由负责人确认。
-

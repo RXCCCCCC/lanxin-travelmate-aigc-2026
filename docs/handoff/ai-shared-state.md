@@ -81,3 +81,6 @@
 
 - 已按用户反馈继续微调 Android 首页与设置页：底部 Tab “我的”改为“设置”，设置页首屏隐藏接口路径和内部英文枚举；首页右侧状态气泡使用固定间距，左侧“当前旅程”和天气/工具气泡下移拉开，避免贴边重叠。
 - 验证：`flutter analyze --no-pub` 通过，`flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000` 通过；模拟器 `emulator-5554` 可安装运行并确认首页气泡间距。模拟器期间出现 System UI ANR/网络时间服务异常，日志未见 App 崩溃；设置页中文化已由真机截图确认。
+- 已新增只读提交就绪总览脚本 `scripts/submission_readiness_report.py`，聚合 Git 工作区、Android-only 平台壳、关键交接文档、todo 人工口径、Android 预检和 Docker Compose 预检；不会启动服务、构建 APK、读取密钥值或修改文件。
+- 新增 `services/api/tests/test_submission_readiness_report.py`，验证总览脚本覆盖关键交付文档、预检入口和人工阻塞项。验证通过：`cd services/api && uv run pytest tests/test_submission_readiness_report.py -q`；`python scripts/submission_readiness_report.py --json --skip-git` 当前结构/文档/预检项通过。
+- 对照 PRD 与比赛要求，仍未完成项保留在 `docs/todo.md`：真实模型效果人工验收、地图/天气展示授权、vivo/Android 设备权限验收、蓝小心最终透明/授权素材、release 正式签名、公网部署、真实 Demo/PPT/视频和比赛平台提交。

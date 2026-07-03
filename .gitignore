@@ -47,7 +47,7 @@ pnpm-debug.log*
 .claude/
 .mcp.json
 
-materials/
+比赛材料/
 
 .cache/
 .npm-cache/

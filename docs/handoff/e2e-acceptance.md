@@ -130,6 +130,15 @@ python scripts/android_release_preflight.py --json
 
 预检会报告 Android-only 平台壳、包名、版本号、SDK 35、build-tools 35.0.0、CI APK job 和 release 签名状态。当前 release 仍使用 debug signing，最终公开发布前必须替换为正式签名。
 
+提交就绪总览：
+
+```powershell
+cd <repo-root>
+python scripts/submission_readiness_report.py --json
+```
+
+总览脚本会聚合 Git 工作区、Android-only 平台壳、关键交接文档、`docs/todo.md` 人工事项口径、Android 预检和 Docker Compose 预检。它不会启动服务、构建 APK、读取密钥值或修改文件；如只想检查仓库结构与文档，可加 `--skip-git`，避免被本地未跟踪素材影响。
+
 ## 6. 必须人工介入的验收
 
 - 配置真实 `LANXIN_MODEL_PROVIDER`、base URL、API Key、模型名，并验证模型效果。
