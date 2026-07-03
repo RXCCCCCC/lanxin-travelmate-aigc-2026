@@ -106,7 +106,7 @@ class ScaffoldWithNav extends StatelessWidget {
                 ),
                 _NavItem(
                   icon: Icons.settings_rounded,
-                  label: '我的',
+                  label: '设置',
                   path: '/settings',
                 ),
               ],

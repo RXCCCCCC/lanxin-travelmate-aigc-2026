@@ -660,7 +660,7 @@ class _ProfileSettingsSummary extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  loading ? '正在读取真实设置' : '已连接 /api/profile/me',
+                  loading ? '正在读取真实设置' : '已连接个人设置',
                   style: const TextStyle(
                     color: AppTheme.textPrimary,
                     fontSize: 15,
@@ -746,11 +746,7 @@ class _OptionWrap extends StatelessWidget {
           final selected = option.value == selectedValue;
           return GestureDetector(
             onTap: () => onSelected(option.value),
-            child: _SettingValueChip(
-              label: showRawValue ? option.value : option.label,
-              helper: showRawValue ? option.label : option.value,
-              selected: selected,
-            ),
+            child: _SettingValueChip(label: option.label, selected: selected),
           );
         }).toList(),
       ),
@@ -935,9 +931,7 @@ class _PrivacyDataControls extends StatelessWidget {
                   .map(
                     (item) => _SettingValueChip(
                       label: item.label,
-                      helper: item.fallback.isEmpty
-                          ? item.permission
-                          : item.fallback,
+                      helper: _permissionHelperText(item.fallback),
                     ),
                   )
                   .toList(),
@@ -951,7 +945,7 @@ class _PrivacyDataControls extends StatelessWidget {
           _DataActionTile(
             icon: Icons.download_rounded,
             title: '导出记忆',
-            subtitle: '读取 /api/memory/export，便于检查云端保存内容',
+            subtitle: '导出云端保存内容，便于人工检查',
             onTap: onExport,
           ),
           _DataActionTile(
@@ -959,14 +953,14 @@ class _PrivacyDataControls extends StatelessWidget {
             icon: Icons.sync_rounded,
             title: '\u{540C}\u{6B65}\u{672C}\u{673A}\u{8BB0}\u{5FC6}',
             subtitle:
-                '\u{5C06} Drift \u{5DF2}\u{786E}\u{8BA4}\u{8BB0}\u{5FC6}\u{63A8}\u{9001}\u{5230} /api/sync/push',
+                '\u{5C06}\u{672C}\u{673A}\u{5DF2}\u{786E}\u{8BA4}\u{8BB0}\u{5FC6}\u{540C}\u{6B65}\u{5230}\u{4E91}\u{7AEF}',
             onTap: onSyncLocalMemories,
           ),
           _SyncHistoryPanel(history: syncHistory),
           _DataActionTile(
             icon: Icons.cloud_off_rounded,
             title: '撤销云端画像同步',
-            subtitle: '调用 /api/sync/revoke，仅撤销云端画像副本',
+            subtitle: '仅撤销云端画像副本，本机设置继续保留',
             onTap: onRevokeProfileSync,
           ),
           _RevokeSelectedSyncPanel(onSubmit: onRevokeSelectedSync),
@@ -1122,10 +1116,11 @@ class _SyncHistoryRow extends StatelessWidget {
     final statusColor = item.status == 'synced'
         ? const Color(0xFF217A4B)
         : AppTheme.primary;
-    final operation = '${item.entityType}/${item.operation}';
+    final operation = _syncOperationLabel(item.entityType, item.operation);
+    final status = _syncStatusLabel(item.status);
     final detail = item.lastError == null || item.lastError!.isEmpty
-        ? item.entityId
-        : '${item.entityId} / ${item.lastError}';
+        ? '对象：${item.entityId}'
+        : '对象：${item.entityId}；错误：${item.lastError}';
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(
@@ -1138,7 +1133,7 @@ class _SyncHistoryRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$operation · ${item.status}',
+                  '$operation · $status',
                   style: const TextStyle(
                     color: AppTheme.textPrimary,
                     fontSize: 12,
@@ -1227,8 +1222,8 @@ class _RevokeSelectedSyncPanelState extends State<_RevokeSelectedSyncPanel> {
               maxLines: 2,
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
               decoration: _revokeInputDecoration(
-                label: '\u{8BB0}\u{5FC6} ID',
-                hint: 'm-1, m-2',
+                label: '\u{8BB0}\u{5FC6}\u{7F16}\u{53F7}',
+                hint: '记忆编号，用逗号分隔',
               ),
             ),
             const SizedBox(height: AppTheme.spacingSm),
@@ -1239,8 +1234,8 @@ class _RevokeSelectedSyncPanelState extends State<_RevokeSelectedSyncPanel> {
               maxLines: 2,
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
               decoration: _revokeInputDecoration(
-                label: '\u{65C5}\u{7A0B} ID',
-                hint: 'trip-1',
+                label: '\u{65C5}\u{7A0B}\u{7F16}\u{53F7}',
+                hint: '旅程编号',
               ),
             ),
             const SizedBox(height: AppTheme.spacingSm),
@@ -1323,8 +1318,8 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
               controller: _idController,
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
               decoration: _revokeInputDecoration(
-                label: '\u{8BB0}\u{5FC6} ID',
-                hint: 'm-1',
+                label: '\u{8BB0}\u{5FC6}\u{7F16}\u{53F7}',
+                hint: '记忆编号',
               ),
             ),
             const SizedBox(height: AppTheme.spacingSm),
@@ -1334,7 +1329,7 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
               decoration: _revokeInputDecoration(
                 label: '\u{672C}\u{673A}\u{6807}\u{9898}',
-                hint: 'client title',
+                hint: '本机版本标题',
               ),
             ),
             const SizedBox(height: AppTheme.spacingSm),
@@ -1346,7 +1341,7 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
               decoration: _revokeInputDecoration(
                 label: '\u{672C}\u{673A}\u{5185}\u{5BB9}',
-                hint: 'client content',
+                hint: '本机版本内容',
               ),
             ),
             const SizedBox(height: AppTheme.spacingSm),
@@ -1382,7 +1377,7 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
               _InfoRow(
                 icon: Icons.warning_amber_rounded,
                 text:
-                    '${conflict.entityId} / ${conflict.resolution} / ${conflict.server['title'] ?? ''} / ${conflict.client['title'] ?? ''}',
+                    '记忆 ${conflict.entityId} 发现冲突，当前处理：${_conflictResolutionLabel(conflict.resolution)}；云端：${conflict.server['title'] ?? ''}；本机：${conflict.client['title'] ?? ''}',
               ),
             ],
           ],
@@ -1396,7 +1391,7 @@ class _SyncConflictPanelState extends State<_SyncConflictPanel> {
         ? 'memory-draft'
         : _idController.text.trim();
     final title = _titleController.text.trim().isEmpty
-        ? 'client title'
+        ? '本机记忆标题'
         : _titleController.text.trim();
     final content = _contentController.text.trim().isEmpty
         ? title
@@ -1440,6 +1435,52 @@ List<String> _splitIds(String value) {
       .map((item) => item.trim())
       .where((item) => item.isNotEmpty)
       .toList(growable: false);
+}
+
+String _syncOperationLabel(String entityType, String operation) {
+  final entity = switch (entityType) {
+    'memory' || 'memories' => '记忆',
+    'trip' || 'trips' => '旅程',
+    'profile' => '画像',
+    _ => '数据',
+  };
+  final action = switch (operation) {
+    'upsert' || 'create' || 'update' => '同步',
+    'delete' || 'revoke' => '撤销',
+    _ => '处理',
+  };
+  return '$entity$action';
+}
+
+String _syncStatusLabel(String status) {
+  return switch (status) {
+    'synced' => '已同步',
+    'pending' => '待同步',
+    'failed' => '同步失败',
+    'offline' => '离线待重试',
+    _ => '处理中',
+  };
+}
+
+String _conflictResolutionLabel(String resolution) {
+  return switch (resolution) {
+    'serverWins' => '保留云端版本',
+    'clientWins' => '使用本机版本',
+    'manual' => '等待手动确认',
+    _ => '等待确认',
+  };
+}
+
+String _permissionHelperText(String fallback) {
+  final value = fallback.trim();
+  if (value.isEmpty) return '按需授权';
+  return switch (value) {
+    'unconfigured' => '尚未配置',
+    'fallback' => '使用降级方案',
+    'denied' => '权限未允许',
+    'offline' => '离线可用',
+    _ => value,
+  };
 }
 
 class _InfoRow extends StatelessWidget {

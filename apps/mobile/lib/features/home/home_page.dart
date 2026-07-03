@@ -228,7 +228,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 天气卡片 ──
                 Positioned(
-                  top: topSafe + 120,
+                  top: topSafe + 146,
                   left: sidePadding,
                   child: const _WeatherCard(),
                 ),
@@ -274,35 +274,28 @@ class _HomePageState extends State<HomePage>
                 // ── 右侧浮动状态卡 ──
                 if (compact) ...[
                   Positioned(
-                    top: topSafe + 146,
+                    top: topSafe + 150,
                     right: sidePadding,
-                    child: const _CompactStatusBadge(),
-                  ),
-                  Positioned(
-                    top: topSafe + 192,
-                    right: sidePadding,
-                    child: _DashboardSummaryBadge(summary: _dashboardSummary),
+                    child: _FloatingStatusColumn(
+                      spacing: 12,
+                      children: [
+                        const _CompactStatusBadge(),
+                        _DashboardSummaryBadge(summary: _dashboardSummary),
+                      ],
+                    ),
                   ),
                 ] else ...[
                   Positioned(
-                    top: h * 0.24,
+                    top: topSafe + 188,
                     right: sidePadding,
-                    child: const _AffinityCard(),
-                  ),
-                  Positioned(
-                    top: h * 0.34,
-                    right: sidePadding,
-                    child: const _MoodEnergyCard(),
-                  ),
-                  Positioned(
-                    top: h * 0.42,
-                    right: sidePadding + 4,
-                    child: const _PlanningBadge(),
-                  ),
-                  Positioned(
-                    top: h * 0.48,
-                    right: sidePadding,
-                    child: _MemoryCapsuleBadge(summary: _dashboardSummary),
+                    child: _FloatingStatusColumn(
+                      spacing: 15,
+                      children: [
+                        const _AffinityCard(),
+                        const _MoodEnergyCard(),
+                        const _PlanningBadge(),
+                      ],
+                    ),
                   ),
                 ],
 
@@ -576,6 +569,27 @@ class _NoticePill extends StatelessWidget {
   }
 }
 
+class _FloatingStatusColumn extends StatelessWidget {
+  const _FloatingStatusColumn({required this.children, this.spacing = 12});
+
+  final List<Widget> children;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) SizedBox(height: spacing),
+          children[i],
+        ],
+      ],
+    );
+  }
+}
+
 class _AffinityCard extends StatelessWidget {
   const _AffinityCard();
   @override
@@ -780,6 +794,7 @@ class _PlanningBadge extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _MemoryCapsuleBadge extends StatelessWidget {
   const _MemoryCapsuleBadge({required this.summary});
 
