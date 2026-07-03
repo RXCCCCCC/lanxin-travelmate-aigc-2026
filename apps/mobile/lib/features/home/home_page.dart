@@ -28,6 +28,7 @@ class _HomePageState extends State<HomePage>
   late final TripDashboardService _dashboardService;
   late final AgentChatService _agentChatService;
   final _chatController = TextEditingController();
+  final _chatFocusNode = FocusNode();
   final _panelScrollController = ScrollController();
   final _messages = <ChatMessage>[
     const ChatMessage(
@@ -80,6 +81,7 @@ class _HomePageState extends State<HomePage>
   void dispose() {
     _floatCtrl.dispose();
     _chatController.dispose();
+    _chatFocusNode.dispose();
     _panelScrollController.dispose();
     super.dispose();
   }
@@ -314,11 +316,13 @@ class _HomePageState extends State<HomePage>
                   height: effectivePanelHeight,
                   child: _ChatGlassPanel(
                     controller: _chatController,
+                    focusNode: _chatFocusNode,
                     scrollController: _panelScrollController,
                     messages: _messages,
                     isSending: _isSending,
                     memoryCandidateCount: _memoryCandidateCount,
                     onSend: _sendHomeMessage,
+                    onFocusInput: () => _chatFocusNode.requestFocus(),
                     onOpenHistory: () => context.go('/chat'),
                     onOpenTrip: () => context.go('/trip'),
                     onOpenMemory: () => context.go('/memory'),
@@ -857,11 +861,13 @@ class _MemoryCapsuleBadge extends StatelessWidget {
 class _ChatGlassPanel extends StatelessWidget {
   const _ChatGlassPanel({
     required this.controller,
+    required this.focusNode,
     required this.scrollController,
     required this.messages,
     required this.isSending,
     required this.memoryCandidateCount,
     required this.onSend,
+    required this.onFocusInput,
     required this.onOpenHistory,
     required this.onOpenTrip,
     required this.onOpenMemory,
@@ -869,11 +875,13 @@ class _ChatGlassPanel extends StatelessWidget {
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final ScrollController scrollController;
   final List<ChatMessage> messages;
   final bool isSending;
   final int memoryCandidateCount;
   final VoidCallback onSend;
+  final VoidCallback onFocusInput;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenTrip;
   final VoidCallback onOpenMemory;
@@ -949,57 +957,65 @@ class _ChatGlassPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          GlassBox(
-            borderRadius: BorderRadius.circular(22),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            opacity: 0.12,
-            blur: 16,
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.mic_rounded,
-                  color: Color(0xFF5F8FBF),
-                  size: 21,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    minLines: 1,
-                    maxLines: 2,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
-                    style: const TextStyle(
-                      color: Color(0xFF06224E),
-                      fontSize: 14,
-                      height: 1.25,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: isSending ? '蓝小心正在思考...' : '在首页直接告诉蓝小心...',
-                      hintStyle: const TextStyle(
-                        color: Color(0xFF7B98B8),
-                        fontSize: 13,
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: onFocusInput,
+            child: GlassBox(
+              borderRadius: BorderRadius.circular(22),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              opacity: 0.12,
+              blur: 16,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.mic_rounded,
+                    color: Color(0xFF5F8FBF),
+                    size: 21,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      minLines: 1,
+                      maxLines: 2,
+                      textInputAction: TextInputAction.send,
+                      onTap: onFocusInput,
+                      onSubmitted: (_) => onSend(),
+                      style: const TextStyle(
+                        color: Color(0xFF06224E),
+                        fontSize: 14,
+                        height: 1.25,
                       ),
-                      border: InputBorder.none,
-                      isDense: true,
+                      decoration: InputDecoration(
+                        hintText: isSending ? '蓝小心正在思考...' : '在首页直接告诉蓝小心...',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF7B98B8),
+                          fontSize: 13,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: IconButton(
-                    onPressed: isSending ? null : onSend,
-                    tooltip: '发送',
-                    padding: EdgeInsets.zero,
-                    icon: Icon(
-                      isSending ? Icons.more_horiz_rounded : Icons.send_rounded,
-                      color: const Color(0xFF215ECA),
-                      size: 22,
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: IconButton(
+                      onPressed: isSending ? null : onSend,
+                      tooltip: '发送',
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        isSending
+                            ? Icons.more_horiz_rounded
+                            : Icons.send_rounded,
+                        color: const Color(0xFF215ECA),
+                        size: 22,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 7),
