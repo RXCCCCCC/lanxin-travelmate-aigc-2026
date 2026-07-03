@@ -2,7 +2,7 @@
 
 > 用途：给 Claude Code、Codex 和人工成员提供同一份短上下文。新会话优先读本文件，再按需读 `docs/todo.md`、`CLAUDE.md` 和具体代码。  
 > 维护口径：只写当前结论和下一步，不复述完整对话，不堆历史细节。  
-> 最近更新：2026-07-03 by Codex
+> 最近更新：2026-07-04 by Codex
 
 ## 当前阶段
 
@@ -25,6 +25,13 @@
 4. 每次阶段性工作结束后，用 3 到 8 条短 bullet 更新本文件，保证下一位 AI 能直接接手。
 
 ## 最近日报
+
+### 2026-07-04
+
+- 已完成首页蓝小心白底矩形的仓库内可执行修复：`apps/mobile/assets/avatars/lanxiaoxin_*.png` 运行时头像资产已批量转为带 alpha 的透明 PNG，`project/img/lanxiaoxin/` 仍保留源素材对照。
+- 新增 `services/api/tests/test_mobile_avatar_assets.py`，静态检查 `AvatarState` 引用的运行时头像 PNG 必须包含真实透明像素，避免重新接入不透明白底素材。
+- 验证通过：`uv run pytest services/api/tests/test_mobile_avatar_assets.py -q`；`cd apps/mobile && flutter test --no-pub test/avatar_states_test.dart`。
+- `docs/todo.md` 已把蓝小心白底矩形从未完成项更新为已完成；最终视觉风格、素材授权、真机权限、正式签名、Demo/PPT 和比赛上传仍按人工事项保留。
 
 ### 2026-07-03
 
