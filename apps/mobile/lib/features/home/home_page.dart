@@ -352,7 +352,7 @@ class _BrandBlock extends StatelessWidget {
         children: [
           ShaderMask(
             shaderCallback: (r) => const LinearGradient(
-              colors: [Color(0xFF215ECA), Color(0xFF6F9BFF)],
+              colors: [Color(0xFF124EBC), Color(0xFF2D72E8)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ).createShader(r),
@@ -371,9 +371,9 @@ class _BrandBlock extends StatelessWidget {
           Text(
             '全旅程智能伙伴',
             style: TextStyle(
-              color: const Color(0xFF275DBF).withOpacity(0.75),
+              color: const Color(0xFF1B4FAD).withOpacity(0.90),
               fontSize: 12.5,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               letterSpacing: 0.3,
             ),
           ),
@@ -459,29 +459,30 @@ class _WeatherCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassBox(
       width: 132,
+      opacity: 0.24,
+      borderColor: Colors.white.withOpacity(0.72),
       padding: const EdgeInsets.fromLTRB(13, 11, 12, 11),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.cloud_rounded, color: Colors.white, size: 20),
+              const Icon(
+                Icons.cloud_rounded,
+                color: Color(0xFFFFFFFF),
+                size: 20,
+              ),
               const SizedBox(width: 7),
               Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: ShaderMask(
-                    shaderCallback: (r) => const LinearGradient(
-                      colors: [Color(0xFF4A83FF), Color(0xFFA7CBFF)],
-                    ).createShader(r),
-                    child: const Text(
-                      '等待天气',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14.5,
-                      ),
+                  child: const Text(
+                    '等待天气',
+                    style: TextStyle(
+                      color: Color(0xFF175BC4),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
                     ),
                   ),
                 ),
@@ -499,8 +500,8 @@ class _WeatherCard extends StatelessWidget {
               const SizedBox(width: 5),
               Text(
                 '等待工具数据',
-                style: TextStyle(
-                  color: const Color(0xFF2F64BF).withOpacity(0.70),
+                style: const TextStyle(
+                  color: Color(0xFF245EB8),
                   fontWeight: FontWeight.w800,
                   fontSize: 11.5,
                 ),
@@ -596,6 +597,8 @@ class _AffinityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassBox(
       width: 126,
+      opacity: 0.26,
+      borderColor: Colors.white.withOpacity(0.74),
       padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,9 +610,9 @@ class _AffinityCard extends StatelessWidget {
               Text(
                 '默契值',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF173F91),
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
@@ -620,7 +623,7 @@ class _AffinityCard extends StatelessWidget {
               const Text(
                 '12',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF175BC4),
                   fontSize: 25,
                   fontWeight: FontWeight.w900,
                 ),
@@ -628,7 +631,7 @@ class _AffinityCard extends StatelessWidget {
               const Spacer(),
               Icon(
                 Icons.sync_rounded,
-                color: Colors.white.withOpacity(0.40),
+                color: const Color(0xFF4C83D9).withOpacity(0.65),
                 size: 17,
               ),
             ],
@@ -654,18 +657,20 @@ class _MoodEnergyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ls = TextStyle(
-      color: Colors.white.withOpacity(0.75),
+      color: const Color(0xFF42699E),
       fontSize: 12.5,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w800,
     );
     const vs = TextStyle(
-      color: Colors.white,
+      color: Color(0xFF175BC4),
       fontSize: 16,
       fontWeight: FontWeight.w900,
     );
 
     return GlassBox(
       width: 126,
+      opacity: 0.26,
+      borderColor: Colors.white.withOpacity(0.74),
       padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
       child: Column(
         children: [
@@ -683,7 +688,7 @@ class _MoodEnergyCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 9),
-          Divider(height: 1, color: Colors.white.withOpacity(0.22)),
+          Divider(height: 1, color: const Color(0xFF5B8CDA).withOpacity(0.22)),
           const SizedBox(height: 9),
           Row(
             children: [
@@ -711,6 +716,8 @@ class _CompactStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassBox(
       borderRadius: BorderRadius.circular(22),
+      opacity: 0.25,
+      borderColor: Colors.white.withOpacity(0.72),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
@@ -720,7 +727,7 @@ class _CompactStatusBadge extends StatelessWidget {
           Text(
             '默契 12',
             style: TextStyle(
-              color: Colors.white,
+              color: Color(0xFF175BC4),
               fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
@@ -731,7 +738,7 @@ class _CompactStatusBadge extends StatelessWidget {
           Text(
             '精力 90',
             style: TextStyle(
-              color: Colors.white,
+              color: Color(0xFF175BC4),
               fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
@@ -751,11 +758,13 @@ class _DashboardSummaryBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassBox(
       borderRadius: BorderRadius.circular(18),
+      opacity: 0.25,
+      borderColor: Colors.white.withOpacity(0.72),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Text(
         summary.summaryLine,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.86),
+        style: const TextStyle(
+          color: Color(0xFF245EB8),
           fontSize: 10.5,
           fontWeight: FontWeight.w800,
         ),
@@ -770,14 +779,16 @@ class _PlanningBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassBox(
       borderRadius: BorderRadius.circular(18),
+      opacity: 0.25,
+      borderColor: Colors.white.withOpacity(0.72),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             '等待真实行程',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.90),
+            style: const TextStyle(
+              color: Color(0xFF245EB8),
               fontWeight: FontWeight.w900,
               fontSize: 11.5,
             ),
