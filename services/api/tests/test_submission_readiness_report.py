@@ -69,3 +69,57 @@ def test_submission_readiness_report_keeps_human_blockers_explicit():
     assert "vivo/Android 真机" in blockers
     assert "release 正式签名" in blockers
     assert "比赛平台上传" in blockers
+
+
+def test_submission_readiness_report_separates_automated_ok_from_upload_ready():
+    module = _load_submission_readiness_module()
+    report = module.collect_submission_readiness(
+        REPO_ROOT,
+        run_git=False,
+        run_docker_config=False,
+    )
+
+    assert report["ok"] is True
+    assert report["readyForUpload"] is False
+    assert report["manualBlockers"]
+    assert report["manualPendingChecks"]
+
+
+def test_submission_readiness_report_extracts_nested_manual_pending_checks():
+    module = _load_submission_readiness_module()
+    pending = module._collect_manual_pending_checks(
+        {
+            "android_device_readiness": {
+                "ok": True,
+                "manual": True,
+                "detail": {
+                    "runtime_permissions_granted_or_exercised": {
+                        "ok": False,
+                        "manual": True,
+                        "detail": {"missing": ["android.permission.CAMERA"]},
+                    },
+                    "adb_available": {
+                        "ok": True,
+                        "detail": "",
+                    },
+                },
+            },
+            "public_submission_hygiene": {
+                "ok": True,
+                "manual": True,
+                "detail": {
+                    "tracked_text_has_no_secret_markers": {
+                        "ok": True,
+                        "detail": [],
+                    },
+                },
+            },
+        }
+    )
+
+    assert pending == [
+        {
+            "path": "android_device_readiness.runtime_permissions_granted_or_exercised",
+            "detail": {"missing": ["android.permission.CAMERA"]},
+        }
+    ]

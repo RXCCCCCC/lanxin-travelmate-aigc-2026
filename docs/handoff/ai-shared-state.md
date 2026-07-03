@@ -28,6 +28,10 @@
 
 ### 2026-07-04
 
+- Added `manualPendingChecks` and `readyForUpload=false` to `scripts/submission_readiness_report.py`, separating automated preflight health from final upload readiness while manual blockers remain.
+- Current readiness JSON now surfaces nested manual pending checks for Android device permissions/package mismatch and Docker config availability instead of hiding them behind aggregate `ok=true`.
+- Validation passed: `uv run pytest tests/test_submission_readiness_report.py tests/test_public_submission_hygiene.py tests/test_demo_evidence_readiness.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`.
+
 - Added read-only `scripts/public_submission_hygiene.py` to check final public submission hygiene: tracked env files, local secret ignore patterns, placeholder-only `.env.example` sensitive values, public handoff text secret markers, and privacy/demo review coverage.
 - `scripts/submission_readiness_report.py` now aggregates `public_submission_hygiene` as a manual-aware final submission check, keeping secret/privacy review visible beside APK, PPT, video, screenshots, and platform upload readiness.
 - Validation passed: `uv run pytest tests/test_public_submission_hygiene.py tests/test_submission_readiness_report.py tests/test_mobile_privacy_boundaries.py tests/test_privacy_routes.py -q`; `python -m py_compile scripts/public_submission_hygiene.py scripts/submission_readiness_report.py`; `python scripts/public_submission_hygiene.py --json`; `python scripts/submission_readiness_report.py --json --skip-git`.

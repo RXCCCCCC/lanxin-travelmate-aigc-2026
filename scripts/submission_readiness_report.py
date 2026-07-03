@@ -162,6 +162,30 @@ def _collect_avatar_asset_readiness(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def _collect_manual_pending_checks(checks: dict[str, Any]) -> list[dict[str, Any]]:
+    pending: list[dict[str, Any]] = []
+
+    def visit(path: str, item: Any, *, manual_context: bool = False) -> None:
+        if not isinstance(item, dict):
+            return
+        is_manual = manual_context or item.get("manual") is True
+        if item.get("ok") is False and is_manual:
+            pending.append(
+                {
+                    "path": path,
+                    "detail": item.get("detail"),
+                }
+            )
+        detail = item.get("detail")
+        if isinstance(detail, dict):
+            for child_name, child in detail.items():
+                visit(f"{path}.{child_name}", child, manual_context=is_manual)
+
+    for name, item in checks.items():
+        visit(name, item)
+    return pending
+
+
 def collect_submission_readiness(
     repo_root: Path,
     *,
@@ -281,12 +305,18 @@ def collect_submission_readiness(
             "detail": docker_report["checks"],
         },
     }
+    manual_pending_checks = _collect_manual_pending_checks(checks)
+    automated_ok = all(item["ok"] or item.get("manual") for item in checks.values())
 
     return {
         "repoRoot": str(repo_root),
         "checks": checks,
         "manualBlockers": list(MANUAL_BLOCKERS),
-        "ok": all(item["ok"] or item.get("manual") for item in checks.values()),
+        "manualPendingChecks": manual_pending_checks,
+        "ok": automated_ok,
+        "readyForUpload": automated_ok
+        and not MANUAL_BLOCKERS
+        and not manual_pending_checks,
     }
 
 
@@ -318,6 +348,10 @@ def main() -> int:
         print("Manual blockers:")
         for blocker in report["manualBlockers"]:
             print(f"- {blocker}")
+        print("Manual pending checks:")
+        for item in report["manualPendingChecks"]:
+            print(f"- {item['path']}: {item['detail']}")
+        print(f"Ready for upload: {report['readyForUpload']}")
 
     if args.strict:
         failed = [
