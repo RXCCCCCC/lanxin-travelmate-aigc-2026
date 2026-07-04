@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/router/navigation_helpers.dart';
@@ -336,6 +337,103 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _showAccountSheet() {
+    final profile = _currentProfile();
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xFF06224E).withOpacity(0.28),
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: GlassBox(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.account_circle_rounded,
+                    color: AppTheme.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      '账户登录',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                    color: AppTheme.textSecondary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingMd),
+              Text(
+                '当前使用游客账户：${profile.userId}',
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingSm),
+              const Text(
+                '本机数据已经绑定到当前游客账户。正式上线前可在这里接入手机号、短信或 OAuth 登录；现阶段先保留账户设置入口，避免影响真机验收主链路。',
+                style: TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 12,
+                  height: 1.42,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingLg),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        context.push('/profile');
+                      },
+                      icon: const Icon(Icons.person_rounded),
+                      label: const Text('账户设置'),
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spacingSm),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('手机号/短信登录待负责人确认账号体系后接入'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text('升级登录'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
@@ -405,6 +503,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: ListView(
                   padding: metrics.listPadding(top: AppTheme.spacingSm),
                   children: [
+                    _AccountSettingsCard(
+                      profile: profile,
+                      onTap: _showAccountSheet,
+                      onProfileTap: () => context.push('/profile'),
+                    ),
+                    SizedBox(height: metrics.sectionGap),
                     _ProfileSettingsSummary(
                       profile: profile,
                       loading: _loading,
@@ -624,6 +728,155 @@ class _SettingsSection extends StatelessWidget {
           const SizedBox(height: AppTheme.spacingSm),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _AccountSettingsCard extends StatelessWidget {
+  const _AccountSettingsCard({
+    required this.profile,
+    required this.onTap,
+    required this.onProfileTap,
+  });
+
+  final ProfilePayload profile;
+  final VoidCallback onTap;
+  final VoidCallback onProfileTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassBox(
+      opacity: 0.14,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primary.withOpacity(0.95),
+                      const Color(0xFF8BC1FF).withOpacity(0.95),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '登录账户',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '当前：游客账户 · ${profile.userId}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: '账户登录',
+                onPressed: onTap,
+                icon: const Icon(Icons.login_rounded),
+                color: AppTheme.primary,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          Row(
+            children: [
+              Expanded(
+                child: _AccountActionButton(
+                  icon: Icons.account_circle_rounded,
+                  label: '账户设置',
+                  onTap: onProfileTap,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingSm),
+              Expanded(
+                child: _AccountActionButton(
+                  icon: Icons.lock_person_rounded,
+                  label: '升级登录',
+                  onTap: onTap,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountActionButton extends StatelessWidget {
+  const _AccountActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 42),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.22),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          border: Border.all(color: Colors.white.withOpacity(0.34)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: AppTheme.primary),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

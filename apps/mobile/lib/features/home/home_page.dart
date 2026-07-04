@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -368,14 +369,17 @@ class _HomePageState extends State<HomePage>
 
                 // ── 旅行胶囊 ──
                 Positioned(
-                  top: topSafe + 68,
+                  top: topSafe + 64,
                   left: sidePadding,
-                  child: _TripPill(label: _dashboardSummary.tripLabel),
+                  child: _TripPill(
+                    label: _dashboardSummary.tripLabel,
+                    onTap: () => context.go('/trip'),
+                  ),
                 ),
 
                 // ── 天气卡片 ──
                 Positioned(
-                  top: topSafe + 122,
+                  top: topSafe + 116,
                   left: sidePadding,
                   child: _ModeExitBubble(
                     hidden: _isPureMode,
@@ -390,7 +394,7 @@ class _HomePageState extends State<HomePage>
                 // ── 右侧浮动状态卡 ──
                 if (compact) ...[
                   Positioned(
-                    top: topSafe + 124,
+                    top: topSafe + 96,
                     right: sidePadding,
                     child: _ModeExitBubble(
                       hidden: _isPureMode,
@@ -406,7 +410,7 @@ class _HomePageState extends State<HomePage>
                   ),
                 ] else ...[
                   Positioned(
-                    top: topSafe + 158,
+                    top: topSafe + 94,
                     right: sidePadding,
                     child: _ModeExitBubble(
                       hidden: _isPureMode,
@@ -586,39 +590,48 @@ class _HomeDashboardSummary {
 }
 
 class _TripPill extends StatelessWidget {
-  const _TripPill({required this.label});
+  const _TripPill({required this.label, required this.onTap});
 
   final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GlassBox(
-      borderRadius: BorderRadius.circular(22),
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.location_on_rounded,
-            color: Color(0xFF5F9BFF),
-            size: 19,
+    return Semantics(
+      button: true,
+      label: '当前旅程',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: GlassBox(
+          borderRadius: BorderRadius.circular(22),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.location_on_rounded,
+                color: Color(0xFF5F9BFF),
+                size: 19,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF2B5BA9),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13.5,
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF326BCA),
+                size: 19,
+              ),
+            ],
           ),
-          const SizedBox(width: 7),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF2B5BA9),
-              fontWeight: FontWeight.w800,
-              fontSize: 13.5,
-            ),
-          ),
-          const SizedBox(width: 5),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: Color(0xFF326BCA),
-            size: 19,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -642,11 +655,12 @@ class _WeatherCard extends StatelessWidget {
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: GlassBox(
-        width: 152,
+        width: 196,
         opacity: 0.28,
         borderColor: Colors.white.withOpacity(0.78),
-        padding: const EdgeInsets.fromLTRB(13, 11, 12, 11),
+        padding: const EdgeInsets.fromLTRB(14, 12, 13, 12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -667,8 +681,9 @@ class _WeatherCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   isLoading
@@ -677,16 +692,17 @@ class _WeatherCard extends StatelessWidget {
                   color: Color(0xFFFFDF73),
                   size: 14,
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     summary.subtitle,
-                    maxLines: 1,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF245EB8),
                       fontWeight: FontWeight.w800,
-                      fontSize: 11.5,
+                      fontSize: 11.4,
+                      height: 1.22,
                     ),
                   ),
                 ),
@@ -1108,6 +1124,7 @@ class _ChatGlassPanel extends StatelessWidget {
     final visibleMessages = messages.length <= 2
         ? messages
         : messages.sublist(messages.length - 2);
+    final itemCount = visibleMessages.length + (isSending ? 1 : 0);
     return GlassBox(
       borderRadius: BorderRadius.circular(30),
       padding: EdgeInsets.fromLTRB(
@@ -1178,9 +1195,15 @@ class _ChatGlassPanel extends StatelessWidget {
             child: ListView.separated(
               controller: scrollController,
               padding: EdgeInsets.zero,
-              itemCount: visibleMessages.length,
+              itemCount: itemCount,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, index) {
+                if (index >= visibleMessages.length) {
+                  return _ThinkingBubble(
+                    queuedMessage: queuedMessage,
+                    avatarPath: AvatarState.thinking.assetPath,
+                  );
+                }
                 final message = visibleMessages[index];
                 return AnimatedSwitcher(
                   duration: const Duration(milliseconds: 220),
@@ -1339,10 +1362,11 @@ class _ChatBubble extends StatelessWidget {
     );
     if (isUser) {
       return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const Spacer(),
           Flexible(
+            fit: FlexFit.loose,
             child: Container(
               constraints: BoxConstraints(maxWidth: maxBubbleWidth),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -1426,7 +1450,8 @@ class _ChatBubble extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Container(
             constraints: BoxConstraints(maxWidth: maxBubbleWidth),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -1454,6 +1479,110 @@ class _ChatBubble extends StatelessWidget {
                 color: Color(0xFF06224E),
                 fontSize: 13,
                 height: 1.32,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ThinkingBubble extends StatefulWidget {
+  const _ThinkingBubble({
+    required this.queuedMessage,
+    required this.avatarPath,
+  });
+
+  final String? queuedMessage;
+  final String avatarPath;
+
+  @override
+  State<_ThinkingBubble> createState() => _ThinkingBubbleState();
+}
+
+class _ThinkingBubbleState extends State<_ThinkingBubble> {
+  Timer? _timer;
+  int _dotCount = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 420), (_) {
+      if (!mounted) return;
+      setState(() => _dotCount = _dotCount >= 6 ? 1 : _dotCount + 1);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxBubbleWidth = math.min(
+      252.0,
+      MediaQuery.sizeOf(context).width - 112,
+    );
+    final dots = List.filled(_dotCount, '.').join();
+    final text = widget.queuedMessage == null
+        ? '正在思考中$dots'
+        : '已收到补充，继续思考中$dots';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              widget.avatarPath,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.smart_toy,
+                size: 18,
+                color: Color(0xFF4C8DFF),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          fit: FlexFit.loose,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.40),
+                  Colors.white.withOpacity(0.24),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(4),
+                bottomRight: Radius.circular(18),
+              ),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.48),
+                width: 0.8,
+              ),
+            ),
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF06224E),
+                fontSize: 13,
+                height: 1.32,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
