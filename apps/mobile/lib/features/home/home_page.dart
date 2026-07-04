@@ -45,6 +45,7 @@ class _HomePageState extends State<HomePage>
   HomeWeatherSummary _weatherSummary = HomeWeatherSummary.idle;
   AvatarState _avatarState = AvatarState.hello;
   bool _showHeroAvatar = false;
+  bool _isPureMode = false;
   double _panelHeightRatio = 0.37;
 
   @override
@@ -191,12 +192,13 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Future<void> _openPureMode() async {
+  Future<void> _togglePureMode() async {
     await _ensureInitialSession();
     if (!mounted) return;
-    context.push(
-      '/chat?sessionId=${_homeChatController.sessionId}&tripId=${_homeChatController.tripId}',
-    );
+    setState(() => _isPureMode = !_isPureMode);
+    if (!_isPureMode) {
+      FocusScope.of(context).unfocus();
+    }
   }
 
   void _resizeChatPanel(double delta, double viewportHeight) {
@@ -241,9 +243,15 @@ class _HomePageState extends State<HomePage>
             final topSafe = metrics.safeInsets.top;
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
-            final ratio = math.max(_panelHeightRatio, compact ? 0.38 : 0.36);
+            final baseRatio = math.max(
+              _panelHeightRatio,
+              compact ? 0.38 : 0.36,
+            );
+            final ratio = _isPureMode
+                ? math.max(baseRatio, compact ? 0.52 : 0.56)
+                : baseRatio;
             final panelHeight = (h * ratio)
-                .clamp(250.0, compact ? 430.0 : 520.0)
+                .clamp(250.0, _isPureMode ? 610.0 : (compact ? 430.0 : 520.0))
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
                 ? math.min(panelHeight, compact ? 250.0 : 250.0)
@@ -273,14 +281,24 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeOutCubic,
+                      opacity: _isPureMode ? 0.10 : 0,
+                      child: Container(color: Colors.white),
+                    ),
+                  ),
+                ),
+
                 // ── 模式切换（左上）──
                 Positioned(
                   top: topSafe + 8,
                   left: sidePadding,
                   child: _PureModeButton(
-                    onTap: () {
-                      _openPureMode();
-                    },
+                    isPureMode: _isPureMode,
+                    onTap: _togglePureMode,
                   ),
                 ),
 
@@ -299,11 +317,10 @@ class _HomePageState extends State<HomePage>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (!compact)
-                        GestureDetector(
-                          onTap: () => context.push('/reminder'),
-                          child: const _NoticePill(),
-                        ),
+                      GestureDetector(
+                        onTap: () => context.push('/reminder'),
+                        child: const _NoticePill(),
+                      ),
                     ],
                   ),
                 ),
@@ -348,45 +365,57 @@ class _HomePageState extends State<HomePage>
 
                 // ── 旅行胶囊 ──
                 Positioned(
-                  top: topSafe + 82,
+                  top: topSafe + 68,
                   left: sidePadding,
                   child: _TripPill(label: _dashboardSummary.tripLabel),
                 ),
 
                 // ── 天气卡片 ──
                 Positioned(
-                  top: topSafe + 146,
+                  top: topSafe + 122,
                   left: sidePadding,
-                  child: _WeatherCard(
-                    summary: _weatherSummary,
-                    onTap: _loadCurrentWeather,
+                  child: _ModeExitBubble(
+                    hidden: _isPureMode,
+                    direction: AxisDirection.left,
+                    child: _WeatherCard(
+                      summary: _weatherSummary,
+                      onTap: _loadCurrentWeather,
+                    ),
                   ),
                 ),
 
                 // ── 右侧浮动状态卡 ──
                 if (compact) ...[
                   Positioned(
-                    top: topSafe + 150,
+                    top: topSafe + 124,
                     right: sidePadding,
-                    child: _FloatingStatusColumn(
-                      spacing: 12,
-                      children: [
-                        const _CompactStatusBadge(),
-                        _DashboardSummaryBadge(summary: _dashboardSummary),
-                      ],
+                    child: _ModeExitBubble(
+                      hidden: _isPureMode,
+                      direction: AxisDirection.right,
+                      child: _FloatingStatusColumn(
+                        spacing: 12,
+                        children: [
+                          const _CompactStatusBadge(),
+                          _DashboardSummaryBadge(summary: _dashboardSummary),
+                        ],
+                      ),
                     ),
                   ),
                 ] else ...[
                   Positioned(
-                    top: topSafe + 188,
+                    top: topSafe + 158,
                     right: sidePadding,
-                    child: _FloatingStatusColumn(
-                      spacing: 15,
-                      children: [
-                        const _AffinityCard(),
-                        const _MoodEnergyCard(),
-                        const _PlanningBadge(),
-                      ],
+                    child: _ModeExitBubble(
+                      hidden: _isPureMode,
+                      direction: AxisDirection.right,
+                      child: _FloatingStatusColumn(
+                        spacing: 15,
+                        children: [
+                          const _AffinityCard(),
+                          const _MoodEnergyCard(),
+                          const _PlanningBadge(),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -435,8 +464,9 @@ class _HomePageState extends State<HomePage>
 // ══════════════════════════════════════════════════════════
 
 class _PureModeButton extends StatelessWidget {
-  const _PureModeButton({required this.onTap});
+  const _PureModeButton({required this.isPureMode, required this.onTap});
 
+  final bool isPureMode;
   final VoidCallback onTap;
 
   @override
@@ -444,11 +474,12 @@ class _PureModeButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        constraints: const BoxConstraints(minHeight: 50, minWidth: 138),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.34),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(0.72), width: 1),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white.withOpacity(0.78), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF215ECA).withOpacity(0.10),
@@ -457,20 +488,62 @@ class _PureModeButton extends StatelessWidget {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.fullscreen_rounded, color: Color(0xFF215ECA), size: 17),
-            SizedBox(width: 5),
+            Icon(
+              isPureMode
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              color: const Color(0xFF215ECA),
+              size: 20,
+            ),
+            const SizedBox(width: 7),
             Text(
-              '纯净模式',
-              style: TextStyle(
+              isPureMode ? '陪伴模式' : '纯净模式',
+              style: const TextStyle(
                 color: Color(0xFF174C9F),
                 fontWeight: FontWeight.w900,
-                fontSize: 12.5,
+                fontSize: 14.5,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeExitBubble extends StatelessWidget {
+  const _ModeExitBubble({
+    required this.hidden,
+    required this.direction,
+    required this.child,
+  });
+
+  final bool hidden;
+  final AxisDirection direction;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final offset = switch (direction) {
+      AxisDirection.left => const Offset(-1.35, 0),
+      AxisDirection.right => const Offset(1.35, 0),
+      AxisDirection.up => const Offset(0, -1.0),
+      AxisDirection.down => const Offset(0, 1.0),
+    };
+    return IgnorePointer(
+      ignoring: hidden,
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeInOutCubic,
+        offset: hidden ? offset : Offset.zero,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          opacity: hidden ? 0 : 1,
+          child: child,
         ),
       ),
     );
