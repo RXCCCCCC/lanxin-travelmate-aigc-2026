@@ -62,6 +62,7 @@ class _TripPageState extends State<TripPage> {
   String? _groupError;
   String? _locationNotice;
   bool _locatingOrigin = false;
+  Map<String, double>? _originCoordinate;
 
   @override
   void initState() {
@@ -123,6 +124,16 @@ class _TripPageState extends State<TripPage> {
       setState(() => _planError = '请输入目的地');
       return;
     }
+    if (!_looksLikePlaceName(destination)) {
+      setState(() => _planError = '请填写可识别的地点名称，例如“杭州西湖”或“重庆洪崖洞”');
+      return;
+    }
+    final startDate = _parseDate(_startDateController.text);
+    final endDate = _parseDate(_endDateController.text);
+    if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+      setState(() => _planError = '结束日期不能早于开始日期');
+      return;
+    }
     setState(() {
       _creatingPlan = true;
       _planError = null;
@@ -130,10 +141,7 @@ class _TripPageState extends State<TripPage> {
     final result = await _planService.createPlan(
       TripPlanRequestDraft(
         destination: destination,
-        originCoordinate: _parseCoordinate(_originCoordinateController.text),
-        destinationCoordinate: _parseCoordinate(
-          _destinationCoordinateController.text,
-        ),
+        originCoordinate: _originCoordinate,
         startDate: _emptyToNull(_startDateController.text),
         endDate: _emptyToNull(_endDateController.text),
         budget: _budget,
@@ -170,16 +178,32 @@ class _TripPageState extends State<TripPage> {
       _locatingOrigin = false;
       if (location == null) {
         _locationNotice =
-            _locationService.lastFailureMessage ?? '无法获取真实定位，请确认系统定位权限或手动输入坐标';
+            _locationService.lastFailureMessage ?? '无法获取真实定位，请确认系统定位权限后重试';
         return;
       }
       _originCoordinateController.text = location.coordinateText;
+      _originCoordinate = _parseCoordinate(location.coordinateText);
       final accuracy = location.accuracyMeters;
-      _locationNotice =
-          accuracy == null
-              ? '已填入真实定位坐标'
-              : '已填入真实定位坐标，精度约 ${accuracy.toStringAsFixed(0)} 米';
+      _locationNotice = accuracy == null
+          ? '已使用当前定位作为出发地'
+          : '已使用当前定位作为出发地，精度约 ${accuracy.toStringAsFixed(0)} 米';
     });
+  }
+
+  Future<void> _selectDate(TextEditingController controller) async {
+    final now = DateTime.now();
+    final initial = _parseDate(controller.text) ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+      helpText: '选择行程日期',
+      cancelText: '取消',
+      confirmText: '确定',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => controller.text = _formatDate(picked));
   }
 
   Future<void> _coordinateGroup() async {
@@ -240,20 +264,19 @@ class _TripPageState extends State<TripPage> {
         'interests': preferences,
         'pace':
             preferences.any(
-                  (item) => item.contains('慢') || item.contains('slow'),
-                )
-                ? 'slow'
-                : 'balanced',
+              (item) => item.contains('慢') || item.contains('slow'),
+            )
+            ? 'slow'
+            : 'balanced',
         'budget':
             preferences.any(
-                  (item) => item.contains('预算') || item.contains('low'),
-                )
-                ? 'low'
-                : 'medium',
-        'dietary':
-            preferences
-                .where((item) => item.contains('不吃') || item.contains('忌口'))
-                .toList(),
+              (item) => item.contains('预算') || item.contains('low'),
+            )
+            ? 'low'
+            : 'medium',
+        'dietary': preferences
+            .where((item) => item.contains('不吃') || item.contains('忌口'))
+            .toList(),
       },
     );
   }
@@ -366,68 +389,65 @@ class _TripPageState extends State<TripPage> {
                 ),
                 // 内容
                 Expanded(
-                  child:
-                      visiblePlan == null
-                          ? ListView(
-                            padding: EdgeInsets.only(
-                              bottom: metrics.listBottomPadding,
-                            ),
-                            children: [
-                              _TripPlanInputCard(
-                                destinationController: _destinationController,
-                                originCoordinateController:
-                                    _originCoordinateController,
-                                destinationCoordinateController:
-                                    _destinationCoordinateController,
-                                startDateController: _startDateController,
-                                endDateController: _endDateController,
-                                companionsController: _companionsController,
-                                preferencesController: _preferencesController,
-                                budget: _budget,
-                                transportMode: _transportMode,
-                                loading: _creatingPlan,
-                                errorText: _planError,
-                                locationNotice: _locationNotice,
-                                locatingOrigin: _locatingOrigin,
-                                onBudgetChanged: (value) {
-                                  setState(() => _budget = value);
-                                },
-                                onTransportChanged: (value) {
-                                  setState(() => _transportMode = value);
-                                },
-                                onCreatePlan: _createPlan,
-                                onUseCurrentLocation:
-                                    _fillOriginFromCurrentLocation,
-                              ),
-                              _GroupCoordinationCard(
-                                memberANameController: _memberANameController,
-                                memberAPreferencesController:
-                                    _memberAPreferencesController,
-                                memberBNameController: _memberBNameController,
-                                memberBPreferencesController:
-                                    _memberBPreferencesController,
-                                loading: _coordinatingGroup,
-                                errorText: _groupError,
-                                coordination: _groupCoordination,
-                                onCoordinate: _coordinateGroup,
-                              ),
-                              _NoPlanStateCard(onRetry: _loadDashboardPlan),
-                            ],
-                          )
-                          : _AgentTripPlanView(
-                            plan: visiblePlan,
-                            onEditPlan: () => _editCurrentPlan(visiblePlan),
-                            onWeatherReplan:
-                                _createdPlan == null
-                                    ? null
-                                    : () => _createPlan(
-                                      replanReason: 'weather_risk',
-                                    ),
-                            routePoints:
-                                agentPlan == null
-                                    ? _dashboardRoutePoints
-                                    : const {},
+                  child: visiblePlan == null
+                      ? ListView(
+                          padding: EdgeInsets.only(
+                            bottom: metrics.listBottomPadding,
                           ),
+                          children: [
+                            _TripPlanInputCard(
+                              destinationController: _destinationController,
+                              originCoordinateController:
+                                  _originCoordinateController,
+                              startDateController: _startDateController,
+                              endDateController: _endDateController,
+                              companionsController: _companionsController,
+                              preferencesController: _preferencesController,
+                              budget: _budget,
+                              transportMode: _transportMode,
+                              loading: _creatingPlan,
+                              errorText: _planError,
+                              locationNotice: _locationNotice,
+                              locatingOrigin: _locatingOrigin,
+                              onBudgetChanged: (value) {
+                                setState(() => _budget = value);
+                              },
+                              onTransportChanged: (value) {
+                                setState(() => _transportMode = value);
+                              },
+                              onCreatePlan: _createPlan,
+                              onUseCurrentLocation:
+                                  _fillOriginFromCurrentLocation,
+                              onSelectStartDate: () =>
+                                  _selectDate(_startDateController),
+                              onSelectEndDate: () =>
+                                  _selectDate(_endDateController),
+                            ),
+                            _GroupCoordinationCard(
+                              memberANameController: _memberANameController,
+                              memberAPreferencesController:
+                                  _memberAPreferencesController,
+                              memberBNameController: _memberBNameController,
+                              memberBPreferencesController:
+                                  _memberBPreferencesController,
+                              loading: _coordinatingGroup,
+                              errorText: _groupError,
+                              coordination: _groupCoordination,
+                              onCoordinate: _coordinateGroup,
+                            ),
+                            _NoPlanStateCard(onRetry: _loadDashboardPlan),
+                          ],
+                        )
+                      : _AgentTripPlanView(
+                          plan: visiblePlan,
+                          onEditPlan: () => _editCurrentPlan(visiblePlan),
+                          onWeatherReplan: _createdPlan == null
+                              ? null
+                              : () => _createPlan(replanReason: 'weather_risk'),
+                          routePoints: agentPlan == null
+                              ? _dashboardRoutePoints
+                              : const {},
+                        ),
                 ),
               ],
             ),
@@ -599,14 +619,13 @@ class _GroupCoordinationCard extends StatelessWidget {
               child: OutlinedButton.icon(
                 key: const ValueKey('trip-coordinate-group-button'),
                 onPressed: loading ? null : onCoordinate,
-                icon:
-                    loading
-                        ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : const Icon(Icons.balance_rounded),
+                icon: loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.balance_rounded),
                 label: Text(loading ? '协调中' : '生成折中方案'),
               ),
             ),
@@ -624,19 +643,18 @@ class _GroupCoordinationResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final conflicts =
-        (coordination['conflicts'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    final conflicts = (coordination['conflicts'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     final compromise =
         coordination['compromisePlan'] as Map<String, dynamic>? ?? const {};
     final privacy =
         coordination['privacySummary'] as Map<String, dynamic>? ?? const {};
-    final sharedInterests = (compromise['sharedInterests'] as List<dynamic>? ??
-            const [])
-        .map((item) => item.toString())
-        .where((item) => item.isNotEmpty)
-        .join(' / ');
+    final sharedInterests =
+        (compromise['sharedInterests'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString())
+            .where((item) => item.isNotEmpty)
+            .join(' / ');
     final sensitiveMemberDetailsHidden =
         privacy['sensitiveMemberDetailsHidden'] == true;
     final sensitiveMemberCount = privacy['sensitiveMemberCount'] as int? ?? 0;
@@ -713,7 +731,6 @@ class _TripPlanInputCard extends StatelessWidget {
   const _TripPlanInputCard({
     required this.destinationController,
     required this.originCoordinateController,
-    required this.destinationCoordinateController,
     required this.startDateController,
     required this.endDateController,
     required this.companionsController,
@@ -725,6 +742,8 @@ class _TripPlanInputCard extends StatelessWidget {
     required this.onTransportChanged,
     required this.onCreatePlan,
     required this.onUseCurrentLocation,
+    required this.onSelectStartDate,
+    required this.onSelectEndDate,
     required this.locatingOrigin,
     this.locationNotice,
     this.errorText,
@@ -732,7 +751,6 @@ class _TripPlanInputCard extends StatelessWidget {
 
   final TextEditingController destinationController;
   final TextEditingController originCoordinateController;
-  final TextEditingController destinationCoordinateController;
   final TextEditingController startDateController;
   final TextEditingController endDateController;
   final TextEditingController companionsController;
@@ -746,6 +764,8 @@ class _TripPlanInputCard extends StatelessWidget {
   final ValueChanged<String> onTransportChanged;
   final VoidCallback onCreatePlan;
   final VoidCallback onUseCurrentLocation;
+  final VoidCallback onSelectStartDate;
+  final VoidCallback onSelectEndDate;
   final bool locatingOrigin;
 
   @override
@@ -774,54 +794,33 @@ class _TripPlanInputCard extends StatelessWidget {
               keyValue: 'trip-destination-input',
               controller: destinationController,
               label: '目的地',
-              hint: '例如 Hangzhou',
+              hint: '例如 杭州西湖、重庆洪崖洞',
             ),
+            _LocationActionRow(
+              locating: locatingOrigin,
+              hasLocation: originCoordinateController.text.trim().isNotEmpty,
+              onUseCurrentLocation: onUseCurrentLocation,
+            ),
+            const SizedBox(height: AppTheme.spacingSm),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _PlanTextField(
-                    keyValue: 'trip-origin-coordinate-input',
-                    controller: originCoordinateController,
-                    label: '当前位置坐标',
-                    hint: '30.245,120.165',
+                  child: _DatePickerField(
+                    keyValue: 'trip-start-date-input',
+                    controller: startDateController,
+                    label: '开始日期',
+                    hint: '选择出发日期',
+                    onTap: onSelectStartDate,
                   ),
                 ),
-                const SizedBox(width: AppTheme.spacingSm),
-                SizedBox(
-                  width: metrics.minTouchTarget,
-                  height: metrics.minTouchTarget,
-                  child: Tooltip(
-                    message: '使用真实定位',
-                    child: OutlinedButton(
-                      key: const ValueKey('trip-use-current-location'),
-                      onPressed: locatingOrigin ? null : onUseCurrentLocation,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        padding: EdgeInsets.zero,
-                        side: const BorderSide(color: AppTheme.primary),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusMd,
-                          ),
-                        ),
-                      ),
-                      child: Icon(
-                        locatingOrigin
-                            ? Icons.more_horiz_rounded
-                            : Icons.my_location_rounded,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppTheme.spacingSm),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: _PlanTextField(
-                    keyValue: 'trip-destination-coordinate-input',
-                    controller: destinationCoordinateController,
-                    label: '目的地坐标',
-                    hint: '30.259,120.130',
+                  child: _DatePickerField(
+                    keyValue: 'trip-end-date-input',
+                    controller: endDateController,
+                    label: '结束日期',
+                    hint: '选择返程日期',
+                    onTap: onSelectEndDate,
                   ),
                 ),
               ],
@@ -837,38 +836,17 @@ class _TripPlanInputCard extends StatelessWidget {
                 ),
               ),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: _PlanTextField(
-                    keyValue: 'trip-start-date-input',
-                    controller: startDateController,
-                    label: '开始日期',
-                    hint: '2026-07-01',
-                  ),
-                ),
-                const SizedBox(width: AppTheme.spacingSm),
-                Expanded(
-                  child: _PlanTextField(
-                    keyValue: 'trip-end-date-input',
-                    controller: endDateController,
-                    label: '结束日期',
-                    hint: '2026-07-03',
-                  ),
-                ),
-              ],
-            ),
             _PlanTextField(
               keyValue: 'trip-companions-input',
               controller: companionsController,
               label: '同行人',
-              hint: 'mother, child',
+              hint: '例如 家人、朋友、孩子',
             ),
             _PlanTextField(
               keyValue: 'trip-preferences-input',
               controller: preferencesController,
               label: '偏好',
-              hint: 'night view, less walking',
+              hint: '例如 夜景、不吃香菜、不想太累',
             ),
             _OptionRow(
               label: '预算',
@@ -902,14 +880,13 @@ class _TripPlanInputCard extends StatelessWidget {
               child: FilledButton.icon(
                 key: const ValueKey('trip-create-plan-button'),
                 onPressed: loading ? null : onCreatePlan,
-                icon:
-                    loading
-                        ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : const Icon(Icons.auto_awesome_rounded),
+                icon: loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded),
                 label: Text(loading ? '生成中' : '生成行程'),
               ),
             ),
@@ -936,21 +913,183 @@ class _PlanTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppTheme.spacingSm),
+      padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
         key: ValueKey(keyValue),
         controller: controller,
         decoration: InputDecoration(
-          labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.never,
+          labelText: null,
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 8),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 76),
           hintText: hint,
-          isDense: true,
+          hintStyle: const TextStyle(color: Color(0xFF8AA3C8)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 17,
+          ),
           filled: true,
           fillColor: Colors.white.withOpacity(0.74),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             borderSide: BorderSide(color: Colors.white.withOpacity(0.6)),
           ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.62)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            borderSide: const BorderSide(color: AppTheme.primary, width: 1.4),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _DatePickerField extends StatelessWidget {
+  const _DatePickerField({
+    required this.keyValue,
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final String keyValue;
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = controller.text.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: InkWell(
+        key: ValueKey(keyValue),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.74),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            border: Border.all(color: Colors.white.withOpacity(0.62)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      value.isEmpty ? hint : value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: value.isEmpty
+                            ? const Color(0xFF8AA3C8)
+                            : AppTheme.textPrimary,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.calendar_month_rounded,
+                color: AppTheme.primary,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocationActionRow extends StatelessWidget {
+  const _LocationActionRow({
+    required this.locating,
+    required this.hasLocation,
+    required this.onUseCurrentLocation,
+  });
+
+  final bool locating;
+  final bool hasLocation;
+  final VoidCallback onUseCurrentLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.56),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: Colors.white.withOpacity(0.62)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hasLocation
+                ? Icons.check_circle_rounded
+                : Icons.my_location_rounded,
+            color: hasLocation ? const Color(0xFF2FA86D) : AppTheme.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              hasLocation ? '已使用当前定位作为出发地' : '出发地可使用当前定位，也可以只填写目的地生成规划',
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            key: const ValueKey('trip-use-current-location'),
+            onPressed: locating ? null : onUseCurrentLocation,
+            icon: locating
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.near_me_rounded, size: 16),
+            label: Text(locating ? '定位中' : '定位'),
+          ),
+        ],
       ),
     );
   }
@@ -988,15 +1127,14 @@ class _OptionRow extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children:
-              options.entries.map((entry) {
-                return ChoiceChip(
-                  key: ValueKey('$keyPrefix-${entry.key}'),
-                  label: Text(entry.value),
-                  selected: selected == entry.key,
-                  onSelected: (_) => onChanged(entry.key),
-                );
-              }).toList(),
+          children: options.entries.map((entry) {
+            return ChoiceChip(
+              key: ValueKey('$keyPrefix-${entry.key}'),
+              label: Text(entry.value),
+              selected: selected == entry.key,
+              onSelected: (_) => onChanged(entry.key),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -1046,9 +1184,28 @@ Map<String, double>? _parseCoordinate(String value) {
   return {'latitude': latitude, 'longitude': longitude};
 }
 
+bool _looksLikePlaceName(String value) {
+  final trimmed = value.trim();
+  if (trimmed.length < 2) return false;
+  if (RegExp(r'^[\d\s,，.\-]+$').hasMatch(trimmed)) return false;
+  return RegExp(r'[\u4e00-\u9fa5A-Za-z]').hasMatch(trimmed);
+}
+
 String? _emptyToNull(String value) {
   final trimmed = value.trim();
   return trimmed.isEmpty ? null : trimmed;
+}
+
+DateTime? _parseDate(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  return DateTime.tryParse(trimmed);
+}
+
+String _formatDate(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
 }
 
 List<String> _splitCsv(String value) {
@@ -1101,20 +1258,18 @@ class _AgentTripPlanView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final days =
-        (plan['days'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    final days = (plan['days'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     final risks = (plan['risks'] as List<dynamic>? ?? const []).map(
       (e) => e.toString(),
     );
     final matches = (plan['profileMatches'] as List<dynamic>? ?? const []).map(
       (e) => e.toString(),
     );
-    final alternatives =
-        (plan['alternatives'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    final alternatives = (plan['alternatives'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     final navigationLinks =
         (plan['navigationLinks'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
@@ -1180,10 +1335,9 @@ class _AgentTripPlanView extends StatelessWidget {
           ),
         ],
         ...days.map((day) {
-          final items =
-              (day['items'] as List<dynamic>? ?? const [])
-                  .whereType<Map<String, dynamic>>()
-                  .toList();
+          final items = (day['items'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1723,10 +1877,9 @@ class _RoutePointsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = context.responsive;
     final route = routePoints['route']?.toString() ?? '';
-    final points =
-        (routePoints['points'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    final points = (routePoints['points'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     return GlassBox(
       margin: EdgeInsets.symmetric(
         horizontal: metrics.horizontalPadding,
