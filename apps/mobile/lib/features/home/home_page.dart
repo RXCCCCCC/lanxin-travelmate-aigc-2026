@@ -34,7 +34,7 @@ class _HomePageState extends State<HomePage>
     const ChatMessage(
       id: 'home-welcome',
       sender: MessageSender.assistant,
-      text: '告诉我你想去哪、什么时候出发、有什么偏好，我会在这里直接陪你规划。',
+      text: '告诉我目的地、时间和偏好，我在首页直接陪你规划。',
       time: '现在',
       avatarState: AvatarState.hello,
     ),
@@ -161,11 +161,11 @@ class _HomePageState extends State<HomePage>
             final topSafe = metrics.safeInsets.top;
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
-            final panelHeight = (h * (compact ? 0.34 : 0.37))
-                .clamp(230.0, compact ? 270.0 : 320.0)
+            final panelHeight = (h * (compact ? 0.38 : 0.37))
+                .clamp(250.0, compact ? 304.0 : 320.0)
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
-                ? math.min(panelHeight, compact ? 226.0 : 250.0)
+                ? math.min(panelHeight, compact ? 250.0 : 250.0)
                 : panelHeight;
             final avatarHeight = h * (compact ? 0.46 : 0.54);
             final avatarBottom = panelHeight * (compact ? 0.28 : 0.34);
@@ -498,12 +498,19 @@ class _WeatherCard extends StatelessWidget {
                 size: 14,
               ),
               const SizedBox(width: 5),
-              Text(
-                '等待工具数据',
-                style: const TextStyle(
-                  color: Color(0xFF245EB8),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11.5,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '等待工具数据',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: Color(0xFF245EB8),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11.5,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -916,9 +923,9 @@ class _ChatGlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final visibleMessages = messages.length <= 3
+    final visibleMessages = messages.length <= 2
         ? messages
-        : messages.sublist(messages.length - 3);
+        : messages.sublist(messages.length - 2);
     return GlassBox(
       borderRadius: BorderRadius.circular(30),
       padding: EdgeInsets.fromLTRB(
@@ -1092,7 +1099,7 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxBubbleWidth = math.min(
-      240.0,
+      252.0,
       MediaQuery.sizeOf(context).width - 112,
     );
     if (isUser) {
@@ -1100,33 +1107,35 @@ class _ChatBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           const Spacer(),
-          Container(
-            constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF4C8DFF).withOpacity(0.75),
-                  const Color(0xFF6FA8FF).withOpacity(0.65),
-                ],
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF4C8DFF).withOpacity(0.75),
+                    const Color(0xFF6FA8FF).withOpacity(0.65),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(18),
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(4),
+                ),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.30),
+                  width: 0.8,
+                ),
               ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-                bottomLeft: Radius.circular(18),
-                bottomRight: Radius.circular(4),
-              ),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.30),
-                width: 0.8,
-              ),
-            ),
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13.5,
-                height: 1.4,
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  height: 1.32,
+                ),
               ),
             ),
           ),
@@ -1163,37 +1172,38 @@ class _ChatBubble extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Container(
-          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.35),
-                Colors.white.withOpacity(0.22),
-              ],
+        Expanded(
+          child: Container(
+            constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.35),
+                  Colors.white.withOpacity(0.22),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(4),
+                bottomRight: Radius.circular(18),
+              ),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.45),
+                width: 0.8,
+              ),
             ),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(18),
-              topRight: Radius.circular(18),
-              bottomLeft: Radius.circular(4),
-              bottomRight: Radius.circular(18),
-            ),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.45),
-              width: 0.8,
-            ),
-          ),
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Color(0xFF06224E),
-              fontSize: 13.5,
-              height: 1.4,
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF06224E),
+                fontSize: 13,
+                height: 1.32,
+              ),
             ),
           ),
         ),
-        const Spacer(),
       ],
     );
   }

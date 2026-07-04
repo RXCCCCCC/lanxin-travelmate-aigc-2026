@@ -146,3 +146,9 @@
 - 提交就绪总览已补强为显式检查 PRD P0 演示闭环和比赛提交材料覆盖；README、端到端验收清单和最终提交清单已同步去掉“Mock 主线”旧口径，改为真实 Provider + 明确降级边界。
 - 验证通过：`cd services/api && uv run pytest tests/test_submission_readiness_report.py -q`；`python scripts/submission_readiness_report.py --json --skip-git`；`python -m py_compile scripts/submission_readiness_report.py`；`git diff --check` 仅提示 Git 将 LF 转 CRLF 的换行警告。
 - 对照 PRD 与比赛要求，仍未完成项保留在 `docs/todo.md`：真实模型效果人工验收、地图/天气展示授权、vivo/Android 设备权限验收、蓝小心最终透明/授权素材、release 正式签名、公网部署、真实 Demo/PPT/视频和比赛平台提交。
+
+## 2026-07-04 真机调试补充
+
+- 新真机 `8507100b / 23113RKC6C / Android 16` 已确认可被 Flutter 识别，可直接 `adb install` 安装 debug APK，`adb reverse tcp:8000 tcp:8000` 可用于连接本机后端。
+- `flutter run -d 8507100b --dart-define=API_BASE_URL=http://127.0.0.1:8000` 已进入 resident 调试状态并提供热重载命令；此前失败根因是后台 PowerShell 启动命令未正确切换到 `apps/mobile`。
+- 本轮真机截图确认首页已显示新版“蓝心同心”名称，首页直聊面板、天气卡片和四个快捷入口无明显溢出；后续验收优先使用该真机，旧 vivo 仅保留为兼容性抽检设备。
