@@ -219,20 +219,6 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
-                // ── 旅行胶囊 ──
-                Positioned(
-                  top: topSafe + 82,
-                  left: sidePadding,
-                  child: _TripPill(label: _dashboardSummary.tripLabel),
-                ),
-
-                // ── 天气卡片 ──
-                Positioned(
-                  top: topSafe + 146,
-                  left: sidePadding,
-                  child: const _WeatherCard(),
-                ),
-
                 // ── 蓝小心立绘（中央浮动，占 ~58% 高度）──
                 AnimatedBuilder(
                   animation: _floatCtrl,
@@ -269,6 +255,20 @@ class _HomePageState extends State<HomePage>
                             ),
                           ),
                   ),
+                ),
+
+                // ── 旅行胶囊 ──
+                Positioned(
+                  top: topSafe + 82,
+                  left: sidePadding,
+                  child: _TripPill(label: _dashboardSummary.tripLabel),
+                ),
+
+                // ── 天气卡片 ──
+                Positioned(
+                  top: topSafe + 146,
+                  left: sidePadding,
+                  child: const _WeatherCard(),
                 ),
 
                 // ── 右侧浮动状态卡 ──
