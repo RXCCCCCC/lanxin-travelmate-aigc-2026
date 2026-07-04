@@ -16,7 +16,7 @@
 - [x] 已配置 OpenAI 兼容真实模型，并运行 `cd services/api && uv run python scripts/real_provider_smoke.py`；结果为 `provider=openai_compatible ok=True`。
 - [x] 已验证真实旅拍文案接口：`/api/photo/copywriting` 返回 `provider=openai_compatible fallback=false`，朋友圈/小红书/日记/Vlog/复盘建议字段齐全。
 - [x] 已修复真实 Agent 输出兼容问题，并通过 Docker API 验证记忆抽取、规划推理、旅行复盘、角色化对话均为真实 Provider `fallback=false`。
-- [ ] 人工验收五类真实模型效果质量：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘是否符合比赛演示口径。
+- [ ] 按 `docs/handoff/final-acceptance.md` 分工在两台 Android/vivo 真机完成五类真实模型效果质量验收：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘是否符合比赛演示口径。
 - [x] 已补齐 Agent、行程规划/复盘、旅拍文案等模型调用审计落库，并通过 `GET /api/audit/model-calls` 定向测试验证请求摘要不泄露敏感原文。
 - [ ] 最终演示数据库中人工确认五类真实场景 `fallback=false`，并再次检查日志不含密钥、Token、密码或完整敏感原文。
 

@@ -485,6 +485,7 @@ def create_trip_review(
 ) -> dict[str, object]:
     effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     trip_id = payload.tripId or f"current-{effective_user_id}-trip"
+    route = _review_route(session, effective_user_id, trip_id)
     state = create_initial_state(
         message=payload.message,
         session_id=f"trip-review-{effective_user_id}-{trip_id}",
@@ -497,14 +498,14 @@ def create_trip_review(
             "highlightPhotos": _review_photo_highlights(session, effective_user_id, trip_id),
             "reminderHighlights": _review_reminder_highlights(session, effective_user_id, trip_id),
             "avatarStatusChanges": _review_avatar_status_changes(session, effective_user_id, trip_id),
-            "route": _review_route(session, effective_user_id, trip_id),
+            "route": route,
             "nextTripSuggestions": _review_next_trip_suggestions(session, effective_user_id, trip_id),
             "profileContext": payload.profileContext,
         },
     )
     result = TravelMateGraph().invoke(state)
     persist_model_call_logs(session, result.get("model_call_logs", []))
-    review = result["review"]
+    review = _normalized_trip_review(result["review"], route)
     record = CloudTripReview(
         id=f"review-{uuid4().hex}",
         trip_id=trip_id,
@@ -798,6 +799,12 @@ def _review_route(session: Session, user_id: str, trip_id: str) -> str | None:
     if not records:
         return None
     return str(_route_points_payload(records)["route"])
+
+
+def _normalized_trip_review(review: dict[str, object], route: str | None) -> dict[str, object]:
+    normalized = dict(review)
+    normalized["route"] = route or ""
+    return normalized
 
 
 def _review_next_trip_suggestions(session: Session, user_id: str, trip_id: str) -> list[str]:

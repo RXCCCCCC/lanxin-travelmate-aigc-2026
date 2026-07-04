@@ -125,7 +125,7 @@ class _TripPageState extends State<TripPage> {
       return;
     }
     if (!_looksLikePlaceName(destination)) {
-      setState(() => _planError = '请填写可识别的地点名称，例如“杭州西湖”或“重庆洪崖洞”');
+      setState(() => _planError = '请填写可识别的地点名称，例如城市、景区或商圈名称');
       return;
     }
     final startDate = _parseDate(_startDateController.text);
@@ -600,7 +600,7 @@ class _GroupCoordinationCard extends StatelessWidget {
               keyValue: 'group-member-b-preferences-input',
               controller: memberBPreferencesController,
               label: '成员B偏好',
-              hint: '预算低, 山城步道, 想吃火锅',
+              hint: '预算低, 慢节奏, 想吃当地特色',
             ),
             if (errorText != null) ...[
               const SizedBox(height: AppTheme.spacingXs),
@@ -794,7 +794,7 @@ class _TripPlanInputCard extends StatelessWidget {
               keyValue: 'trip-destination-input',
               controller: destinationController,
               label: '目的地',
-              hint: '例如 杭州西湖、重庆洪崖洞',
+              hint: '例如 城市、景区或商圈名称',
             ),
             _LocationActionRow(
               locating: locatingOrigin,

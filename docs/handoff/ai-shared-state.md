@@ -28,6 +28,10 @@
 
 ### 2026-07-04
 
+- 新增 `docs/handoff/final-acceptance.md`，用于用户和队友按两台 Android/vivo 真机分工验收：A 线覆盖首页角色感、记忆抽取、规划推理、动态调整、旅行复盘主 Demo；B 线覆盖旅拍文案、盲盒任务、语音/TTS、通知权限、设置隐私、多设备同步和组队协同。
+- 真实 provider smoke 重新通过：高德天气/步行路线 `provider=amap fallback=false`，OpenAI 兼容模型 `scenario=ci_real_provider_smoke ok=True`。
+- 已修复 `/api/trip/review` 的路线边界：复盘 `route` 只使用已保存的真实路线点；没有路线点时返回空字符串，避免模型根据用户消息补出城市/行程标题并被误认为真实路线。
+- 真实输出边界验证通过：`flutter analyze --no-pub`、`uv run pytest tests/test_p1_review_routes.py -q`、`tests/test_agent_api.py -q`、`tests/test_trip_plan_inputs.py -q`、`tests/test_p1_photo_content_tasks.py -q`、`tests/test_mobile_mock_boundaries.py -q`。
 - Android 模拟器继续按用户反馈优化行程页表单：移除手填出发/目的地坐标，改为“定位”动作 + 目的地名称；开始/结束日期改为中文日期选择器；输入框取消浮动标签并预留固定字段名宽度和垂直间距，降低小屏输入后的重叠风险。验证通过：`flutter analyze --no-pub`、`flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000`，模拟器截图确认日期弹窗中文、日期回填和表单间距正常。
 - Android 真机验收发现旅拍“拍摄照片”没有先申请运行时相机权限，已在 `MainActivity.kt` 增加 `CAMERA` 权限申请和授权后继续拉起系统相机的流程，并在 Manifest package visibility 中补充图片文档选择和相机 intent 查询。
 - 真机允许授权路径已验证：定位可填入真实坐标；点击“拍摄照片”后出现系统相机权限弹窗，选择允许后可进入系统相机拍照界面。用户确认照片流程可以继续。

@@ -136,6 +136,21 @@ def _normalize_copywriting_payload(
     return {"photoCopywriting": normalized}
 
 
+def _ensure_real_provider_copy_labels(result: dict[str, object], provider_name: str) -> None:
+    if provider_name not in {"openai_compatible", "lanxin"}:
+        return
+    labels = {
+        "moments": "朋友圈",
+        "xiaohongshu": "小红书",
+        "diary": "旅行日记",
+        "vlogNarration": "Vlog 旁白",
+    }
+    for key, label in labels.items():
+        value = result.get(key)
+        if isinstance(value, str) and value.strip() and label not in value:
+            result[key] = f"{label}：{value.strip()}"
+
+
 def _copywriting_with_model(
     candidates: list[PhotoCandidateRecord],
     persona: str,
@@ -174,6 +189,7 @@ def _copywriting_with_model(
         raise
     timer.finish(fallback=False)
     result = output.model_dump()
+    _ensure_real_provider_copy_labels(result, provider.name)
     result["provider"] = provider.name
     result["fallback"] = False
     result["errorType"] = None
