@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../layout/responsive_metrics.dart';
 import '../../features/home/home_page.dart';
@@ -77,30 +80,76 @@ class ScaffoldWithNav extends StatefulWidget {
 }
 
 class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
+  static const _navCollapsedKey = 'home.nav.collapsed';
+  static const _tabPaths = ['/', '/trip', '/review', '/settings'];
   bool _collapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreCollapsedState();
+  }
+
+  Future<void> _restoreCollapsedState() async {
+    final file = await _navStateFile();
+    final collapsed = await file.exists()
+        ? (await file.readAsString()).trim() == 'collapsed'
+        : false;
+    if (!mounted) return;
+    setState(() => _collapsed = collapsed);
+  }
+
+  Future<void> _setCollapsed(bool value) async {
+    setState(() => _collapsed = value);
+    final file = await _navStateFile();
+    await file.writeAsString(value ? 'collapsed' : 'expanded');
+  }
+
+  Future<File> _navStateFile() async {
+    final dir = await getApplicationSupportDirectory();
+    return File('${dir.path}/$_navCollapsedKey.txt');
+  }
+
+  void _handleHorizontalSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 360) return;
+    final currentPath = GoRouterState.of(context).uri.path;
+    final currentIndex = _tabPaths.indexOf(currentPath);
+    if (currentIndex < 0) return;
+    final nextIndex = velocity < 0 ? currentIndex + 1 : currentIndex - 1;
+    if (nextIndex < 0 || nextIndex >= _tabPaths.length) return;
+    context.go(_tabPaths[nextIndex]);
+  }
 
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final navHeight = _collapsed ? 42.0 : metrics.bottomNavHeight;
+    final navHeight = _collapsed ? 30.0 : metrics.bottomNavHeight;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: widget.child,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: _handleHorizontalSwipe,
+        child: widget.child,
+      ),
       bottomNavigationBar: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Colors.white.withOpacity(0.72),
-              const Color(0xFFDCEEFF).withOpacity(0.85),
+              Colors.white.withOpacity(_collapsed ? 0.18 : 0.72),
+              const Color(0xFFDCEEFF).withOpacity(_collapsed ? 0.18 : 0.85),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
           border: Border(
-            top: BorderSide(color: Colors.white.withOpacity(0.45), width: 0.8),
+            top: BorderSide(
+              color: Colors.white.withOpacity(_collapsed ? 0.0 : 0.45),
+              width: 0.8,
+            ),
           ),
         ),
         child: SafeArea(
@@ -115,11 +164,11 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
               child: _collapsed
                   ? _CollapsedNavBar(
                       key: const ValueKey('collapsed-nav'),
-                      onExpand: () => setState(() => _collapsed = false),
+                      onExpand: () => _setCollapsed(false),
                     )
                   : _ExpandedNavBar(
                       key: const ValueKey('expanded-nav'),
-                      onCollapse: () => setState(() => _collapsed = true),
+                      onCollapse: () => _setCollapsed(true),
                     ),
             ),
           ),
@@ -168,27 +217,12 @@ class _CollapsedNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        const _MiniNavItem(icon: Icons.home_rounded, label: '首页', path: '/'),
-        const _MiniNavItem(icon: Icons.map_rounded, label: '行程', path: '/trip'),
-        const _MiniNavItem(
-          icon: Icons.auto_stories_rounded,
-          label: '复盘',
-          path: '/review',
-        ),
-        const _MiniNavItem(
-          icon: Icons.settings_rounded,
-          label: '设置',
-          path: '/settings',
-        ),
-        _NavToggleButton(
-          icon: Icons.keyboard_arrow_up_rounded,
-          tooltip: '展开底部导航',
-          onTap: onExpand,
-        ),
-      ],
+    return Center(
+      child: _NavToggleButton(
+        icon: Icons.keyboard_arrow_up_rounded,
+        tooltip: '展开底部导航',
+        onTap: onExpand,
+      ),
     );
   }
 }
@@ -234,38 +268,6 @@ class _NavItem extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniNavItem extends StatelessWidget {
-  const _MiniNavItem({
-    required this.icon,
-    required this.label,
-    required this.path,
-  });
-
-  final IconData icon;
-  final String label;
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = GoRouterState.of(context).uri.path == path;
-    final color = isActive ? const Color(0xFF215ECA) : const Color(0xFF6F8CAF);
-    return Semantics(
-      button: true,
-      selected: isActive,
-      label: label,
-      child: GestureDetector(
-        onTap: () => context.go(path),
-        behavior: HitTestBehavior.opaque,
-        child: SizedBox(
-          width: 48,
-          height: 38,
-          child: Icon(icon, color: color, size: 22),
         ),
       ),
     );

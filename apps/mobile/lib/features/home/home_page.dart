@@ -47,7 +47,8 @@ class _HomePageState extends State<HomePage>
   AvatarState _avatarState = AvatarState.hello;
   bool _showHeroAvatar = false;
   bool _isPureMode = false;
-  double _panelHeightRatio = 0.37;
+  bool _statusExpanded = false;
+  double _panelHeightRatio = 0.30;
 
   @override
   void initState() {
@@ -206,8 +207,8 @@ class _HomePageState extends State<HomePage>
     if (viewportHeight <= 0) return;
     setState(() {
       _panelHeightRatio = (_panelHeightRatio - delta / viewportHeight).clamp(
-        0.32,
-        0.62,
+        0.24,
+        0.56,
       );
     });
   }
@@ -246,17 +247,17 @@ class _HomePageState extends State<HomePage>
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
             final baseRatio = math.max(
               _panelHeightRatio,
-              compact ? 0.38 : 0.36,
+              compact ? 0.29 : 0.27,
             );
             final ratio = baseRatio;
             final panelHeight = (h * ratio)
-                .clamp(250.0, compact ? 430.0 : 520.0)
+                .clamp(205.0, compact ? 340.0 : 390.0)
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
-                ? math.min(panelHeight, compact ? 250.0 : 250.0)
+                ? math.min(panelHeight, compact ? 230.0 : 240.0)
                 : panelHeight;
-            final avatarHeight = h * (compact ? 0.46 : 0.54);
-            final avatarBottom = effectivePanelHeight * (compact ? 0.28 : 0.34);
+            final avatarHeight = h * (compact ? 0.52 : 0.60);
+            final avatarBottom = effectivePanelHeight * (compact ? 0.40 : 0.46);
 
             final content = Stack(
               children: [
@@ -291,36 +292,50 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
-                // ── 模式切换（左上）──
+                // ── 顶部主操作：模式、消息、历史 ──
                 Positioned(
                   top: topSafe + 8,
                   left: sidePadding,
-                  child: _PureModeButton(
-                    isPureMode: _isPureMode,
-                    onTap: _togglePureMode,
-                  ),
-                ),
-
-                // ── 联调状态 + 消息（右上）──
-                Positioned(
-                  top: topSafe + 8,
                   right: sidePadding,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Row(
                     children: [
+                      _PureModeButton(
+                        isPureMode: _isPureMode,
+                        onTap: _togglePureMode,
+                        compact: compact,
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => context.push('/reminder'),
+                        child: const _TopIconPill(
+                          icon: Icons.notifications_none_rounded,
+                          label: '消息',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: _showChatHistorySheet,
-                        child: _IntegrationButton(
-                          compact: compact,
+                        child: const _TopIconPill(
+                          icon: Icons.history_rounded,
                           label: '聊天历史',
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () => context.push('/reminder'),
-                        child: const _NoticePill(),
-                      ),
                     ],
+                  ),
+                ),
+
+                // ── 顶部天气长条 ──
+                Positioned(
+                  top: topSafe + 62,
+                  left: sidePadding,
+                  right: sidePadding,
+                  child: _ModeExitBubble(
+                    hidden: _isPureMode,
+                    direction: AxisDirection.up,
+                    child: _WeatherStrip(
+                      summary: _weatherSummary,
+                      onTap: _loadCurrentWeather,
+                    ),
                   ),
                 ),
 
@@ -369,7 +384,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 旅行胶囊 ──
                 Positioned(
-                  top: topSafe + 64,
+                  top: topSafe + 108,
                   left: sidePadding,
                   child: _TripPill(
                     label: _dashboardSummary.tripLabel,
@@ -377,55 +392,30 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
-                // ── 天气卡片 ──
+                // ── 记忆气泡浮在蓝小心左侧 ──
+                if (_dashboardSummary.memoryCount > 0 && !_isPureMode)
+                  Positioned(
+                    top: h * 0.38,
+                    left: sidePadding + 6,
+                    child: _MemoryFloatBadge(
+                      count: _dashboardSummary.memoryCount,
+                    ),
+                  ),
+
+                // ── 右侧蓝小心状态抽屉 ──
                 Positioned(
-                  top: topSafe + 116,
-                  left: sidePadding,
+                  top: topSafe + 120,
+                  right: 0,
                   child: _ModeExitBubble(
                     hidden: _isPureMode,
-                    direction: AxisDirection.left,
-                    child: _WeatherCard(
-                      summary: _weatherSummary,
-                      onTap: _loadCurrentWeather,
+                    direction: AxisDirection.right,
+                    child: _StatusDrawer(
+                      expanded: _statusExpanded,
+                      onToggle: () =>
+                          setState(() => _statusExpanded = !_statusExpanded),
                     ),
                   ),
                 ),
-
-                // ── 右侧浮动状态卡 ──
-                if (compact) ...[
-                  Positioned(
-                    top: topSafe + 96,
-                    right: sidePadding,
-                    child: _ModeExitBubble(
-                      hidden: _isPureMode,
-                      direction: AxisDirection.right,
-                      child: _FloatingStatusColumn(
-                        spacing: 12,
-                        children: [
-                          const _CompactStatusBadge(),
-                          _DashboardSummaryBadge(summary: _dashboardSummary),
-                        ],
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Positioned(
-                    top: topSafe + 94,
-                    right: sidePadding,
-                    child: _ModeExitBubble(
-                      hidden: _isPureMode,
-                      direction: AxisDirection.right,
-                      child: _FloatingStatusColumn(
-                        spacing: 15,
-                        children: [
-                          const _AffinityCard(),
-                          const _MoodEnergyCard(),
-                          const _PlanningBadge(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
 
                 // ── 底部磨砂玻璃聊天面板（~37%）──
                 AnimatedPositioned(
@@ -472,18 +462,29 @@ class _HomePageState extends State<HomePage>
 // ══════════════════════════════════════════════════════════
 
 class _PureModeButton extends StatelessWidget {
-  const _PureModeButton({required this.isPureMode, required this.onTap});
+  const _PureModeButton({
+    required this.isPureMode,
+    required this.onTap,
+    required this.compact,
+  });
 
   final bool isPureMode;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 50, minWidth: 178),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        constraints: BoxConstraints(
+          minHeight: 44,
+          minWidth: compact ? 150 : 164,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 13 : 15,
+          vertical: 10,
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.34),
           borderRadius: BorderRadius.circular(28),
@@ -501,21 +502,45 @@ class _PureModeButton extends StatelessWidget {
           children: [
             Icon(
               isPureMode
-                  ? Icons.fullscreen_exit_rounded
-                  : Icons.fullscreen_rounded,
+                  ? Icons.auto_awesome_motion_rounded
+                  : Icons.chat_bubble_outline_rounded,
               color: const Color(0xFF215ECA),
-              size: 20,
+              size: 19,
             ),
-            const SizedBox(width: 7),
+            const SizedBox(width: 6),
             Text(
               isPureMode ? '切换到陪伴模式' : '切换到纯净模式',
               style: const TextStyle(
                 color: Color(0xFF174C9F),
                 fontWeight: FontWeight.w900,
-                fontSize: 13.5,
+                fontSize: 12.8,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopIconPill extends StatelessWidget {
+  const _TopIconPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: GlassBox(
+          width: 44,
+          borderRadius: BorderRadius.circular(22),
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
       ),
     );
@@ -637,8 +662,8 @@ class _TripPill extends StatelessWidget {
   }
 }
 
-class _WeatherCard extends StatelessWidget {
-  const _WeatherCard({required this.summary, required this.onTap});
+class _WeatherStrip extends StatelessWidget {
+  const _WeatherStrip({required this.summary, required this.onTap});
 
   final HomeWeatherSummary summary;
   final VoidCallback onTap;
@@ -652,61 +677,42 @@ class _WeatherCard extends StatelessWidget {
       HomeWeatherState.loading => Icons.my_location_rounded,
       HomeWeatherState.idle => Icons.cloud_sync_rounded,
     };
+    final location = (summary.city == null || summary.city!.isEmpty)
+        ? summary.title
+        : summary.city!;
+    final weather = (summary.condition == null || summary.condition!.isEmpty)
+        ? (isLoading ? '定位中' : '天气')
+        : summary.condition!;
+    final temperature = summary.temperatureC == null
+        ? '--°C'
+        : '${summary.temperatureC}°C';
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: GlassBox(
-        width: 196,
+        borderRadius: BorderRadius.circular(22),
         opacity: 0.28,
         borderColor: Colors.white.withOpacity(0.78),
-        padding: const EdgeInsets.fromLTRB(14, 12, 13, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(icon, color: Colors.white, size: 20),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    summary.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF114BA8),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14.5,
-                    ),
-                  ),
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$location  $weather  $temperature',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF174C9F),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13.4,
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 7),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  isLoading
-                      ? Icons.more_horiz_rounded
-                      : Icons.auto_awesome_rounded,
-                  color: Color(0xFFFFDF73),
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    summary.subtitle,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF245EB8),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11.4,
-                      height: 1.22,
-                    ),
-                  ),
-                ),
-              ],
+            Icon(
+              isLoading ? Icons.more_horiz_rounded : Icons.refresh_rounded,
+              color: const Color(0xFF5F9BFF),
+              size: 16,
             ),
           ],
         ),
@@ -715,290 +721,168 @@ class _WeatherCard extends StatelessWidget {
   }
 }
 
-class _IntegrationButton extends StatelessWidget {
-  const _IntegrationButton({this.compact = false, this.label = '真实联调'});
-  final bool compact;
-  final String label;
-  @override
-  Widget build(BuildContext context) {
-    return GlassBox(
-      borderRadius: BorderRadius.circular(25),
-      padding: EdgeInsets.fromLTRB(compact ? 10 : 12, 8, compact ? 10 : 12, 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.history_rounded, color: Colors.white, size: 20),
-          if (!compact) const SizedBox(width: 7),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-            ),
-          ),
-          if (!compact) const SizedBox(width: 4),
-          const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 17),
-        ],
-      ),
-    );
-  }
-}
+class _StatusDrawer extends StatelessWidget {
+  const _StatusDrawer({required this.expanded, required this.onToggle});
 
-class _NoticePill extends StatelessWidget {
-  const _NoticePill();
-  @override
-  Widget build(BuildContext context) {
-    return GlassBox(
-      borderRadius: BorderRadius.circular(20),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.notifications_none_rounded, color: Colors.white, size: 17),
-          SizedBox(width: 6),
-          Text(
-            '消息',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 12.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FloatingStatusColumn extends StatelessWidget {
-  const _FloatingStatusColumn({required this.children, this.spacing = 12});
-
-  final List<Widget> children;
-  final double spacing;
+  final bool expanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) SizedBox(height: spacing),
-          children[i],
-        ],
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: expanded
+              ? GlassBox(
+                  key: const ValueKey('status-panel'),
+                  width: 136,
+                  opacity: 0.27,
+                  borderColor: Colors.white.withOpacity(0.74),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _StatusMetric(
+                        icon: Icons.favorite_rounded,
+                        label: '默契',
+                        value: '12',
+                        color: Color(0xFFFF8CCF),
+                      ),
+                      SizedBox(height: 10),
+                      _StatusMetric(
+                        icon: Icons.mood_rounded,
+                        label: '心情',
+                        value: '开心',
+                        color: Color(0xFFFFDA7D),
+                      ),
+                      SizedBox(height: 10),
+                      _StatusMetric(
+                        icon: Icons.bolt_rounded,
+                        label: '精力',
+                        value: '90',
+                        color: Color(0xFFFFD953),
+                      ),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('status-empty')),
+        ),
+        const SizedBox(width: 6),
+        GestureDetector(
+          onTap: onToggle,
+          behavior: HitTestBehavior.opaque,
+          child: GlassBox(
+            width: 34,
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(18),
+            ),
+            opacity: 0.30,
+            borderColor: Colors.white.withOpacity(0.74),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_right_rounded
+                      : Icons.favorite_rounded,
+                  color: const Color(0xFF215ECA),
+                  size: 18,
+                ),
+                if (!expanded) ...[
+                  const SizedBox(height: 5),
+                  const Column(
+                    children: [
+                      Text('状', style: _statusTabTextStyle),
+                      Text('态', style: _statusTabTextStyle),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _AffinityCard extends StatelessWidget {
-  const _AffinityCard();
+class _StatusMetric extends StatelessWidget {
+  const _StatusMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 17),
+        const SizedBox(width: 7),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF42699E),
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF175BC4),
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+const _statusTabTextStyle = TextStyle(
+  color: Color(0xFF174C9F),
+  fontSize: 11,
+  fontWeight: FontWeight.w900,
+);
+
+class _MemoryFloatBadge extends StatelessWidget {
+  const _MemoryFloatBadge({required this.count});
+
+  final int count;
+
   @override
   Widget build(BuildContext context) {
     return GlassBox(
-      width: 126,
+      borderRadius: BorderRadius.circular(20),
       opacity: 0.26,
-      borderColor: Colors.white.withOpacity(0.74),
-      padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: const [
-              Icon(Icons.favorite_rounded, color: Color(0xFFFF8CCF), size: 18),
-              SizedBox(width: 7),
-              Text(
-                '默契值',
-                style: TextStyle(
-                  color: Color(0xFF173F91),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+          const Icon(
+            Icons.bubble_chart_rounded,
+            color: Color(0xFF215ECA),
+            size: 18,
           ),
           const SizedBox(height: 4),
-          Row(
-            children: [
-              const Text(
-                '12',
-                style: TextStyle(
-                  color: Color(0xFF175BC4),
-                  fontSize: 25,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const Spacer(),
-              Icon(
-                Icons.sync_rounded,
-                color: const Color(0xFF4C83D9).withOpacity(0.65),
-                size: 17,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              minHeight: 4.5,
-              value: 0.42,
-              backgroundColor: Colors.white.withOpacity(0.20),
-              color: const Color(0xFF6F98FF),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MoodEnergyCard extends StatelessWidget {
-  const _MoodEnergyCard();
-  @override
-  Widget build(BuildContext context) {
-    final ls = TextStyle(
-      color: const Color(0xFF42699E),
-      fontSize: 12.5,
-      fontWeight: FontWeight.w800,
-    );
-    const vs = TextStyle(
-      color: Color(0xFF175BC4),
-      fontSize: 16,
-      fontWeight: FontWeight.w900,
-    );
-
-    return GlassBox(
-      width: 126,
-      opacity: 0.26,
-      borderColor: Colors.white.withOpacity(0.74),
-      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.mood_rounded,
-                color: Color(0xFFFFDA7D),
-                size: 17,
-              ),
-              const SizedBox(width: 6),
-              Text('心情', style: ls),
-              const Spacer(),
-              const Text('开心', style: vs),
-            ],
-          ),
-          const SizedBox(height: 9),
-          Divider(height: 1, color: const Color(0xFF5B8CDA).withOpacity(0.22)),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              const Icon(
-                Icons.bolt_rounded,
-                color: Color(0xFFFFD953),
-                size: 17,
-              ),
-              const SizedBox(width: 6),
-              Text('精力', style: ls),
-              const Spacer(),
-              const Text('90', style: vs),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompactStatusBadge extends StatelessWidget {
-  const _CompactStatusBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassBox(
-      borderRadius: BorderRadius.circular(22),
-      opacity: 0.25,
-      borderColor: Colors.white.withOpacity(0.72),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.favorite_rounded, color: Color(0xFFFF8CCF), size: 16),
-          SizedBox(width: 5),
           Text(
-            '默契 12',
-            style: TextStyle(
-              color: Color(0xFF175BC4),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          SizedBox(width: 8),
-          Icon(Icons.bolt_rounded, color: Color(0xFFFFD953), size: 16),
-          SizedBox(width: 5),
-          Text(
-            '精力 90',
-            style: TextStyle(
-              color: Color(0xFF175BC4),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DashboardSummaryBadge extends StatelessWidget {
-  const _DashboardSummaryBadge({required this.summary});
-
-  final _HomeDashboardSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassBox(
-      borderRadius: BorderRadius.circular(18),
-      opacity: 0.25,
-      borderColor: Colors.white.withOpacity(0.72),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      child: Text(
-        summary.summaryLine,
-        style: const TextStyle(
-          color: Color(0xFF245EB8),
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanningBadge extends StatelessWidget {
-  const _PlanningBadge();
-  @override
-  Widget build(BuildContext context) {
-    return GlassBox(
-      borderRadius: BorderRadius.circular(18),
-      opacity: 0.25,
-      borderColor: Colors.white.withOpacity(0.72),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '等待真实行程',
+            '$count 条记忆',
             style: const TextStyle(
-              color: Color(0xFF245EB8),
+              color: Color(0xFF174C9F),
+              fontSize: 10.5,
               fontWeight: FontWeight.w900,
-              fontSize: 11.5,
             ),
-          ),
-          const SizedBox(width: 6),
-          const Icon(
-            Icons.graphic_eq_rounded,
-            color: Color(0xFFA6D9FF),
-            size: 15,
           ),
         ],
       ),
@@ -1128,10 +1012,10 @@ class _ChatGlassPanel extends StatelessWidget {
     return GlassBox(
       borderRadius: BorderRadius.circular(30),
       padding: EdgeInsets.fromLTRB(
-        metrics.isCompactPhone ? 12 : 16,
-        metrics.isCompactPhone ? 12 : 14,
-        metrics.isCompactPhone ? 12 : 16,
-        10,
+        metrics.isCompactPhone ? 10 : 13,
+        8,
+        metrics.isCompactPhone ? 10 : 13,
+        8,
       ),
       opacity: 0.20,
       blur: 30.0,
@@ -1142,7 +1026,7 @@ class _ChatGlassPanel extends StatelessWidget {
             onPanUpdate: (details) => onResize(details.delta.dy),
             onVerticalDragUpdate: (details) => onResize(details.delta.dy),
             child: SizedBox(
-              height: 32,
+              height: 22,
               width: double.infinity,
               child: Center(
                 child: Container(
@@ -1162,35 +1046,6 @@ class _ChatGlassPanel extends StatelessWidget {
               ),
             ),
           ),
-          Row(
-            children: [
-              const Icon(
-                Icons.forum_rounded,
-                color: Color(0xFF215ECA),
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  '和蓝小心直接聊',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFF06224E),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (memoryCandidateCount > 0)
-                _TinySignal(label: '$memoryCandidateCount 条记忆'),
-              if (isSending) ...[
-                const SizedBox(width: 6),
-                _TinySignal(label: queuedMessage == null ? '思考中' : '已追加'),
-              ],
-            ],
-          ),
-          const SizedBox(height: 8),
           Expanded(
             child: ListView.separated(
               controller: scrollController,
@@ -1218,13 +1073,13 @@ class _ChatGlassPanel extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: onFocusInput,
             child: GlassBox(
               borderRadius: BorderRadius.circular(22),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
               opacity: 0.12,
               blur: 16,
               child: Row(
@@ -1261,8 +1116,8 @@ class _ChatGlassPanel extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 40,
-                    height: 40,
+                    width: 36,
+                    height: 36,
                     child: IconButton(
                       onPressed: onSend,
                       tooltip: isSending ? '追加信息' : '发送',
@@ -1270,7 +1125,7 @@ class _ChatGlassPanel extends StatelessWidget {
                       icon: Icon(
                         isSending ? Icons.add_rounded : Icons.send_rounded,
                         color: const Color(0xFF215ECA),
-                        size: 22,
+                        size: 21,
                       ),
                     ),
                   ),
@@ -1309,33 +1164,44 @@ class _ChatGlassPanel extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 7),
-          Row(
-            children: [
-              _QuickChip(
-                icon: Icons.route_rounded,
-                label: '规划路线',
-                onTap: onOpenTrip,
-              ),
-              const SizedBox(width: 6),
-              _QuickChip(
-                icon: Icons.bubble_chart_rounded,
-                label: '记忆胶囊',
-                onTap: onOpenMemory,
-              ),
-              const SizedBox(width: 6),
-              _QuickChip(
-                icon: Icons.tune_rounded,
-                label: '调整行程',
-                onTap: onOpenTrip,
-              ),
-              const SizedBox(width: 6),
-              _QuickChip(
-                icon: Icons.auto_stories_rounded,
-                label: '生成复盘',
-                onTap: onOpenReview,
-              ),
-            ],
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 32,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _QuickChip(
+                    icon: Icons.route_rounded,
+                    label: '规划路线',
+                    onTap: onOpenTrip,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: _QuickChip(
+                    icon: Icons.bubble_chart_rounded,
+                    label: '记忆胶囊',
+                    onTap: onOpenMemory,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: _QuickChip(
+                    icon: Icons.tune_rounded,
+                    label: '调整行程',
+                    onTap: onOpenTrip,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: _QuickChip(
+                    icon: Icons.auto_stories_rounded,
+                    label: '生成复盘',
+                    onTap: onOpenReview,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1592,32 +1458,6 @@ class _ThinkingBubbleState extends State<_ThinkingBubble> {
   }
 }
 
-class _TinySignal extends StatelessWidget {
-  const _TinySignal({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.22),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.32), width: 0.8),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF215ECA),
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
 class _QuickChip extends StatelessWidget {
   const _QuickChip({
     required this.icon,
@@ -1630,43 +1470,38 @@ class _QuickChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 34),
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.24),
-                Colors.white.withOpacity(0.13),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.35),
-              width: 0.8,
-            ),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.24),
+              Colors.white.withOpacity(0.13),
+            ],
           ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 14, color: const Color(0xFF4A7FCC)),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF2B5BA9),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                  ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.35), width: 0.8),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: const Color(0xFF4A7FCC)),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF2B5BA9),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

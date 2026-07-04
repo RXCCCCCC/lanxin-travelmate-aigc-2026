@@ -164,3 +164,11 @@
 - 已继续按真机反馈修复首页验收问题：`当前旅程` 气泡可进入行程页，天气文案改为多行完整展示，右侧默契/心情/精力气泡上移到消息入口下方；首页直聊在 Agent 思考时追加蓝小心头像与“正在思考中......”循环状态，用户消息头像右对齐。
 - 底部四个 Tab 已支持收起为图标栏并保留展开按钮，降低首页聊天面板被导航占用的高度；设置页新增“登录账户”入口和账户设置/升级登录操作，正式手机号/短信/OAuth 登录仍待账号体系人工确认后接入。
 - 验证：真机 `8507100b` 已安装最新 debug APK，`adb reverse tcp:8000 tcp:8000` 连接本机 FastAPI；截图确认普通模式、纯净模式、思考态、设置页账户入口和底部导航收起状态，截图位于 `E:\tmp\lanxin_home_verify2.png`、`E:\tmp\lanxin_thinking_verify.png`、`E:\tmp\lanxin_settings_account.png`、`E:\tmp\lanxin_nav_collapsed_2.png`。
+
+## 2026-07-05 UI 验收补充
+
+- 按用户反馈继续压缩 Android 首页气泡占比：删除“等待真实行程”气泡，顶部改为左侧“切换到纯净/陪伴模式”与右侧消息、聊天历史两个 icon-only 入口，天气改为“区县 天气 温度”长条，右侧蓝小心属性改为可收起状态抽屉。
+- 首页聊天面板进一步降低初始高度并去掉标题行，四个快捷入口改为等宽紧凑按钮，避免“生成复盘”被右边界裁切；蓝小心立绘露出面积比上一版更大。
+- 底部导航默认展开，用户点击后完整收起为中间展开按钮，并通过 `path_provider` 写入应用支持目录持久保存；全局 Shell 支持左右滑动切换首页、行程、复盘、设置 Tab。
+- 真机 `8507100b` 已验证首页收起态、状态抽屉展开态和左右滑动进入行程页；截图位于 `E:\tmp\lanxin_swipe_home.png`、`E:\tmp\lanxin_swipe_trip.png`、`E:\tmp\lanxin_status_drawer.png`。
+- 用户拿走真机后已切回 Android 模拟器 `emulator-5554`，最新 debug APK 安装成功，`adb reverse tcp:8000 tcp:8000` 已配置；模拟器当前反复出现系统级 `Process system isn't responding` 弹窗，布局可从遮罩背后确认，但不作为 App 崩溃结论。
