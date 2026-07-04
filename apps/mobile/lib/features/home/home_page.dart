@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../data/agent_response_cache.dart';
+import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
 import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../chat/data/agent_chat_service.dart';
+import '../chat/data/chat_history_service.dart';
+import '../chat/widgets/trip_chat_history_sheet.dart';
 import '../trip/data/trip_dashboard_service.dart';
 
 /// 首页 — 完全复刻参考图
@@ -27,6 +30,8 @@ class _HomePageState extends State<HomePage>
   late final AnimationController _floatCtrl;
   late final TripDashboardService _dashboardService;
   late final AgentChatService _agentChatService;
+  late final AppDatabase _database;
+  late final ChatHistoryService _chatHistoryService;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   final _panelScrollController = ScrollController();
@@ -44,8 +49,9 @@ class _HomePageState extends State<HomePage>
   bool _showHeroAvatar = false;
   bool _isSending = false;
   int _memoryCandidateCount = 0;
-  late final String _sessionId;
-  late final String _tripId;
+  double _panelHeightRatio = 0.37;
+  late String _sessionId;
+  late String _tripId;
 
   @override
   void initState() {
@@ -56,6 +62,8 @@ class _HomePageState extends State<HomePage>
     )..repeat(reverse: true);
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _agentChatService = AgentChatService();
+    _database = AppDatabase();
+    _chatHistoryService = ChatHistoryService(_database);
     final now = DateTime.now().millisecondsSinceEpoch;
     _sessionId = 'home-session-$now';
     _tripId = 'home-trip-$now';
@@ -67,6 +75,14 @@ class _HomePageState extends State<HomePage>
         _loadDashboardSummary,
       );
     });
+  }
+
+  Future<void> _ensureInitialSession() async {
+    await _chatHistoryService.bindSessionToTrip(
+      sessionId: _sessionId,
+      tripTitle: '未绑定行程',
+      tripId: _tripId,
+    );
   }
 
   Future<void> _loadDashboardSummary() async {
@@ -83,6 +99,7 @@ class _HomePageState extends State<HomePage>
     _chatController.dispose();
     _chatFocusNode.dispose();
     _panelScrollController.dispose();
+    _database.close();
     super.dispose();
   }
 
@@ -101,6 +118,11 @@ class _HomePageState extends State<HomePage>
       );
     });
     _chatController.clear();
+    await _chatHistoryService.saveMessage(
+      sessionId: _sessionId,
+      sender: MessageSender.user,
+      text: text,
+    );
     _scrollPanelToBottom();
 
     final response = await _agentChatService.sendMessage(
@@ -126,7 +148,100 @@ class _HomePageState extends State<HomePage>
         ),
       );
     });
+    await _chatHistoryService.saveMessage(
+      sessionId: _sessionId,
+      sender: MessageSender.assistant,
+      text: response.replyText,
+      avatarState: response.avatarState,
+    );
     _scrollPanelToBottom();
+  }
+
+  Future<void> _showChatHistorySheet() async {
+    await _ensureInitialSession();
+    final groups = await _chatHistoryService.listGroupedSessions(
+      userId: 'guest',
+      includeEmptySessionId: _sessionId,
+    );
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xFF06224E).withOpacity(0.28),
+      builder: (sheetContext) => TripChatHistorySheet(
+        groups: groups,
+        currentSessionId: _sessionId,
+        onNewSession: () async {
+          final sessionId = await _chatHistoryService.createSession(
+            userId: 'guest',
+          );
+          if (!mounted) return;
+          setState(() {
+            _sessionId = sessionId;
+            _tripId = 'home-trip-${DateTime.now().millisecondsSinceEpoch}';
+            _messages
+              ..clear()
+              ..add(_welcomeMessage());
+            _memoryCandidateCount = 0;
+            _avatarState = AvatarState.hello;
+          });
+          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+        },
+        onSelectSession: (session) async {
+          final loaded = await _chatHistoryService.loadMessages(
+            session.sessionId,
+          );
+          if (!mounted) return;
+          setState(() {
+            _sessionId = session.sessionId;
+            _tripId =
+                session.tripId ??
+                'home-trip-${DateTime.now().millisecondsSinceEpoch}';
+            _messages
+              ..clear()
+              ..addAll(loaded.isEmpty ? [_welcomeMessage()] : loaded);
+            _avatarState =
+                _messages.last.avatarState ??
+                (loaded.isEmpty ? AvatarState.hello : _avatarState);
+          });
+          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+          _scrollPanelToBottom();
+        },
+        onOpenPureMode: (session) {
+          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+          final tripId = session.tripId ?? _tripId;
+          context.push('/chat?sessionId=${session.sessionId}&tripId=$tripId');
+        },
+      ),
+    );
+  }
+
+  ChatMessage _welcomeMessage() {
+    return const ChatMessage(
+      id: 'home-welcome',
+      sender: MessageSender.assistant,
+      text: '告诉我目的地、时间和偏好，我在首页直接陪你规划。',
+      time: '现在',
+      avatarState: AvatarState.hello,
+    );
+  }
+
+  Future<void> _openPureMode() async {
+    await _ensureInitialSession();
+    if (!mounted) return;
+    context.push('/chat?sessionId=$_sessionId&tripId=$_tripId');
+  }
+
+  void _resizeChatPanel(double delta, double viewportHeight) {
+    if (viewportHeight <= 0) return;
+    setState(() {
+      _panelHeightRatio = (_panelHeightRatio - delta / viewportHeight).clamp(
+        0.32,
+        0.62,
+      );
+    });
   }
 
   void _scrollPanelToBottom() {
@@ -161,14 +276,15 @@ class _HomePageState extends State<HomePage>
             final topSafe = metrics.safeInsets.top;
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
-            final panelHeight = (h * (compact ? 0.38 : 0.37))
-                .clamp(250.0, compact ? 304.0 : 320.0)
+            final ratio = math.max(_panelHeightRatio, compact ? 0.38 : 0.36);
+            final panelHeight = (h * ratio)
+                .clamp(250.0, compact ? 430.0 : 520.0)
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
                 ? math.min(panelHeight, compact ? 250.0 : 250.0)
                 : panelHeight;
             final avatarHeight = h * (compact ? 0.46 : 0.54);
-            final avatarBottom = panelHeight * (compact ? 0.28 : 0.34);
+            final avatarBottom = effectivePanelHeight * (compact ? 0.28 : 0.34);
 
             final content = Stack(
               children: [
@@ -207,15 +323,29 @@ class _HomePageState extends State<HomePage>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       GestureDetector(
-                        onTap: () => context.go('/chat'),
+                        onTap: _showChatHistorySheet,
                         child: _IntegrationButton(
                           compact: compact,
-                          label: compact ? '展开' : '聊天历史',
+                          label: '聊天历史',
                         ),
                       ),
                       const SizedBox(height: 8),
                       if (!compact) const _NoticePill(),
                     ],
+                  ),
+                ),
+
+                // ── 模式切换（顶部中间）──
+                Positioned(
+                  top: topSafe + 66,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: _PureModeButton(
+                      onTap: () {
+                        _openPureMode();
+                      },
+                    ),
                   ),
                 ),
 
@@ -316,7 +446,7 @@ class _HomePageState extends State<HomePage>
                     memoryCandidateCount: _memoryCandidateCount,
                     onSend: _sendHomeMessage,
                     onFocusInput: () => _chatFocusNode.requestFocus(),
-                    onOpenHistory: () => context.go('/chat'),
+                    onResize: (delta) => _resizeChatPanel(delta, h),
                     onOpenTrip: () => context.go('/trip'),
                     onOpenMemory: () => context.go('/memory'),
                     onOpenReview: () => context.go('/review'),
@@ -378,6 +508,49 @@ class _BrandBlock extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PureModeButton extends StatelessWidget {
+  const _PureModeButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.34),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.72), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF215ECA).withOpacity(0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.fullscreen_rounded, color: Color(0xFF215ECA), size: 17),
+            SizedBox(width: 5),
+            Text(
+              '纯净模式',
+              style: TextStyle(
+                color: Color(0xFF174C9F),
+                fontWeight: FontWeight.w900,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -901,7 +1074,7 @@ class _ChatGlassPanel extends StatelessWidget {
     required this.memoryCandidateCount,
     required this.onSend,
     required this.onFocusInput,
-    required this.onOpenHistory,
+    required this.onResize,
     required this.onOpenTrip,
     required this.onOpenMemory,
     required this.onOpenReview,
@@ -915,7 +1088,7 @@ class _ChatGlassPanel extends StatelessWidget {
   final int memoryCandidateCount;
   final VoidCallback onSend;
   final VoidCallback onFocusInput;
-  final VoidCallback onOpenHistory;
+  final ValueChanged<double> onResize;
   final VoidCallback onOpenTrip;
   final VoidCallback onOpenMemory;
   final VoidCallback onOpenReview;
@@ -938,6 +1111,31 @@ class _ChatGlassPanel extends StatelessWidget {
       blur: 30.0,
       child: Column(
         children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: (details) => onResize(details.delta.dy),
+            onVerticalDragUpdate: (details) => onResize(details.delta.dy),
+            child: SizedBox(
+              height: 32,
+              width: double.infinity,
+              child: Center(
+                child: Container(
+                  width: 56,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5D8ED6).withOpacity(0.88),
+                    borderRadius: BorderRadius.circular(99),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.48),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
           Row(
             children: [
               const Icon(
@@ -960,11 +1158,6 @@ class _ChatGlassPanel extends StatelessWidget {
               ),
               if (memoryCandidateCount > 0)
                 _TinySignal(label: '$memoryCandidateCount 条记忆'),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: onOpenHistory,
-                child: const _TinySignal(label: '展开'),
-              ),
             ],
           ),
           const SizedBox(height: 8),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/travelmate_models.dart';
@@ -31,10 +32,20 @@ class ChatBubble extends StatelessWidget {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.white.withOpacity(0.3),
-              child: const Icon(
-                Icons.smart_toy_rounded,
-                color: AppTheme.primary,
-                size: 20,
+              child: ClipOval(
+                child: Image.asset(
+                  (message.avatarState ?? AvatarState.hello).assetPath,
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                  cacheWidth: 96,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.face_rounded,
+                    color: AppTheme.primary,
+                    size: 20,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: AppTheme.spacingSm),

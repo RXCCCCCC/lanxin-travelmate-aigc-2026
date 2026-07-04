@@ -32,7 +32,13 @@ final appRouter = GoRouter(
         GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
       ],
     ),
-    GoRoute(path: '/chat', builder: (_, __) => const ChatPage()),
+    GoRoute(
+      path: '/chat',
+      builder: (_, state) => ChatPage(
+        sessionId: state.uri.queryParameters['sessionId'],
+        tripId: state.uri.queryParameters['tripId'],
+      ),
+    ),
     GoRoute(path: '/photo', builder: (_, __) => const PhotoPage()),
     GoRoute(path: '/memory', builder: (_, __) => const MemoryPage()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),

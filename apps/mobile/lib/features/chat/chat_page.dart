@@ -12,6 +12,7 @@ import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
 import 'data/agent_chat_models.dart';
 import 'data/agent_chat_service.dart';
+import 'data/chat_history_service.dart';
 import 'data/voice_interaction_service.dart';
 
 /// 聊天页面
@@ -21,11 +22,15 @@ class ChatPage extends StatefulWidget {
     this.agentChatService,
     this.memoryRepository,
     this.voiceInteractionService,
+    this.sessionId,
+    this.tripId,
   });
 
   final AgentChatService? agentChatService;
   final MemoryRepository? memoryRepository;
   final VoiceInteractionService? voiceInteractionService;
+  final String? sessionId;
+  final String? tripId;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -46,6 +51,8 @@ class _ChatPageState extends State<ChatPage> {
   late final AgentChatService _agentChatService;
   late final MemoryRepository _memoryRepository;
   late final VoiceInteractionService _voiceInteractionService;
+  late final ChatHistoryService _chatHistoryService;
+  late final AppDatabase _historyDatabase;
   AppDatabase? _ownedDatabase;
   List<MemoryCandidate> _pendingMemoryCandidates = [];
   Map<String, dynamic>? _memoryConflictSuggestion;
@@ -53,24 +60,30 @@ class _ChatPageState extends State<ChatPage> {
   String? _voiceNotice;
   bool _isListening = false;
   bool _isSending = false;
-  late final String _sessionId;
-  late final String _tripId;
+  late String _sessionId;
+  late String _tripId;
 
   @override
   void initState() {
     super.initState();
     final now = DateTime.now().millisecondsSinceEpoch;
-    _sessionId = 'chat-session-$now';
-    _tripId = 'chat-trip-$now';
+    _sessionId = widget.sessionId ?? 'chat-session-$now';
+    _tripId = widget.tripId ?? 'chat-trip-$now';
     _agentChatService = widget.agentChatService ?? AgentChatService();
     _voiceInteractionService =
         widget.voiceInteractionService ?? VoiceInteractionService();
     if (widget.memoryRepository == null) {
       _ownedDatabase = AppDatabase();
       _memoryRepository = MemoryRepository(_ownedDatabase!);
+      _historyDatabase = _ownedDatabase!;
     } else {
       _memoryRepository = widget.memoryRepository!;
+      _historyDatabase = AppDatabase();
     }
+    _chatHistoryService = ChatHistoryService(_historyDatabase);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadExistingSession();
+    });
   }
 
   @override
@@ -78,7 +91,22 @@ class _ChatPageState extends State<ChatPage> {
     _controller.dispose();
     _scrollController.dispose();
     _ownedDatabase?.close();
+    if (widget.memoryRepository != null) {
+      _historyDatabase.close();
+    }
     super.dispose();
+  }
+
+  Future<void> _loadExistingSession() async {
+    if (widget.sessionId == null) return;
+    final messages = await _chatHistoryService.loadMessages(_sessionId);
+    if (!mounted || messages.isEmpty) return;
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(messages);
+    });
+    _scrollToBottom();
   }
 
   Future<void> _send() async {
@@ -96,6 +124,11 @@ class _ChatPageState extends State<ChatPage> {
       );
     });
     _controller.clear();
+    await _chatHistoryService.saveMessage(
+      sessionId: _sessionId,
+      sender: MessageSender.user,
+      text: text,
+    );
     final response = await _agentChatService.sendMessage(
       text,
       sessionId: _sessionId,
@@ -122,19 +155,23 @@ class _ChatPageState extends State<ChatPage> {
         ),
       );
     });
+    await _chatHistoryService.saveMessage(
+      sessionId: _sessionId,
+      sender: MessageSender.assistant,
+      text: response.replyText,
+      avatarState: response.avatarState,
+    );
     _scrollToBottom();
-    final voiceText =
-        response.voiceText.trim().isNotEmpty
-            ? response.voiceText
-            : response.replyText;
+    final voiceText = response.voiceText.trim().isNotEmpty
+        ? response.voiceText
+        : response.replyText;
     final spoken = await _voiceInteractionService.speak(voiceText);
     if (!mounted) return;
     setState(() {
-      _voiceNotice =
-          spoken
-              ? null
-              : (_voiceInteractionService.lastFailureMessage ??
-                  '系统语音播报暂不可用，已保留文字回复');
+      _voiceNotice = spoken
+          ? null
+          : (_voiceInteractionService.lastFailureMessage ??
+                '系统语音播报暂不可用，已保留文字回复');
     });
   }
 
@@ -235,18 +272,22 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                       ),
                       CircleAvatar(
-                        radius: 18,
+                        radius: 22,
                         backgroundColor: Colors.white.withOpacity(0.3),
-                        child: Image.asset(
-                          AvatarState.hello.assetPath,
-                          width: 28,
-                          height: 28,
-                          errorBuilder:
-                              (_, __, ___) => const Icon(
-                                Icons.smart_toy_rounded,
-                                color: AppTheme.primary,
-                                size: 22,
-                              ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            AvatarState.hello.assetPath,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            cacheWidth: 132,
+                            filterQuality: FilterQuality.medium,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.face_rounded,
+                              color: AppTheme.primary,
+                              size: 22,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: AppTheme.spacingSm),
@@ -254,7 +295,7 @@ class _ChatPageState extends State<ChatPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '蓝小心',
+                            '蓝小心纯净模式',
                             style: TextStyle(
                               color: AppTheme.textPrimary,
                               fontSize: 16,
@@ -262,7 +303,7 @@ class _ChatPageState extends State<ChatPage> {
                             ),
                           ),
                           Text(
-                            '在线',
+                            '专注查看完整对话',
                             style: TextStyle(
                               color: AppTheme.textMuted,
                               fontSize: 12,
@@ -288,10 +329,9 @@ class _ChatPageState extends State<ChatPage> {
                     count: _pendingMemoryCandidates.length,
                     candidates: _pendingMemoryCandidates,
                     statusText: _memoryStatusText,
-                    onConfirm:
-                        _pendingMemoryCandidates.isEmpty
-                            ? null
-                            : _confirmMemoryCandidates,
+                    onConfirm: _pendingMemoryCandidates.isEmpty
+                        ? null
+                        : _confirmMemoryCandidates,
                   ),
                 if (_memoryConflictSuggestion != null)
                   _MemoryConflictPanel(suggestion: _memoryConflictSuggestion!),
@@ -381,10 +421,9 @@ class _ChatPageState extends State<ChatPage> {
                           child: Tooltip(
                             message: '语音输入',
                             child: IconButton(
-                              onPressed:
-                                  _isListening || _isSending
-                                      ? null
-                                      : _listenAndFillInput,
+                              onPressed: _isListening || _isSending
+                                  ? null
+                                  : _listenAndFillInput,
                               icon: Icon(
                                 _isListening
                                     ? Icons.more_horiz_rounded
@@ -466,14 +505,12 @@ class _MemoryCandidatePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final sensitiveCount =
-        candidates
-            .where((candidate) => candidate.sensitivity == 'sensitive')
-            .length;
-    final personalCount =
-        candidates
-            .where((candidate) => candidate.sensitivity == 'personal')
-            .length;
+    final sensitiveCount = candidates
+        .where((candidate) => candidate.sensitivity == 'sensitive')
+        .length;
+    final personalCount = candidates
+        .where((candidate) => candidate.sensitivity == 'personal')
+        .length;
     final requiresExplicitConsent = candidates.any(
       (candidate) => candidate.requiresExplicitConsent,
     );

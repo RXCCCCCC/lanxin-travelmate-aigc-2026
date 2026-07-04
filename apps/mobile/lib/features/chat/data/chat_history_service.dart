@@ -290,26 +290,36 @@ class ChatHistoryService {
 
   Future<List<TripConversationGroup>> listGroupedSessions({
     required String userId,
+    String? includeEmptySessionId,
   }) async {
     final summaries = await (_db.select(
       _db.chatSummaries,
     )..orderBy([(row) => OrderingTerm.desc(row.summary)])).get();
-    final sessions = summaries.map((row) {
-      final metadata = ChatHistoryMetadata.fromJson(
-        row.summary,
-        fallbackSessionId: row.sessionId,
-      );
-      return ChatSessionEntry(
-        sessionId: row.sessionId,
-        title: metadata.title,
-        tripTitle: metadata.tripTitle,
-        lastMessage: metadata.lastMessage,
-        updatedAt: metadata.updatedAt,
-        messageCount: metadata.messageCount,
-        tripId: metadata.tripId,
-        destination: metadata.destination,
-      );
-    }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final sessions =
+        summaries
+            .map((row) {
+              final metadata = ChatHistoryMetadata.fromJson(
+                row.summary,
+                fallbackSessionId: row.sessionId,
+              );
+              return ChatSessionEntry(
+                sessionId: row.sessionId,
+                title: metadata.title,
+                tripTitle: metadata.tripTitle,
+                lastMessage: metadata.lastMessage,
+                updatedAt: metadata.updatedAt,
+                messageCount: metadata.messageCount,
+                tripId: metadata.tripId,
+                destination: metadata.destination,
+              );
+            })
+            .where(
+              (session) =>
+                  session.messageCount > 0 ||
+                  session.sessionId == includeEmptySessionId,
+            )
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
     final grouped = <String, List<ChatSessionEntry>>{};
     for (final session in sessions) {
