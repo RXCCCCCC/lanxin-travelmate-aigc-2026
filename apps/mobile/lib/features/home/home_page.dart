@@ -247,11 +247,9 @@ class _HomePageState extends State<HomePage>
               _panelHeightRatio,
               compact ? 0.38 : 0.36,
             );
-            final ratio = _isPureMode
-                ? math.max(baseRatio, compact ? 0.52 : 0.56)
-                : baseRatio;
+            final ratio = baseRatio;
             final panelHeight = (h * ratio)
-                .clamp(250.0, _isPureMode ? 610.0 : (compact ? 430.0 : 520.0))
+                .clamp(250.0, compact ? 430.0 : 520.0)
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
                 ? math.min(panelHeight, compact ? 250.0 : 250.0)
@@ -335,7 +333,12 @@ class _HomePageState extends State<HomePage>
                       left: -8,
                       right: -8,
                       height: avatarHeight,
-                      child: child!,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        opacity: _isPureMode ? 0 : 1,
+                        child: child!,
+                      ),
                     );
                   },
                   child: IgnorePointer(
@@ -426,8 +429,9 @@ class _HomePageState extends State<HomePage>
                   curve: Curves.easeOutCubic,
                   left: sidePadding,
                   right: sidePadding,
+                  top: _isPureMode ? topSafe + 126 : null,
                   bottom: 10 + keyboardInset,
-                  height: effectivePanelHeight,
+                  height: _isPureMode ? null : effectivePanelHeight,
                   child: _ChatGlassPanel(
                     controller: _chatController,
                     focusNode: _chatFocusNode,
@@ -474,7 +478,7 @@ class _PureModeButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 50, minWidth: 138),
+        constraints: const BoxConstraints(minHeight: 50, minWidth: 178),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.34),
@@ -500,11 +504,11 @@ class _PureModeButton extends StatelessWidget {
             ),
             const SizedBox(width: 7),
             Text(
-              isPureMode ? '陪伴模式' : '纯净模式',
+              isPureMode ? '切换到陪伴模式' : '切换到纯净模式',
               style: const TextStyle(
                 color: Color(0xFF174C9F),
                 fontWeight: FontWeight.w900,
-                fontSize: 14.5,
+                fontSize: 13.5,
               ),
             ),
           ],
