@@ -119,8 +119,11 @@ class _ReminderPageState extends State<ReminderPage> {
     Map<String, dynamic> reminder, {
     required String source,
   }) async {
-    final title = reminder['title']?.toString() ?? '蓝心同行提醒';
-    final body = reminder['description']?.toString() ?? '';
+    final title =
+        _localizedReminderTitle(reminder['title']?.toString()) ?? '蓝心同行提醒';
+    final body =
+        _localizedReminderDescription(reminder['description']?.toString()) ??
+        '';
     final delivered = await _notificationDeliveryService.showReminder(
       title: title,
       body: body,
@@ -378,8 +381,8 @@ class _ProfileReminderContext extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = context.responsive;
     final tags = <String>[
-      profile.proactivityLevel,
-      profile.travelPace,
+      _localizedProactivityLevel(profile.proactivityLevel),
+      _localizedTravelPace(profile.travelPace),
       ...profile.interestTags.take(2),
       ...profile.dietaryPreferences.take(1),
     ];
@@ -456,6 +459,14 @@ class _AgentReminderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
+    final title =
+        _localizedReminderTitle(reminder['title']?.toString()) ?? '主动提醒';
+    final triggerType = _localizedTriggerType(
+      reminder['triggerType']?.toString(),
+    );
+    final description =
+        _localizedReminderDescription(reminder['description']?.toString()) ??
+        '';
     return GlassBox(
       margin: EdgeInsets.symmetric(
         horizontal: metrics.horizontalPadding,
@@ -484,7 +495,7 @@ class _AgentReminderCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      reminder['title']?.toString() ?? '主动提醒',
+                      title,
                       style: const TextStyle(
                         color: AppTheme.textPrimary,
                         fontSize: 16,
@@ -493,7 +504,7 @@ class _AgentReminderCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '触发：${reminder['triggerType'] ?? 'context'} · 冷却 ${reminder['cooldownMinutes'] ?? 60} 分钟',
+                      '触发：$triggerType · 冷却 ${reminder['cooldownMinutes'] ?? 60} 分钟',
                       style: const TextStyle(
                         color: AppTheme.textMuted,
                         fontSize: 11,
@@ -506,7 +517,7 @@ class _AgentReminderCard extends StatelessWidget {
           ),
           const SizedBox(height: AppTheme.spacingMd),
           Text(
-            reminder['description']?.toString() ?? '',
+            description,
             style: const TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 14,
@@ -517,4 +528,78 @@ class _AgentReminderCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _localizedReminderTitle(String? raw) {
+  final value = raw?.trim();
+  if (value == null || value.isEmpty) return null;
+  final normalized = value.toLowerCase();
+  const exact = {
+    'dinner timing reminder': '用餐时间提醒',
+    'low energy reminder': '体力偏低提醒',
+    'weather change reminder': '天气变化提醒',
+    'photo moment reminder': '旅拍时刻提醒',
+    'route adjustment reminder': '行程调整提醒',
+  };
+  if (exact.containsKey(normalized)) return exact[normalized];
+  if (_containsAsciiLetter(value)) return '主动提醒';
+  return value;
+}
+
+String? _localizedReminderDescription(String? raw) {
+  final value = raw?.trim();
+  if (value == null || value.isEmpty) return null;
+  final normalized = value.toLowerCase();
+  const exact = {
+    'it is dinner time; reserve a lighter meal before the evening route.':
+        '现在接近用餐时间，建议先安排一顿清淡餐食，再继续晚间路线。',
+    'energy is low; switch to a shorter or indoor alternative.':
+        '当前精力偏低，建议切换为更短路线或室内备选。',
+    'weather changed; prepare a backup indoor stop.': '天气发生变化，建议准备一个室内备选点。',
+    'new photo detected; save it as a trip highlight.':
+        '发现新的旅拍素材，可以先保存为本段旅程高光。',
+  };
+  if (exact.containsKey(normalized)) return exact[normalized];
+  if (_containsAsciiLetter(value)) {
+    return '蓝小心已根据当前时间、位置、状态和行程上下文生成提醒。';
+  }
+  return value;
+}
+
+String _localizedTriggerType(String? raw) {
+  final value = raw?.trim().toLowerCase();
+  return switch (value) {
+    'time' => '时间',
+    'status' => '状态',
+    'external' || 'weather' => '天气',
+    'behavior' => '行为',
+    'location' => '位置',
+    'context' || null || '' => '情境',
+    _ => _containsAsciiLetter(raw ?? '') ? '情境' : raw!,
+  };
+}
+
+String _localizedProactivityLevel(String raw) {
+  final value = raw.trim().toLowerCase();
+  return switch (value) {
+    'quiet' => '安静',
+    'low' => '低主动',
+    'standard' || 'normal' => '标准',
+    'active' || 'high' => '活跃',
+    _ => _containsAsciiLetter(raw) ? '标准' : raw,
+  };
+}
+
+String _localizedTravelPace(String raw) {
+  final value = raw.trim().toLowerCase();
+  return switch (value) {
+    'relaxed' || 'easy' => '轻松',
+    'standard' || 'normal' => '适中',
+    'compact' || 'intensive' || 'fast' => '紧凑',
+    _ => _containsAsciiLetter(raw) ? '适中' : raw,
+  };
+}
+
+bool _containsAsciiLetter(String value) {
+  return RegExp(r'[A-Za-z]').hasMatch(value);
 }

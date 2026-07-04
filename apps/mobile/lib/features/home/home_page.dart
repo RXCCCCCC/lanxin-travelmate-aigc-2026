@@ -4,13 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
-import '../../data/agent_response_cache.dart';
 import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
 import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
-import '../chat/data/agent_chat_service.dart';
 import '../chat/data/chat_history_service.dart';
 import '../chat/widgets/trip_chat_history_sheet.dart';
+import 'data/home_chat_controller.dart';
+import 'data/home_weather_service.dart';
 import '../trip/data/trip_dashboard_service.dart';
 
 /// 首页 — 完全复刻参考图
@@ -27,31 +27,25 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
+  static final AppDatabase _homeDatabase = AppDatabase();
+  static final ChatHistoryService _homeHistoryService = ChatHistoryService(
+    _homeDatabase,
+  );
+  static final HomeChatController _homeChatController = HomeChatController(
+    chatHistoryService: _homeHistoryService,
+  );
+
   late final AnimationController _floatCtrl;
   late final TripDashboardService _dashboardService;
-  late final AgentChatService _agentChatService;
-  late final AppDatabase _database;
-  late final ChatHistoryService _chatHistoryService;
+  late final HomeWeatherService _weatherService;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   final _panelScrollController = ScrollController();
-  final _messages = <ChatMessage>[
-    const ChatMessage(
-      id: 'home-welcome',
-      sender: MessageSender.assistant,
-      text: '告诉我目的地、时间和偏好，我在首页直接陪你规划。',
-      time: '现在',
-      avatarState: AvatarState.hello,
-    ),
-  ];
   _HomeDashboardSummary _dashboardSummary = const _HomeDashboardSummary();
+  HomeWeatherSummary _weatherSummary = HomeWeatherSummary.idle;
   AvatarState _avatarState = AvatarState.hello;
   bool _showHeroAvatar = false;
-  bool _isSending = false;
-  int _memoryCandidateCount = 0;
   double _panelHeightRatio = 0.37;
-  late String _sessionId;
-  late String _tripId;
 
   @override
   void initState() {
@@ -61,12 +55,8 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(milliseconds: 3400),
     )..repeat(reverse: true);
     _dashboardService = widget.dashboardService ?? TripDashboardService();
-    _agentChatService = AgentChatService();
-    _database = AppDatabase();
-    _chatHistoryService = ChatHistoryService(_database);
-    final now = DateTime.now().millisecondsSinceEpoch;
-    _sessionId = 'home-session-$now';
-    _tripId = 'home-trip-$now';
+    _weatherService = HomeWeatherService();
+    _homeChatController.addListener(_handleHomeChatChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _showHeroAvatar = true);
@@ -74,15 +64,15 @@ class _HomePageState extends State<HomePage>
         const Duration(milliseconds: 600),
         _loadDashboardSummary,
       );
+      Future<void>.delayed(
+        const Duration(milliseconds: 900),
+        _loadCurrentWeather,
+      );
     });
   }
 
   Future<void> _ensureInitialSession() async {
-    await _chatHistoryService.bindSessionToTrip(
-      sessionId: _sessionId,
-      tripTitle: '未绑定行程',
-      tripId: _tripId,
-    );
+    await _homeChatController.bindInitialSession();
   }
 
   Future<void> _loadDashboardSummary() async {
@@ -93,75 +83,56 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Future<void> _loadCurrentWeather() async {
+    if (!mounted) return;
+    setState(() => _weatherSummary = HomeWeatherSummary.loading);
+    final weather = await _weatherService.fetchCurrentWeather();
+    if (!mounted) return;
+    setState(() => _weatherSummary = weather);
+  }
+
+  void _handleHomeChatChanged() {
+    if (!mounted) return;
+    final status = _homeChatController.statusMessage;
+    setState(() {
+      _avatarState = _homeChatController.avatarState;
+    });
+    if (status != null && status.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(status),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _homeChatController.clearStatus();
+    }
+    _scrollPanelToBottom();
+  }
+
   @override
   void dispose() {
+    _homeChatController.removeListener(_handleHomeChatChanged);
     _floatCtrl.dispose();
     _chatController.dispose();
     _chatFocusNode.dispose();
     _panelScrollController.dispose();
-    _database.close();
     super.dispose();
   }
 
   Future<void> _sendHomeMessage() async {
     final text = _chatController.text.trim();
-    if (text.isEmpty || _isSending) return;
-    setState(() {
-      _isSending = true;
-      _messages.add(
-        ChatMessage(
-          id: 'home-user-${DateTime.now().millisecondsSinceEpoch}',
-          sender: MessageSender.user,
-          text: text,
-          time: TimeOfDay.now().format(context),
-        ),
-      );
-    });
+    if (text.isEmpty) return;
     _chatController.clear();
-    await _chatHistoryService.saveMessage(
-      sessionId: _sessionId,
-      sender: MessageSender.user,
-      text: text,
-    );
-    _scrollPanelToBottom();
-
-    final response = await _agentChatService.sendMessage(
-      text,
-      sessionId: _sessionId,
-      userId: 'guest',
-      tripId: _tripId,
-      context: {'entry': 'home_companion', 'surface': 'avatar_home'},
-    );
-    if (!mounted) return;
-    latestAgentResponse.value = response;
-    setState(() {
-      _isSending = false;
-      _avatarState = response.avatarState;
-      _memoryCandidateCount = response.memoryCandidates.length;
-      _messages.add(
-        ChatMessage(
-          id: 'home-assistant-${DateTime.now().millisecondsSinceEpoch}',
-          sender: MessageSender.assistant,
-          text: response.replyText,
-          time: TimeOfDay.now().format(context),
-          avatarState: response.avatarState,
-        ),
-      );
-    });
-    await _chatHistoryService.saveMessage(
-      sessionId: _sessionId,
-      sender: MessageSender.assistant,
-      text: response.replyText,
-      avatarState: response.avatarState,
-    );
+    await _homeChatController.send(text);
     _scrollPanelToBottom();
   }
 
   Future<void> _showChatHistorySheet() async {
     await _ensureInitialSession();
-    final groups = await _chatHistoryService.listGroupedSessions(
+    final groups = await _homeHistoryService.listGroupedSessions(
       userId: 'guest',
-      includeEmptySessionId: _sessionId,
+      includeEmptySessionId: _homeChatController.sessionId,
     );
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -172,46 +143,38 @@ class _HomePageState extends State<HomePage>
       barrierColor: const Color(0xFF06224E).withOpacity(0.28),
       builder: (sheetContext) => TripChatHistorySheet(
         groups: groups,
-        currentSessionId: _sessionId,
+        currentSessionId: _homeChatController.sessionId,
         onNewSession: () async {
-          final sessionId = await _chatHistoryService.createSession(
+          final sessionId = await _homeHistoryService.createSession(
             userId: 'guest',
           );
           if (!mounted) return;
-          setState(() {
-            _sessionId = sessionId;
-            _tripId = 'home-trip-${DateTime.now().millisecondsSinceEpoch}';
-            _messages
-              ..clear()
-              ..add(_welcomeMessage());
-            _memoryCandidateCount = 0;
-            _avatarState = AvatarState.hello;
-          });
+          _homeChatController.switchSession(
+            nextSessionId: sessionId,
+            nextTripId: 'home-trip-${DateTime.now().millisecondsSinceEpoch}',
+          );
           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
         },
         onSelectSession: (session) async {
-          final loaded = await _chatHistoryService.loadMessages(
+          final loaded = await _homeHistoryService.loadMessages(
             session.sessionId,
           );
           if (!mounted) return;
-          setState(() {
-            _sessionId = session.sessionId;
-            _tripId =
+          _homeChatController.switchSession(
+            nextSessionId: session.sessionId,
+            nextTripId:
                 session.tripId ??
-                'home-trip-${DateTime.now().millisecondsSinceEpoch}';
-            _messages
-              ..clear()
-              ..addAll(loaded.isEmpty ? [_welcomeMessage()] : loaded);
-            _avatarState =
-                _messages.last.avatarState ??
-                (loaded.isEmpty ? AvatarState.hello : _avatarState);
-          });
+                'home-trip-${DateTime.now().millisecondsSinceEpoch}',
+          );
+          _homeChatController.replaceMessages(
+            loaded.isEmpty ? [_welcomeMessage()] : loaded,
+          );
           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
           _scrollPanelToBottom();
         },
         onOpenPureMode: (session) {
           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-          final tripId = session.tripId ?? _tripId;
+          final tripId = session.tripId ?? _homeChatController.tripId;
           context.push('/chat?sessionId=${session.sessionId}&tripId=$tripId');
         },
       ),
@@ -231,7 +194,9 @@ class _HomePageState extends State<HomePage>
   Future<void> _openPureMode() async {
     await _ensureInitialSession();
     if (!mounted) return;
-    context.push('/chat?sessionId=$_sessionId&tripId=$_tripId');
+    context.push(
+      '/chat?sessionId=${_homeChatController.sessionId}&tripId=${_homeChatController.tripId}',
+    );
   }
 
   void _resizeChatPanel(double delta, double viewportHeight) {
@@ -308,11 +273,15 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
-                // ── 品牌标题（左上）──
+                // ── 模式切换（左上）──
                 Positioned(
                   top: topSafe + 8,
                   left: sidePadding,
-                  child: _BrandBlock(compact: compact),
+                  child: _PureModeButton(
+                    onTap: () {
+                      _openPureMode();
+                    },
+                  ),
                 ),
 
                 // ── 联调状态 + 消息（右上）──
@@ -330,22 +299,12 @@ class _HomePageState extends State<HomePage>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (!compact) const _NoticePill(),
+                      if (!compact)
+                        GestureDetector(
+                          onTap: () => context.push('/reminder'),
+                          child: const _NoticePill(),
+                        ),
                     ],
-                  ),
-                ),
-
-                // ── 模式切换（顶部中间）──
-                Positioned(
-                  top: topSafe + 66,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: _PureModeButton(
-                      onTap: () {
-                        _openPureMode();
-                      },
-                    ),
                   ),
                 ),
 
@@ -398,7 +357,10 @@ class _HomePageState extends State<HomePage>
                 Positioned(
                   top: topSafe + 146,
                   left: sidePadding,
-                  child: const _WeatherCard(),
+                  child: _WeatherCard(
+                    summary: _weatherSummary,
+                    onTap: _loadCurrentWeather,
+                  ),
                 ),
 
                 // ── 右侧浮动状态卡 ──
@@ -441,10 +403,13 @@ class _HomePageState extends State<HomePage>
                     controller: _chatController,
                     focusNode: _chatFocusNode,
                     scrollController: _panelScrollController,
-                    messages: _messages,
-                    isSending: _isSending,
-                    memoryCandidateCount: _memoryCandidateCount,
+                    messages: _homeChatController.messages,
+                    isSending: _homeChatController.isSending,
+                    queuedMessage: _homeChatController.queuedMessage,
+                    memoryCandidateCount:
+                        _homeChatController.memoryCandidateCount,
                     onSend: _sendHomeMessage,
+                    onStop: () => _homeChatController.stop(),
                     onFocusInput: () => _chatFocusNode.requestFocus(),
                     onResize: (delta) => _resizeChatPanel(delta, h),
                     onOpenTrip: () => context.go('/trip'),
@@ -468,50 +433,6 @@ class _HomePageState extends State<HomePage>
 // ══════════════════════════════════════════════════════════
 // 子组件
 // ══════════════════════════════════════════════════════════
-
-class _BrandBlock extends StatelessWidget {
-  const _BrandBlock({this.compact = false});
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: compact ? 168 : 210,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ShaderMask(
-            shaderCallback: (r) => const LinearGradient(
-              colors: [Color(0xFF124EBC), Color(0xFF2D72E8)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ).createShader(r),
-            child: Text(
-              '蓝小心',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: compact ? 27 : 32,
-                fontWeight: FontWeight.w900,
-                height: 0.92,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '全旅程智能伙伴',
-            style: TextStyle(
-              color: const Color(0xFF1B4FAD).withOpacity(0.90),
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _PureModeButton extends StatelessWidget {
   const _PureModeButton({required this.onTap});
@@ -627,57 +548,64 @@ class _TripPill extends StatelessWidget {
 }
 
 class _WeatherCard extends StatelessWidget {
-  const _WeatherCard();
+  const _WeatherCard({required this.summary, required this.onTap});
+
+  final HomeWeatherSummary summary;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    return GlassBox(
-      width: 132,
-      opacity: 0.24,
-      borderColor: Colors.white.withOpacity(0.72),
-      padding: const EdgeInsets.fromLTRB(13, 11, 12, 11),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.cloud_rounded,
-                color: Color(0xFFFFFFFF),
-                size: 20,
-              ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: const Text(
-                    '等待天气',
-                    style: TextStyle(
-                      color: Color(0xFF175BC4),
+    final isLoading = summary.state == HomeWeatherState.loading;
+    final icon = switch (summary.state) {
+      HomeWeatherState.ready => Icons.wb_sunny_rounded,
+      HomeWeatherState.failure => Icons.refresh_rounded,
+      HomeWeatherState.loading => Icons.my_location_rounded,
+      HomeWeatherState.idle => Icons.cloud_sync_rounded,
+    };
+    return GestureDetector(
+      onTap: isLoading ? null : onTap,
+      child: GlassBox(
+        width: 152,
+        opacity: 0.28,
+        borderColor: Colors.white.withOpacity(0.78),
+        padding: const EdgeInsets.fromLTRB(13, 11, 12, 11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    summary.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF114BA8),
                       fontWeight: FontWeight.w900,
                       fontSize: 14.5,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(
-                Icons.auto_awesome_rounded,
-                color: Color(0xFFFFDF73),
-                size: 14,
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  isLoading
+                      ? Icons.more_horiz_rounded
+                      : Icons.auto_awesome_rounded,
+                  color: Color(0xFFFFDF73),
+                  size: 14,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
                   child: Text(
-                    '等待工具数据',
+                    summary.subtitle,
                     maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF245EB8),
                       fontWeight: FontWeight.w800,
@@ -685,10 +613,10 @@ class _WeatherCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -706,7 +634,7 @@ class _IntegrationButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.history_rounded, color: Colors.white, size: 20),
           if (!compact) const SizedBox(width: 7),
           Text(
             label,
@@ -1071,8 +999,10 @@ class _ChatGlassPanel extends StatelessWidget {
     required this.scrollController,
     required this.messages,
     required this.isSending,
+    required this.queuedMessage,
     required this.memoryCandidateCount,
     required this.onSend,
+    required this.onStop,
     required this.onFocusInput,
     required this.onResize,
     required this.onOpenTrip,
@@ -1085,8 +1015,10 @@ class _ChatGlassPanel extends StatelessWidget {
   final ScrollController scrollController;
   final List<ChatMessage> messages;
   final bool isSending;
+  final String? queuedMessage;
   final int memoryCandidateCount;
   final VoidCallback onSend;
+  final VoidCallback onStop;
   final VoidCallback onFocusInput;
   final ValueChanged<double> onResize;
   final VoidCallback onOpenTrip;
@@ -1158,6 +1090,10 @@ class _ChatGlassPanel extends StatelessWidget {
               ),
               if (memoryCandidateCount > 0)
                 _TinySignal(label: '$memoryCandidateCount 条记忆'),
+              if (isSending) ...[
+                const SizedBox(width: 6),
+                _TinySignal(label: queuedMessage == null ? '思考中' : '已追加'),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -1214,7 +1150,7 @@ class _ChatGlassPanel extends StatelessWidget {
                         height: 1.25,
                       ),
                       decoration: InputDecoration(
-                        hintText: isSending ? '蓝小心正在思考...' : '在首页直接告诉蓝小心...',
+                        hintText: isSending ? '可继续补充信息...' : '在首页直接告诉蓝小心...',
                         hintStyle: const TextStyle(
                           color: Color(0xFF7B98B8),
                           fontSize: 13,
@@ -1228,13 +1164,11 @@ class _ChatGlassPanel extends StatelessWidget {
                     width: 40,
                     height: 40,
                     child: IconButton(
-                      onPressed: isSending ? null : onSend,
-                      tooltip: '发送',
+                      onPressed: onSend,
+                      tooltip: isSending ? '追加信息' : '发送',
                       padding: EdgeInsets.zero,
                       icon: Icon(
-                        isSending
-                            ? Icons.more_horiz_rounded
-                            : Icons.send_rounded,
+                        isSending ? Icons.add_rounded : Icons.send_rounded,
                         color: const Color(0xFF215ECA),
                         size: 22,
                       ),
@@ -1244,6 +1178,37 @@ class _ChatGlassPanel extends StatelessWidget {
               ),
             ),
           ),
+          if (isSending) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    queuedMessage == null
+                        ? '正在调用真实 Agent，可停止或补充信息'
+                        : '补充信息会进入下一轮思考',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF5F7EA8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onStop,
+                  icon: const Icon(Icons.stop_circle_rounded, size: 16),
+                  label: const Text('停止'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF215ECA),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 7),
           Row(
             children: [
@@ -1330,6 +1295,25 @@ class _ChatBubble extends StatelessWidget {
                   height: 1.32,
                 ),
               ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF5C8DFF), Color(0xFF9BC7FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.62)),
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              color: Colors.white,
+              size: 17,
             ),
           ),
         ],

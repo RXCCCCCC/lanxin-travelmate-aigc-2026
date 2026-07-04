@@ -56,6 +56,14 @@ class AmapToolProvider:
         city = str(payload.get("adcode") or payload.get("city") or "")
         meta = ToolRequestMeta()
         try:
+            resolved_place: dict[str, Any] = {}
+            if not city:
+                location = _payload_location(payload)
+                if location:
+                    resolved_place = self._reverse_geocode(location, meta)
+                    city = str(resolved_place.get("adcode") or resolved_place.get("city") or "")
+            if not city:
+                return _with_meta(_failed_weather(payload, "天气接口需要城市、adcode 或当前位置坐标。"), meta)
             response = self._get("/v3/weather/weatherInfo", {"city": city, "extensions": "base"}, meta)
             live = _first(response.get("lives"))
             if not live:
@@ -63,7 +71,9 @@ class AmapToolProvider:
             return _with_meta({
                 "provider": self.name,
                 "fallback": False,
-                "city": live.get("city") or city,
+                "city": live.get("city") or resolved_place.get("city") or city,
+                "adcode": live.get("adcode") or resolved_place.get("adcode"),
+                "province": live.get("province") or resolved_place.get("province"),
                 "condition": live.get("weather") or "未知",
                 "temperatureC": _to_int(live.get("temperature")),
                 "rainProbability": None,
@@ -313,6 +323,25 @@ class AmapToolProvider:
             raise ValueError(f"未找到地点坐标：{name}")
         return str(location)
 
+    def _reverse_geocode(self, location: str, meta: ToolRequestMeta) -> dict[str, Any]:
+        response = self._get("/v3/geocode/regeo", {"location": location, "extensions": "base"}, meta)
+        regeocode = response.get("regeocode")
+        if not isinstance(regeocode, dict):
+            raise ValueError("逆地理接口未返回 regeocode 数据。")
+        component = regeocode.get("addressComponent")
+        if not isinstance(component, dict):
+            raise ValueError("逆地理接口未返回 addressComponent 数据。")
+        city = component.get("city")
+        if isinstance(city, list):
+            city = ""
+        province = component.get("province")
+        adcode = component.get("adcode")
+        return {
+            "city": city or province,
+            "province": province,
+            "adcode": adcode,
+        }
+
     def _get(self, path: str, params: dict[str, Any], meta: ToolRequestMeta) -> dict[str, Any]:
         if self._failure_counts.get(path, 0) >= self.failure_threshold:
             meta.circuit_open = True
@@ -462,6 +491,20 @@ def _looks_like_location(value: Any) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _payload_location(payload: dict[str, Any]) -> str:
+    longitude = payload.get("longitude") or payload.get("lng")
+    latitude = payload.get("latitude") or payload.get("lat")
+    try:
+        if longitude is not None and latitude is not None:
+            return f"{float(longitude):.6f},{float(latitude):.6f}"
+    except (TypeError, ValueError):
+        pass
+    location = payload.get("location") or payload.get("coordinate")
+    if _looks_like_location(location):
+        return str(location)
+    return ""
 
 
 def _weather_hint(condition: str) -> str:

@@ -9,9 +9,12 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
@@ -43,6 +46,8 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private var pendingVoiceResult: MethodChannel.Result? = null
     private var pendingNotificationResult: MethodChannel.Result? = null
     private var pendingNotificationPayload: Map<String, String>? = null
+    private var pendingLocationListener: LocationListener? = null
+    private var pendingLocationTimeout: Runnable? = null
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var nextNotificationId = 5100
@@ -243,10 +248,62 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             .mapNotNull { provider -> latestLocation(manager, provider) }
             .maxByOrNull { it.time }
         if (location == null) {
-            result.success(null)
+            requestFreshLocation(manager, providers, result)
             return
         }
         result.success(locationPayload(location))
+    }
+
+    private fun requestFreshLocation(
+        manager: LocationManager,
+        providers: List<String>,
+        result: MethodChannel.Result,
+    ) {
+        if (pendingLocationListener != null) {
+            result.error("location_busy", "Another location request is already running", null)
+            return
+        }
+        val provider = providers.firstOrNull { candidate -> manager.isProviderEnabled(candidate) }
+        if (provider == null) {
+            result.error("location_unavailable", "No location provider is enabled", null)
+            return
+        }
+        val handler = Handler(Looper.getMainLooper())
+        val listener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                clearFreshLocationRequest(manager)
+                result.success(locationPayload(location))
+            }
+        }
+        val timeout = Runnable {
+            clearFreshLocationRequest(manager)
+            result.success(null)
+        }
+        pendingLocationListener = listener
+        pendingLocationTimeout = timeout
+        try {
+            handler.postDelayed(timeout, 8000)
+            manager.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+        } catch (_: SecurityException) {
+            clearFreshLocationRequest(manager)
+            result.error("location_permission_denied", "Location permission was denied", null)
+        } catch (_: IllegalArgumentException) {
+            clearFreshLocationRequest(manager)
+            result.error("location_unavailable", "Location provider is unavailable", null)
+        }
+    }
+
+    private fun clearFreshLocationRequest(manager: LocationManager) {
+        pendingLocationTimeout?.let { Handler(Looper.getMainLooper()).removeCallbacks(it) }
+        pendingLocationListener?.let { listener ->
+            try {
+                manager.removeUpdates(listener)
+            } catch (_: SecurityException) {
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+        pendingLocationListener = null
+        pendingLocationTimeout = null
     }
 
     private fun latestLocation(manager: LocationManager, provider: String): Location? {

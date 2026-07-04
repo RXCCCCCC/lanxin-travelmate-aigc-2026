@@ -4,7 +4,8 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanxin_travelmate/core/constants/avatar_states.dart';
-import 'package:lanxin_travelmate/data/local/app_database.dart' hide AvatarState;
+import 'package:lanxin_travelmate/data/local/app_database.dart'
+    hide AvatarState;
 import 'package:lanxin_travelmate/data/repositories/memory_repository.dart';
 import 'package:lanxin_travelmate/features/chat/chat_page.dart';
 import 'package:lanxin_travelmate/features/chat/data/agent_chat_models.dart';
@@ -20,6 +21,7 @@ class StubAgentChatService extends AgentChatService {
     String? userId,
     String? tripId,
     Map<String, dynamic>? context,
+    CancelToken? cancelToken,
   }) async {
     return const AgentChatResponse(
       replyText: '我把洪崖洞夜景安排在傍晚后，也会避开香菜。',
@@ -55,6 +57,7 @@ class ConflictAgentChatService extends AgentChatService {
     String? userId,
     String? tripId,
     Map<String, dynamic>? context,
+    CancelToken? cancelToken,
   }) async {
     return const AgentChatResponse(
       replyText: '这次我会按轻松节奏处理，不直接覆盖你过去的特种兵偏好。',
@@ -71,7 +74,7 @@ class ConflictAgentChatService extends AgentChatService {
           'type': 'memoryConflict',
           'title': '发现节奏偏好变化',
           'description': '本次行程优先按低强度规划，长期画像不直接覆盖。',
-        }
+        },
       ],
     );
   }
@@ -95,13 +98,17 @@ void main() {
     await database.close();
   });
 
-  testWidgets('ChatPage sends message and displays agent response', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ChatPage(
-        agentChatService: StubAgentChatService(),
-        memoryRepository: memoryRepository,
+  testWidgets('ChatPage sends message and displays agent response', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          agentChatService: StubAgentChatService(),
+          memoryRepository: memoryRepository,
+        ),
       ),
-    ));
+    );
 
     await tester.enterText(find.byType(TextField), '周末想去重庆两天，不吃香菜');
     await tester.tap(find.byIcon(Icons.send_rounded));
@@ -113,12 +120,14 @@ void main() {
   });
 
   testWidgets('ChatPage displays memory conflict suggestion', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ChatPage(
-        agentChatService: ConflictAgentChatService(),
-        memoryRepository: memoryRepository,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          agentChatService: ConflictAgentChatService(),
+          memoryRepository: memoryRepository,
+        ),
       ),
-    ));
+    );
 
     await tester.enterText(find.byType(TextField), '这次想慢一点');
     await tester.tap(find.byIcon(Icons.send_rounded));
