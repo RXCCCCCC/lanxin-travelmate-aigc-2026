@@ -528,7 +528,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '蓝心同心',
+                                    '蓝心同行',
                                     style: TextStyle(
                                       color: AppTheme.textPrimary,
                                       fontSize: 16,

@@ -119,7 +119,7 @@ class _ReminderPageState extends State<ReminderPage> {
     Map<String, dynamic> reminder, {
     required String source,
   }) async {
-    final title = reminder['title']?.toString() ?? '蓝心同心提醒';
+    final title = reminder['title']?.toString() ?? '蓝心同行提醒';
     final body = reminder['description']?.toString() ?? '';
     final delivered = await _notificationDeliveryService.showReminder(
       title: title,

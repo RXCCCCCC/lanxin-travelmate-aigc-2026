@@ -13,7 +13,7 @@ class NotificationDeliveryService {
     required String body,
   }) async {
     lastFailureMessage = null;
-    final safeTitle = title.trim().isEmpty ? '蓝心同心提醒' : title.trim();
+    final safeTitle = title.trim().isEmpty ? '蓝心同行提醒' : title.trim();
     final safeBody = body.trim();
     if (safeBody.isEmpty) return false;
     try {
