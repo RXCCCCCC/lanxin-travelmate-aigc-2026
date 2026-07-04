@@ -13,8 +13,6 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
-from PIL import Image
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -131,6 +129,7 @@ def _collect_avatar_asset_readiness(repo_root: Path) -> dict[str, Any]:
         repo_root / "apps" / "mobile" / "lib" / "core" / "constants" / "avatar_states.dart"
     )
     avatar_dir = repo_root / "apps" / "mobile" / "assets" / "avatars"
+    source_avatar_dir = repo_root / "project" / "img" / "lanxiaoxin"
     source_text = _read_text(avatar_source)
     asset_names = sorted(
         {
@@ -142,21 +141,23 @@ def _collect_avatar_asset_readiness(repo_root: Path) -> dict[str, Any]:
     offenders: list[str] = []
     for name in asset_names:
         path = avatar_dir / f"{name}.png"
+        source_path = source_avatar_dir / f"{name}.png"
         if not path.exists():
             offenders.append(f"{path.relative_to(repo_root)} missing")
             continue
-        try:
-            alpha = Image.open(path).convert("RGBA").getchannel("A")
-        except OSError as exc:
-            offenders.append(f"{path.relative_to(repo_root)} unreadable: {exc}")
+        if not source_path.exists():
+            offenders.append(f"{source_path.relative_to(repo_root)} missing")
             continue
-        if alpha.getextrema()[0] != 0:
-            offenders.append(f"{path.relative_to(repo_root)} has no transparent pixels")
+        if path.read_bytes() != source_path.read_bytes():
+            offenders.append(
+                f"{path.relative_to(repo_root)} differs from {source_path.relative_to(repo_root)}"
+            )
 
     return {
         "ok": bool(asset_names) and not offenders,
         "detail": {
             "checked": [f"assets/avatars/{name}.png" for name in asset_names],
+            "source": "project/img/lanxiaoxin",
             "offenders": offenders,
         },
     }
@@ -290,7 +291,7 @@ def collect_submission_readiness(
             "detail": public_hygiene_report["checks"],
             "manual": True,
         },
-        "avatar_assets_transparent": avatar_asset_report,
+        "avatar_assets_match_original_materials": avatar_asset_report,
         "android_release_preflight": {
             "ok": android_report["ok"],
             "detail": android_report["checks"],

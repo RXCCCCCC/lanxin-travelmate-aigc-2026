@@ -28,6 +28,10 @@
 
 ### 2026-07-04
 
+- Reverted runtime Lanxiaoxin avatar assets per user feedback: `apps/mobile/assets/avatars/lanxiaoxin_*.png` now match `project/img/lanxiaoxin/lanxiaoxin_*.png` byte-for-byte instead of using processed transparent variants.
+- Updated avatar guardrails from transparency checks to original-material consistency checks in `services/api/tests/test_mobile_avatar_assets.py` and `scripts/submission_readiness_report.py`; removed the no-longer-needed direct `pillow` dependency from `services/api`.
+- Validation passed: `uv run pytest tests/test_mobile_avatar_assets.py tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`.
+
 - Updated `scripts/android_device_readiness_report.py` to treat Android 13+ filtering of legacy `READ_EXTERNAL_STORAGE` as an explicit platform compatibility detail instead of a package/manifest mismatch or missing runtime grant.
 - Current Android readiness JSON now reports `ignoredByPlatform` and `ignoredReasons` for the legacy storage permission while keeping real missing grants for location, camera, microphone, notification, and media image access as manual pending checks.
 - Validation passed: `uv run pytest tests/test_android_device_readiness_report.py tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/android_device_readiness_report.py scripts/submission_readiness_report.py`; `python scripts/android_device_readiness_report.py --json`; `python scripts/submission_readiness_report.py --json`.
@@ -46,7 +50,7 @@
 
 - Added read-only `scripts/submission_package_manifest.py` to track final competition package slots: code repository, Android APK, presentation deck, demo video, screenshots, API evidence, privacy/material review, and platform upload.
 - `scripts/submission_readiness_report.py` now aggregates `submission_package_manifest` as a manual-aware final submission check, keeping human-only artifacts visible without marking them as automated.
-- Added `pillow>=12.0.0` to `services/api` dependencies because submission readiness and avatar asset tests inspect PNG transparency through Pillow.
+- `Pillow` is no longer required for avatar readiness checks after reverting runtime avatars to byte-for-byte original materials.
 - Validation passed: `uv run pytest tests/test_submission_package_manifest.py tests/test_submission_readiness_report.py tests/test_mobile_avatar_assets.py -q`; `python -m py_compile scripts/submission_package_manifest.py scripts/submission_readiness_report.py`; `python scripts/submission_package_manifest.py --json`; `python scripts/submission_readiness_report.py --json --skip-git`.
 
 - Added read-only `scripts/demo_evidence_readiness.py` to check Demo/PPT evidence readiness without starting services, reading secrets, or inspecting media content.
@@ -59,9 +63,9 @@
 - Validation passed: `uv run pytest services/api/tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`; `git diff --check` only reported LF-to-CRLF working-copy warnings.
 - GitNexus `detect_changes(scope=all)` reported low risk, 3 changed files, and no affected indexed processes.
 
-- 已完成首页蓝小心白底矩形的仓库内可执行修复：`apps/mobile/assets/avatars/lanxiaoxin_*.png` 运行时头像资产已批量转为带 alpha 的透明 PNG，`project/img/lanxiaoxin/` 仍保留源素材对照。
-- 新增 `services/api/tests/test_mobile_avatar_assets.py`，静态检查 `AvatarState` 引用的运行时头像 PNG 必须包含真实透明像素，避免重新接入不透明白底素材。
-- `scripts/submission_readiness_report.py` 已新增 `avatar_assets_transparent` 检查，把蓝小心运行时头像透明度纳入最终提交就绪总览。
+- 已按用户要求撤销透明 PNG 处理：`apps/mobile/assets/avatars/lanxiaoxin_*.png` 运行时头像资产已恢复为 `project/img/lanxiaoxin/` 原始素材的逐字节副本。
+- `services/api/tests/test_mobile_avatar_assets.py` 现在静态检查 `AvatarState` 引用的运行时头像 PNG 必须与原始素材一致，避免再次引入处理后的变体。
+- `scripts/submission_readiness_report.py` 已将头像检查改为 `avatar_assets_match_original_materials`，把运行时头像与原始素材一致性纳入最终提交就绪总览。
 - 验证通过：`uv run pytest services/api/tests/test_submission_readiness_report.py services/api/tests/test_mobile_avatar_assets.py -q`；`python scripts/submission_readiness_report.py --json --skip-git`；`python -m py_compile scripts/submission_readiness_report.py`；`cd apps/mobile && flutter test --no-pub test/avatar_states_test.dart`。
 - `docs/todo.md` 已把蓝小心白底矩形从未完成项更新为已完成；最终视觉风格、素材授权、真机权限、正式签名、Demo/PPT 和比赛上传仍按人工事项保留。
 
