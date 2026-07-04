@@ -182,6 +182,7 @@ flutter build apk --debug
 
 - Flutter 前端需要优先覆盖 vivo/Android 主流手机尺寸：360x780、375x812、390x844、412x915、430x932，同时关注横屏、平板宽度和系统字体缩放 1.2/1.4。
 - 当前仓库只维护 Android/vivo 原生平台壳：保留 `apps/mobile/android/`、Flutter Dart 业务代码和通用资源；不要主动新增或维护 iOS、macOS、Windows、Linux、Web 平台工程；推送到远端 `dev` 后也应只保留 Android 侧相关平台文件。
+- 移动端调试优先使用已连接的 Android/vivo 真机；只有没有真机、真机不可用，或需要复现模拟器专属问题时，才切换到 Android 模拟器。
 - Android 模拟器联调本机 FastAPI 时需要执行 `adb reverse tcp:8000 tcp:8000`，移动端真实 Agent/Provider 路径可能需要约 30 秒返回；不要把 API `receiveTimeout` 改回只适合 Mock 的短超时。
 - 2026-07-03 验收事实：`emulator-5554` 已安装最新 debug APK 并通过 `adb reverse tcp:8000 tcp:8000` 连到本机 Docker API，首页、聊天页和键盘适配可用；后端已修复真实模型输出兼容问题，Docker API 对“杭州两天/不太累/夜景/不吃香菜”的 smoke 中记忆抽取、规划推理、旅行复盘和角色化对话均为真实 Provider `fallback=false`，工具 provider 包含 `amap`。
 - 固定底部导航、输入栏、底部 CTA 和列表页必须显式处理 SafeArea；主要触控目标按 Android 48dp 设计。
