@@ -74,7 +74,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, notificationChannelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "showReminderNotification" -> showReminderNotification(
-                    call.argument<String>("title") ?: "蓝心同行提醒",
+                    call.argument<String>("title") ?: "蓝心同心提醒",
                     call.argument<String>("body") ?: "",
                     result,
                 )
@@ -147,7 +147,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
 
     private fun showReminderNotification(title: String, body: String, result: MethodChannel.Result) {
         val payload = mapOf(
-            "title" to title.trim().ifEmpty { "蓝心同行提醒" },
+            "title" to title.trim().ifEmpty { "蓝心同心提醒" },
             "body" to body.trim(),
         )
         if (payload["body"].isNullOrEmpty()) {
@@ -181,7 +181,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             reminderNotificationChannelId,
-            "蓝心同行主动提醒",
+            "蓝心同心主动提醒",
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = "旅行过程中的主动提醒和情境建议"
@@ -203,7 +203,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             )
             val notification = NotificationCompat.Builder(this, reminderNotificationChannelId)
                 .setSmallIcon(applicationInfo.icon)
-                .setContentTitle(payload["title"] ?: "蓝心同行提醒")
+                .setContentTitle(payload["title"] ?: "蓝心同心提醒")
                 .setContentText(payload["body"] ?: "")
                 .setStyle(NotificationCompat.BigTextStyle().bigText(payload["body"] ?: ""))
                 .setContentIntent(pendingIntent)

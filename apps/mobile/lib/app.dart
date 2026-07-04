@@ -69,7 +69,7 @@ class _LanXinAppState extends State<LanXinApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: '蓝心同行',
+      title: '蓝心同心',
       debugShowCheckedModeBanner: false,
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN')],

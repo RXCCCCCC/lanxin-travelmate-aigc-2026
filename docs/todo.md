@@ -1,17 +1,11 @@
-# 蓝心同行 Todo：剩余事项总览
+# 蓝心同心 Todo：剩余事项总览
 
 > 更新时间：2026-07-04
 > 口径：未完成事项排在前面，按建议执行顺序排列；已完成事项收拢到后面作为状态记录。主链路验收必须使用真实模型、真实用户数据、真实设备能力或真实第三方 API，Mock/固定样例只允许作为异常降级，不计入通过。
 
 ## 下一步按顺序处理
 
-### 1. 同步远端与协作交接
-
-- [ ] 推送当前本地 `dev` 的 4 个未推送提交到 `origin/dev`，推送前确认 `git status --short` 为空，并运行必要轻量验证与 GitNexus `detect_changes`。
-- [ ] 队友基于远端 `dev` 继续开发前，确认已阅读 `CLAUDE.md`、`docs/handoff/ai-shared-state.md`、`docs/handoff/final-acceptance.md` 和本文件。
-- [ ] 后续协作继续遵守 Android/vivo-only 规则，不恢复 iOS、macOS、Windows、Linux、Web 平台工程。
-
-### 2. 双人真机最终验收
+### 1. 双人真机最终验收
 
 - [ ] 按 `docs/handoff/final-acceptance.md`，你和队友使用两台 Android/vivo 真机分别执行 A 线、B 线验收，记录页面、步骤、输入、实际结果、期望结果、证据和严重程度。
 - [ ] 人工验收五类真实模型效果质量：记忆抽取、规划推理、角色化对话、旅拍文案、旅行复盘是否符合比赛演示口径。
@@ -19,21 +13,21 @@
 - [ ] 在 Android 规划页真机确认 `toolTrace` 展示真实 provider 且 `fallback=false`；无 Key 或异常时必须明确显示 `fallback/unconfigured`。
 - [ ] 使用真实用户路径验证 App 流程顺滑度、真实数据可信度、视觉观感和蓝小心角色感，形成 S1/S2/S3/S4 问题清单。
 
-### 3. Android/vivo 设备能力验收
+### 2. Android/vivo 设备能力验收
 
 - [ ] 在 vivo/Android 真机验证相册选择、麦克风、系统语音识别、中文 TTS、Android 13+ 通知权限和通知展示。
 - [ ] 权限拒绝路径作为专项测试处理；常规真实用户验收不主动点击拒绝，避免偏离用户使用路径。
 - [ ] 准备真实可展示照片素材，确认素材授权和隐私边界。
 - [ ] 如需地图选点或更高定位精度，确认使用哪种地图 SDK/服务并提供对应 Key。
 
-### 4. 多设备、账号与云同步验收
+### 3. 多设备、账号与云同步验收
 
 - [ ] 决定正式账号体系是否只保留游客升级密码账号，还是接入手机号、短信或 OAuth。
 - [ ] 确认旧游客 token 失效策略、设备 ID 绑定策略和多设备冲突合并规则。
 - [ ] 使用至少两台设备或两个独立会话验证注册/登录、游客升级、记忆同步、选择性同步、撤销云端同步和冲突处理。
 - [ ] 验证同一 Bearer 用户下 profile、memory、trip、photo、review、reminder 数据不会串到其他用户。
 
-### 5. 发布配置与部署
+### 4. 发布配置与部署
 
 - [ ] 确认最终 `applicationId`、`versionCode`、`versionName`。
 - [ ] 将 Android release 构建从 debug signing 替换为正式签名证书。
@@ -41,14 +35,14 @@
 - [ ] 生产或公开环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用示例默认值。
 - [ ] 确认高德 API 计费额度、可展示的数据来源和比赛演示是否允许展示第三方地图/天气数据。
 
-### 6. 隐私、合规与素材确认
+### 5. 隐私、合规与素材确认
 
 - [ ] 最终确认公开隐私说明、权限用途说明、记忆保存规则和对外表述。
 - [ ] 确认蓝小心最终视觉风格、白底矩形处理方案、素材授权、多表情/多动作素材；如使用透明 PNG/WebP/GIF/Lottie/Live2D，提供最终资产并替换运行时 PNG。
 - [ ] 确认真实 Demo 数据：目的地、路线、照片、用户画像、同行人信息均可公开展示。
 - [ ] 公开演示前检查日志、截图、视频中没有密钥、私人位置、身份证明、未经授权照片或队友隐私。
 
-### 7. 比赛材料与最终提交
+### 6. 比赛材料与最终提交
 
 - [ ] 按 `docs/handoff/demo-script.md` 录制真实链路 Demo：记忆确认、真实规划、主动提醒、旅拍文案、复盘。
 - [ ] 按 `docs/handoff/presentation-outline.md` 制作 PPT，并补充队伍信息、真实截图、视频链接和最终排版。
@@ -79,6 +73,9 @@
 
 ### APK、Docker 与工程化
 
+- [x] 当前本地 `dev` 已同步到 `origin/dev`，`git status --short --branch` 显示 `## dev...origin/dev`。
+- [x] 队友基于远端 `dev` 继续开发前需要阅读 `CLAUDE.md`、`docs/handoff/ai-shared-state.md`、`docs/handoff/final-acceptance.md` 和本文件；协作规则已写入文档。
+- [x] 后续协作继续遵守 Android/vivo-only 规则，不恢复 iOS、macOS、Windows、Linux、Web 平台工程。
 - [x] 本机已在 `E:\localAndroid` 安装 Android SDK `platforms;android-35` 与 `build-tools;35.0.0`。
 - [x] 已运行 `python scripts/android_release_preflight.py --json`，确认 Android-only、包名、版本号、SDK、build-tools、CI APK job 和签名状态；release 仍需正式签名。
 - [x] 本机完成 Android debug APK 构建；最新产物为 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`。

@@ -35,7 +35,7 @@ typedef DeviceIdProvider = Future<String> Function();
 class AuthSessionService {
   AuthSessionService({
     DeviceIdProvider? deviceIdProvider,
-    this.displayName = '蓝心同行游客',
+    this.displayName = '蓝心同心游客',
   }) : _deviceIdProvider = deviceIdProvider ?? _defaultDeviceId;
 
   final DeviceIdProvider _deviceIdProvider;
