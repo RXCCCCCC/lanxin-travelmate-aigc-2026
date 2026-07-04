@@ -54,3 +54,18 @@ def test_android_main_activity_handles_photo_picker_channel():
     assert "Intent.ACTION_OPEN_DOCUMENT" in text
     assert "MediaStore.ACTION_IMAGE_CAPTURE" in text
     assert "contentResolver.getType" in text
+
+
+def test_android_camera_checks_activity_before_reporting_unavailable():
+    text = ANDROID_MAIN.read_text(encoding="utf-8")
+
+    assert "resolveActivity(packageManager)" in text
+    assert "camera_unavailable" in text
+
+
+def test_android_camera_falls_back_when_output_uri_capture_fails():
+    text = ANDROID_MAIN.read_text(encoding="utf-8")
+
+    assert "launchCameraWithoutOutput()" in text
+    assert "saveCameraThumbnail" in text
+    assert "camera_launch_failed" in text

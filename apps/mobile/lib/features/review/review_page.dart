@@ -45,11 +45,18 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Future<TripReviewPayload> _loadReview() async {
+    final requestedTripId = _tripIdFromAgentResponse();
+    if (requestedTripId != null) {
+      final existingReview = await _tripReviewService.fetchReview(
+        tripId: requestedTripId,
+      );
+      if (existingReview != null) return existingReview;
+    }
+
     final shouldReadDashboard =
         widget.dashboardService != null || widget.tripReviewService == null;
     String? dashboardTripId;
     if (shouldReadDashboard) {
-      final requestedTripId = _tripIdFromAgentResponse();
       final dashboard = await _dashboardService.fetchDashboard(
         tripId: requestedTripId,
       );

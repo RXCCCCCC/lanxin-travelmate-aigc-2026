@@ -6,19 +6,23 @@ class SelectedPhoto {
     required this.filename,
     required this.mimeType,
     required this.source,
+    this.previewBytes,
   });
 
   final String localUri;
   final String filename;
   final String mimeType;
   final String source;
+  final Uint8List? previewBytes;
 
   factory SelectedPhoto.fromMap(Map<dynamic, dynamic> map) {
+    final bytes = map['previewBytes'];
     return SelectedPhoto(
       localUri: map['localUri']?.toString() ?? '',
       filename: map['filename']?.toString() ?? 'selected-photo.jpg',
       mimeType: map['mimeType']?.toString() ?? 'image/jpeg',
       source: map['source']?.toString() ?? 'gallery',
+      previewBytes: bytes is Uint8List ? bytes : null,
     );
   }
 }

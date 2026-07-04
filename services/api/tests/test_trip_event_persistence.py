@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
@@ -7,11 +8,12 @@ client = TestClient(app)
 
 
 def test_trip_review_is_persisted_and_readable_by_trip_id():
-    trip_id = "review-persist-trip-a"
+    user_id = f"review-user-{uuid4().hex}"
+    trip_id = f"review-persist-trip-{uuid4().hex}"
     create_response = client.post(
         "/api/trip/review",
         json={
-            "userId": "review-user-a",
+            "userId": user_id,
             "tripId": trip_id,
             "message": "生成今天旅行复盘",
             "completedTasks": [{"id": "task-a", "title": "完成一次夜景拍照", "status": "completed"}],
@@ -23,13 +25,46 @@ def test_trip_review_is_persisted_and_readable_by_trip_id():
     created = create_response.json()
     assert created["reviewId"].startswith("review-")
 
-    read_response = client.get("/api/trip/review", params={"tripId": trip_id})
+    read_response = client.get("/api/trip/review", params={"userId": user_id, "tripId": trip_id})
 
     assert read_response.status_code == 200
     payload = read_response.json()
     assert payload["reviewId"] == created["reviewId"]
     assert payload["tripId"] == trip_id
     assert payload["review"]["completedTasks"][0]["title"] == "完成一次夜景拍照"
+
+
+def test_trip_review_read_returns_latest_review_for_user():
+    user_id = "review-latest-user-a"
+    trip_id = "review-latest-trip-a"
+    first_response = client.post(
+        "/api/trip/review",
+        json={
+            "userId": user_id,
+            "tripId": trip_id,
+            "message": "生成第一次旅行复盘",
+            "completedTasks": [{"id": "task-a", "title": "第一次复盘任务", "status": "completed"}],
+        },
+    )
+    second_response = client.post(
+        "/api/trip/review",
+        json={
+            "userId": user_id,
+            "tripId": trip_id,
+            "message": "生成第二次旅行复盘",
+            "completedTasks": [{"id": "task-b", "title": "第二次复盘任务", "status": "completed"}],
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+
+    read_response = client.get("/api/trip/review", params={"userId": user_id, "tripId": trip_id})
+
+    assert read_response.status_code == 200
+    payload = read_response.json()
+    assert payload["reviewId"] == second_response.json()["reviewId"]
+    assert payload["review"]["completedTasks"][0]["title"] == "第二次复盘任务"
 
 
 def test_reminder_trigger_is_persisted_in_history():

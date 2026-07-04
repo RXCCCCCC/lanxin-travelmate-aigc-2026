@@ -16,6 +16,71 @@ from app.services.model_audit import persist_model_call_logs
 router = APIRouter(prefix="/trip", tags=["trip"])
 
 
+_CN_VALUE_MAP = {
+    "medium": "中等预算",
+    "low": "低预算",
+    "high": "高预算",
+    "transit": "公共交通",
+    "walking": "步行",
+    "taxi": "打车",
+    "self_drive": "自驾",
+    "slow pace": "慢节奏",
+    "relaxed pace": "轻松节奏",
+    "balanced_slow": "偏慢的均衡节奏",
+    "low_first": "优先控制预算",
+    "night view": "夜景",
+    "night views": "夜景",
+    "less walking": "少走路",
+    "indoor": "室内活动",
+    "weather_risk": "天气风险",
+    "mother": "妈妈",
+    "child": "孩子",
+    "family_relaxed": "家庭轻松游",
+}
+
+
+def _cn_value(value: object) -> str:
+    text = str(value)
+    return _CN_VALUE_MAP.get(text, text)
+
+
+def _localize_text(value: object, fallback: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return fallback
+    for source, target in sorted(_CN_VALUE_MAP.items(), key=lambda item: len(item[0]), reverse=True):
+        text = text.replace(source, target)
+    english_letters = sum(1 for char in text if ("a" <= char.lower() <= "z"))
+    chinese_chars = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+    if english_letters and not chinese_chars:
+        return fallback
+    return text
+
+
+def _localize_list(values: object, fallback: str) -> list[str]:
+    result = []
+    for index, item in enumerate(values or []):
+        result.append(_localize_text(item, f"{fallback}{index + 1}。"))
+    return result
+
+
+def _localize_trip_plan_text(plan: dict[str, object]) -> None:
+    plan["profileMatches"] = _localize_list(plan.get("profileMatches"), "已根据你的旅行画像调整安排")
+    plan["risks"] = _localize_list(plan.get("risks"), "已识别一项需要留意的行程风险")
+    alternatives = []
+    for item in plan.get("alternatives") or []:
+        if not isinstance(item, dict):
+            alternatives.append(item)
+            continue
+        localized = dict(item)
+        if "summary" in localized:
+            localized["summary"] = _localize_text(localized.get("summary"), "备选方案已按中文整理。")
+        if "reason" in localized:
+            localized["reason"] = _localize_text(localized.get("reason"), "这条备选用于应对节奏、天气或交通变化。")
+        alternatives.append(localized)
+    plan["alternatives"] = alternatives
+
+
 class TripPlanRequest(BaseModel):
     message: str
     userId: str = "guest"
@@ -127,6 +192,7 @@ def _review_response(record: CloudTripReview) -> dict[str, object]:
         "reviewId": record.id,
         "tripId": record.trip_id,
         "review": json.loads(record.review_json),
+        "createdAt": record.created_at.isoformat(),
     }
 
 
@@ -314,7 +380,12 @@ def read_trip_dashboard(
         reminder_statement = reminder_statement.where(ReminderEvent.trip_id == resolved_trip_id)
     reminders = session.exec(reminder_statement.order_by(ReminderEvent.created_at.desc())).all()
 
-    reviews = session.exec(select(CloudTripReview).where(CloudTripReview.trip_id == resolved_trip_id)).all() if resolved_trip_id else []
+    reviews = session.exec(
+        select(CloudTripReview)
+        .where(CloudTripReview.user_id == effective_user_id)
+        .where(CloudTripReview.trip_id == resolved_trip_id)
+        .order_by(CloudTripReview.created_at.desc())
+    ).all() if resolved_trip_id else []
     photos = session.exec(
         select(PhotoCandidateRecord)
         .where(PhotoCandidateRecord.user_id == effective_user_id)
@@ -359,7 +430,7 @@ def read_trip_dashboard(
         'reminderHistory': {'items': [_reminder_response(record) for record in reminders]},
         'blindBoxTasks': {'items': blind_box_tasks},
         'avatarStateEvents': {'items': [_avatar_state_event_response(record) for record in avatar_events]},
-        'latestReview': _review_response(reviews[-1]) if reviews else {'reviewId': None, 'tripId': resolved_trip_id, 'review': {}},
+        'latestReview': _review_response(reviews[0]) if reviews else {'reviewId': None, 'tripId': resolved_trip_id, 'review': {}},
         'photoCandidates': {'items': [_photo_candidate_response(record) for record in photos]},
         'memories': {'items': [_memory_response(memory) for memory in memories]},
     }
@@ -374,26 +445,27 @@ def _apply_planning_input_explanations(plan: dict[str, object], planning_inputs:
     replan_reason = planning_inputs.get("replanReason")
     group_coordination = planning_inputs.get("groupCoordination")
     if budget:
-        profile_matches.append(f"Budget preference considered: {budget}.")
+        profile_matches.append(f"已参考预算偏好：{_cn_value(budget)}。")
     if transport_mode:
-        profile_matches.append(f"Transport mode considered: {transport_mode}.")
+        profile_matches.append(f"已参考交通方式：{_cn_value(transport_mode)}。")
     if companions:
-        profile_matches.append(f"Companion needs considered: {', '.join(str(item) for item in companions)}.")
+        profile_matches.append(f"已参考同行人需求：{'、'.join(_cn_value(item) for item in companions)}。")
     if preferences:
-        profile_matches.append(f"Current trip preferences considered: {', '.join(str(item) for item in preferences)}.")
+        profile_matches.append(f"已参考本次旅行偏好：{'、'.join(_cn_value(item) for item in preferences)}。")
     if replan_reason:
-        risks.append(f"Replan reason applied: {replan_reason}.")
+        risks.append(f"已应用重规划原因：{_cn_value(replan_reason)}。")
     if isinstance(group_coordination, dict) and group_coordination:
         compromise = group_coordination.get("compromisePlan")
         coordination_id = group_coordination.get("coordinationId")
         if isinstance(compromise, dict):
-            pace = compromise.get("pace") or "balanced"
-            budget_hint = compromise.get("budget") or "balanced"
+            pace = _cn_value(compromise.get("pace") or "均衡节奏")
+            budget_hint = _cn_value(compromise.get("budget") or "均衡预算")
             profile_matches.append(
-                f"Group coordination {coordination_id or 'current'} applied: pace={pace}, budget={budget_hint}."
+                f"已应用群体协同方案（{coordination_id or '当前方案'}）：节奏 {pace}，预算 {budget_hint}。"
             )
     plan["profileMatches"] = profile_matches
     plan["risks"] = risks
+    _localize_trip_plan_text(plan)
 
 
 @router.post("/plan")
@@ -424,9 +496,10 @@ def create_trip_plan(
         trip_id=trip_id,
         context={"planningInputs": planning_inputs},
     )
-    result = TravelMateGraph().invoke(state)
+    result = TravelMateGraph().invoke_plan_only(state)
     persist_model_call_logs(session, result.get("model_call_logs", []))
     plan = result["trip_plan"]
+    plan["tripId"] = trip_id
     plan["planningInputs"] = planning_inputs
     _apply_planning_input_explanations(plan, planning_inputs)
     now = utc_now()
@@ -503,11 +576,12 @@ def create_trip_review(
             "profileContext": payload.profileContext,
         },
     )
-    result = TravelMateGraph().invoke(state)
+    result = TravelMateGraph().invoke_review_only(state)
     persist_model_call_logs(session, result.get("model_call_logs", []))
     review = _normalized_trip_review(result["review"], route)
     record = CloudTripReview(
         id=f"review-{uuid4().hex}",
+        user_id=effective_user_id,
         trip_id=trip_id,
         review_json=json.dumps(review, ensure_ascii=False),
     )
@@ -523,12 +597,23 @@ def create_trip_review(
 @router.get("/review")
 def read_trip_review(
     tripId: str = Query(...),
+    userId: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
-    records = session.exec(select(CloudTripReview).where(CloudTripReview.trip_id == tripId)).all()
-    if not records:
+    effective_user_id = resolve_effective_user_id(userId, current_user)
+    trip = session.get(CloudTrip, tripId)
+    if trip and trip.user_id != effective_user_id:
         return {"reviewId": None, "tripId": tripId, "review": {}}
-    return _review_response(records[-1])
+    record = session.exec(
+        select(CloudTripReview)
+        .where(CloudTripReview.user_id == effective_user_id)
+        .where(CloudTripReview.trip_id == tripId)
+        .order_by(CloudTripReview.created_at.desc())
+    ).first()
+    if not record:
+        return {"reviewId": None, "tripId": tripId, "review": {}}
+    return _review_response(record)
 
 
 @router.post("/reminders/trigger")

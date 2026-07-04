@@ -36,6 +36,28 @@ class _FakeAgentChatService extends AgentChatService {
   }
 }
 
+class _FailingAgentChatService extends AgentChatService {
+  _FailingAgentChatService() : super(dio: Dio());
+
+  @override
+  Future<AgentChatResponse> sendMessage(
+    String message, {
+    String? sessionId,
+    String? userId,
+    String? tripId,
+    Map<String, dynamic>? context,
+    CancelToken? cancelToken,
+  }) {
+    return Future<AgentChatResponse>.error(
+      DioException(
+        requestOptions: RequestOptions(path: '/api/agent/chat'),
+        type: DioExceptionType.connectionError,
+        error: 'offline',
+      ),
+    );
+  }
+}
+
 AgentChatResponse _response(String text) {
   return AgentChatResponse(
     replyText: text,
@@ -104,5 +126,22 @@ void main() {
         expect(controller.messages.last.text, contains('已停止'));
       },
     );
+
+    test('surfaces a clear assistant fallback when the home agent fails', () async {
+      final controller = HomeChatController(
+        agentChatService: _FailingAgentChatService(),
+      );
+
+      unawaited(controller.send('首页发消息没回应'));
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.isSending, isFalse);
+      expect(
+        controller.messages.any((item) => item.text.contains('暂时连不上')),
+        isTrue,
+      );
+      expect(controller.statusMessage, contains('后端暂时连不上'));
+    });
   });
 }

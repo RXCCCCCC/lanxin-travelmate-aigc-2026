@@ -66,3 +66,44 @@ def test_trip_review_empty_context_does_not_inject_fixed_city_fixtures():
     assert payload["route"] == ""
     assert payload["highlightPhotos"] == []
     assert payload["nextTripSuggestions"] == []
+
+
+def test_direct_trip_review_uses_review_only_graph(monkeypatch):
+    from app.api.routes import trip
+
+    class ReviewOnlyGraph:
+        def invoke(self, state):
+            raise AssertionError("direct trip review route should not run the full agent graph")
+
+        def invoke_review_only(self, state):
+            return {
+                **state,
+                "completed_tasks": state["context"]["completedTasks"],
+                "temporary_memory_promotions": [],
+                "review": {
+                    "route": state["context"]["route"],
+                    "highlightPhotos": [],
+                    "newMemories": [],
+                    "completedTasks": state["context"]["completedTasks"],
+                    "reminderHighlights": [],
+                    "avatarStatusChanges": [],
+                    "nextTripSuggestions": [],
+                    "temporaryMemoryPromotions": [],
+                    "profileContext": state["context"]["profileContext"],
+                },
+                "model_call_logs": [],
+            }
+
+    monkeypatch.setattr(trip, "TravelMateGraph", ReviewOnlyGraph)
+
+    response = client.post(
+        "/api/trip/review",
+        json={
+            "userId": "review-only-user",
+            "tripId": "review-only-trip",
+            "completedTasks": [{"id": "task-a", "title": "完成夜景拍照", "status": "completed"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["completedTasks"][0]["title"] == "完成夜景拍照"

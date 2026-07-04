@@ -1,4 +1,7 @@
+import base64
+import binascii
 import json
+import struct
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Query
@@ -52,6 +55,15 @@ class CopywritingRequest(BaseModel):
     style: str = "轻松"
 
 
+class PhotoAnalyzeRequest(BaseModel):
+    userId: str = "guest"
+    tripId: str | None = None
+    filename: str = "preview.jpg"
+    contentType: str = "image/jpeg"
+    imageBase64: str
+    source: str = "gallery"
+
+
 def _candidate_response(item: PhotoCandidateRecord) -> dict[str, object]:
     return {
         "id": item.id,
@@ -67,6 +79,88 @@ def _candidate_response(item: PhotoCandidateRecord) -> dict[str, object]:
         "copywriting": json.loads(item.copywriting_json),
         "createdAt": item.created_at.isoformat(),
         "updatedAt": item.updated_at.isoformat(),
+    }
+
+
+def _image_dimensions(data: bytes) -> tuple[int, int]:
+    if data.startswith(b"\x89PNG\r\n\x1a\n") and len(data) >= 24:
+        width, height = struct.unpack(">II", data[16:24])
+        return int(width), int(height)
+    if data.startswith(b"\xff\xd8"):
+        index = 2
+        while index + 9 < len(data):
+            if data[index] != 0xFF:
+                index += 1
+                continue
+            marker = data[index + 1]
+            index += 2
+            if marker in {0xD8, 0xD9}:
+                continue
+            if index + 2 > len(data):
+                break
+            segment_length = int.from_bytes(data[index : index + 2], "big")
+            if segment_length < 2 or index + segment_length > len(data):
+                break
+            if marker in {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}:
+                height = int.from_bytes(data[index + 3 : index + 5], "big")
+                width = int.from_bytes(data[index + 5 : index + 7], "big")
+                return int(width), int(height)
+            index += segment_length
+    return 0, 0
+
+
+def _orientation(width: int, height: int) -> str:
+    if width <= 0 or height <= 0:
+        return "未知方向"
+    ratio = width / height
+    if ratio > 1.15:
+        return "横图"
+    if ratio < 0.87:
+        return "竖图"
+    return "方图"
+
+
+def _analyze_image_bytes(payload: PhotoAnalyzeRequest) -> dict[str, object]:
+    try:
+        data = base64.b64decode(payload.imageBase64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("imageBase64 不是有效图片预览数据") from exc
+    width, height = _image_dimensions(data)
+    orientation = _orientation(width, height)
+    megapixels = (width * height / 1_000_000) if width and height else 0
+    byte_size = len(data)
+    tags = ["真实图片分析", orientation]
+    if payload.source == "camera":
+        tags.append("相机拍摄")
+    else:
+        tags.append("相册导入")
+    if byte_size > 150_000:
+        tags.append("细节较丰富")
+    elif byte_size > 20_000:
+        tags.append("预览清晰")
+    else:
+        tags.append("轻量预览")
+    if megapixels >= 8:
+        score = 9.1
+    elif megapixels >= 2:
+        score = 8.5
+    elif width and height:
+        score = 7.8
+    else:
+        score = 6.8
+    dimension_text = f"{width}x{height}" if width and height else "尺寸未识别"
+    return {
+        "width": width,
+        "height": height,
+        "orientation": orientation,
+        "location": "相机拍摄照片" if payload.source == "camera" else "系统相册照片",
+        "score": score,
+        "tags": tags,
+        "description": f"已基于真实图片预览完成分析：{dimension_text}，{orientation}，文件约 {byte_size // 1024}KB。适合作为旅拍候选继续生成文案。",
+        "reviewSuggestion": "建议加入旅行复盘的照片高光区，用于记录当天真实画面。",
+        "canAddToReview": True,
+        "provider": "local_image_features",
+        "fallback": False,
     }
 
 
@@ -297,6 +391,33 @@ def create_upload_metadata(
         "privacy": {"localPathStored": False},
         "createdAt": item.created_at.isoformat(),
     }
+
+
+@router.post("/analyze")
+def analyze_photo_preview(
+    payload: PhotoAnalyzeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, object]:
+    resolve_effective_user_id(payload.userId, current_user)
+    try:
+        return _analyze_image_bytes(payload)
+    except ValueError as exc:
+        return {
+            "width": 0,
+            "height": 0,
+            "orientation": "未知方向",
+            "location": "待确认照片",
+            "score": 6.5,
+            "tags": ["真实图片分析失败", "可重试"],
+            "description": "图片预览数据暂时无法解析，请重新拍摄或重新选择后再试。",
+            "reviewSuggestion": "分析失败时先不要加入复盘高光，可重试获取真实图片特征。",
+            "canAddToReview": False,
+            "provider": "local_image_features",
+            "fallback": True,
+            "errorType": "invalid_image_preview",
+            "fallbackReason": str(exc),
+        }
+
 
 @router.post("/copywriting")
 def create_photo_copywriting(

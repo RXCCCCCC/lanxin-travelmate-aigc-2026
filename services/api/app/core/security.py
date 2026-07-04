@@ -24,9 +24,15 @@ class CurrentUser:
 
 def resolve_effective_user_id(explicit_user_id: str | None, current_user: CurrentUser) -> str:
     requested_user_id = (explicit_user_id or "").strip()
-    if current_user.user_id != "guest" and (not requested_user_id or requested_user_id == "guest"):
+    if current_user.user_id == "guest":
+        if requested_user_id and requested_user_id != "guest":
+            raise HTTPException(status_code=401, detail="Authentication required for requested user")
+        return "guest"
+    if not requested_user_id or requested_user_id == "guest":
         return current_user.user_id
-    return requested_user_id or "guest"
+    if requested_user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Cannot access another user's data")
+    return current_user.user_id
 
 
 def hash_password(password: str, salt: str | None = None) -> str:

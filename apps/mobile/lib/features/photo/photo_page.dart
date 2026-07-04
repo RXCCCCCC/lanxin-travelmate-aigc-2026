@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/theme/app_theme.dart';
@@ -105,18 +107,54 @@ class _PhotoPageState extends State<PhotoPage> {
       filename: selected.filename,
       contentType: selected.mimeType,
     );
+    Map<String, dynamic> analysis = {
+      'location': selected.source == 'camera' ? '相机拍摄照片' : '系统相册照片',
+      'score': 7.2,
+      'description': '已登记真实照片预览，暂未完成后端图片分析。',
+      'tags': [selected.source == 'camera' ? '相机拍摄' : '相册导入', '分析失败，可重试'],
+      'reviewSuggestion': '可稍后重试图片分析。',
+      'canAddToReview': false,
+    };
+    if (selected.previewBytes != null) {
+      setState(() {
+        _photoNotice = '正在分析 ${selected.filename}...';
+      });
+      analysis = await _photoExperienceService.analyzePhoto(
+        filename: selected.filename,
+        contentType: selected.mimeType,
+        previewBytes: selected.previewBytes!,
+        source: selected.source,
+        tripId: _currentTripId,
+      );
+    }
+    final tags = (analysis['tags'] as List<dynamic>? ?? const [])
+        .map((item) => item.toString())
+        .where((item) => item.trim().isNotEmpty)
+        .toList(growable: false);
     final candidate = await _photoExperienceService.createCandidate(
       id: 'selected-photo-$timestamp',
       remoteUrl: upload['remoteUrl']?.toString(),
-      location: selected.source == 'camera' ? '相机拍摄照片' : '系统相册照片',
-      score: 8.6,
-      description: '已登记为旅拍候选，本地照片 URI 仅在设备端用于选择确认，不上传保存。',
-      tags: [selected.source == 'camera' ? '相机拍摄' : '相册导入', '待分析'],
+      location: analysis['location']?.toString() ??
+          (selected.source == 'camera' ? '相机拍摄照片' : '系统相册照片'),
+      score: (analysis['score'] as num?)?.toDouble() ?? 7.2,
+      description: analysis['description']?.toString() ??
+          '已登记真实照片预览，暂未完成后端图片分析。',
+      tags: tags.isEmpty ? const ['分析失败，可重试'] : tags,
+      canAddToReview: analysis['canAddToReview'] != false,
     );
     if (!mounted) return;
+    final displayCandidate = {
+      ...candidate,
+      'localUri': selected.localUri,
+      if (selected.previewBytes != null) 'previewBytes': selected.previewBytes,
+      'filename': selected.filename,
+      'analysis': analysis,
+    };
     setState(() {
-      _candidates = [candidate, ..._candidates];
-      _photoNotice = '已登记 ${selected.filename}，本地路径不会上传保存';
+      _candidates = [displayCandidate, ..._candidates];
+      _photoNotice = analysis['offline'] == true || analysis['fallback'] == true
+          ? '已登记 ${selected.filename}，图片分析失败，可重试'
+          : '已分析 ${selected.filename}，本地路径不会上传保存';
       _isRegistering = false;
     });
   }
@@ -553,24 +591,12 @@ class _AgentPhotoCandidateCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(AppTheme.radiusLg),
-                  topRight: Radius.circular(AppTheme.radiusLg),
-                ),
-                gradient: LinearGradient(
-                  colors: [AppTheme.bgTop, AppTheme.bgTop.withOpacity(0.48)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppTheme.radiusLg),
+                topRight: Radius.circular(AppTheme.radiusLg),
               ),
-              child: const Icon(
-                Icons.landscape_rounded,
-                size: 34,
-                color: AppTheme.primary,
-              ),
+              child: _PhotoPreviewFrame(photo: photo),
             ),
           ),
           Padding(
@@ -628,6 +654,61 @@ class _AgentPhotoCandidateCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PhotoPreviewFrame extends StatelessWidget {
+  const _PhotoPreviewFrame({required this.photo});
+
+  final Map<String, dynamic> photo;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewBytes = photo['previewBytes'];
+    final remoteUrl = photo['remoteUrl']?.toString();
+    final hasRemoteUrl = remoteUrl != null && remoteUrl.isNotEmpty;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const _PhotoPreviewFallback(),
+        if (previewBytes is Uint8List)
+          Image.memory(
+            previewBytes,
+            key: const ValueKey('photo-preview-selected-photo'),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _PhotoPreviewFallback(),
+          )
+        else if (hasRemoteUrl)
+          Image.network(
+            remoteUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _PhotoPreviewFallback(),
+          ),
+      ],
+    );
+  }
+}
+
+class _PhotoPreviewFallback extends StatelessWidget {
+  const _PhotoPreviewFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.bgTop, AppTheme.bgTop.withOpacity(0.48)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Icon(
+        Icons.landscape_rounded,
+        size: 34,
+        color: AppTheme.primary,
       ),
     );
   }

@@ -76,3 +76,22 @@ def test_trip_context_builder_extracts_destination_from_message_without_fixture(
     assert result["trip_context"]["destination"] == "\u676d\u5dde"
     assert result["trip_context"]["pace"] == "\u8f7b\u677e"
     assert "\u591c\u666f" in result["trip_context"]["mustKeep"]
+
+
+def test_trip_context_builder_extracts_destination_from_plan_phrase():
+    state = create_initial_state(
+        message="\u5e2e\u6211\u89c4\u5212\u5e7f\u5dde\u884c\u7a0b\uff0c\u4e0d\u60f3\u592a\u7d2f",
+    )
+    normalized = real_nodes.input_normalizer(state)
+
+    result = real_nodes.trip_context_builder(normalized)
+
+    assert result["trip_context"]["destination"] == "\u5e7f\u5dde"
+
+
+def test_context_loader_does_not_inject_city_specific_fixture_interests():
+    state = create_initial_state(message="\u5e2e\u6211\u89c4\u5212\u5e7f\u5dde\u884c\u7a0b")
+
+    result = real_nodes.context_loader(state)
+
+    assert "\u5c71\u57ce\u6b65\u9053" not in result["user_profile"]["interestTags"]

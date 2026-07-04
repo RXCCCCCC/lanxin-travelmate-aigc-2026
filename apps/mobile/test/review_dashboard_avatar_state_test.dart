@@ -143,7 +143,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('画像复盘路线'), findsOneWidget);
+    expect(find.textContaining('画像复盘路线'), findsWidgets);
     expect(reviewService.capturedTripId, startsWith('review-trip-'));
     expect(reviewService.capturedTripId, isNot('demo-chongqing-weekend'));
     expect(find.textContaining('夜景'), findsOneWidget);

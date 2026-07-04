@@ -73,6 +73,37 @@ def test_memory_guest_payload_is_scoped_to_authenticated_user():
     assert all(item["id"] != memory_id for item in global_guest.json()["items"])
 
 
+def test_authenticated_settings_routes_reject_user_id_impersonation():
+    _user_id, headers = _guest_headers(f"scope-impersonation-{uuid4().hex}")
+
+    profile = client.get(
+        "/api/profile/me",
+        headers=headers,
+        params={"userId": "victim-user"},
+    )
+    assert profile.status_code == 403
+
+    export = client.get(
+        "/api/memory/export",
+        headers=headers,
+        params={"userId": "victim-user"},
+    )
+    assert export.status_code == 403
+
+    clear = client.delete(
+        "/api/memory/capsules",
+        headers=headers,
+        params={"userId": "victim-user"},
+    )
+    assert clear.status_code == 403
+
+
+def test_anonymous_settings_routes_reject_explicit_non_guest_user_id():
+    response = client.get("/api/memory/export", params={"userId": "victim-user"})
+
+    assert response.status_code == 401
+
+
 def test_agent_chat_loads_authenticated_profile_when_user_id_is_omitted():
     user_id, headers = _guest_headers(f"scope-agent-{uuid4().hex}")
     update = client.put(

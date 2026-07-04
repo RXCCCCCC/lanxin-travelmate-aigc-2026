@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
@@ -114,6 +116,7 @@ class _ChatPageState extends State<ChatPage> {
     if (text.isEmpty || _isSending) return;
     setState(() {
       _isSending = true;
+      _voiceNotice = '模型生成中...';
       _messages.add(
         ChatMessage(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -124,22 +127,36 @@ class _ChatPageState extends State<ChatPage> {
       );
     });
     _controller.clear();
-    await _chatHistoryService.saveMessage(
-      sessionId: _sessionId,
-      sender: MessageSender.user,
-      text: text,
-    );
-    final response = await _agentChatService.sendMessage(
-      text,
-      sessionId: _sessionId,
-      userId: 'guest',
-      tripId: _tripId,
-    );
+    AgentChatResponse? response;
+    try {
+      unawaited(
+        _chatHistoryService.saveMessage(
+          sessionId: _sessionId,
+          sender: MessageSender.user,
+          text: text,
+        ).catchError((_) {
+          if (mounted) {
+            setState(() {
+              _voiceNotice = '本地聊天记录暂存失败，但消息已继续发送';
+            });
+          }
+        }),
+      );
+      response = await _agentChatService.sendMessage(
+        text,
+        sessionId: _sessionId,
+        userId: 'guest',
+        tripId: _tripId,
+      );
+    } catch (_) {
+      response = AgentChatResponse.fallback(
+        '后端暂时连不上，我先用离线模式陪你继续聊。USB 真机请确认 adb reverse，云真机请配置公网 API 地址。',
+      );
+    }
     if (!mounted) return;
     latestAgentResponse.value = response;
     setState(() {
-      _isSending = false;
-      _pendingMemoryCandidates = response.memoryCandidates;
+      _pendingMemoryCandidates = response!.memoryCandidates;
       _memoryConflictSuggestion = _firstSyncSuggestion(
         response.syncSuggestions,
         'memoryConflict',
@@ -154,12 +171,26 @@ class _ChatPageState extends State<ChatPage> {
           avatarState: response.avatarState,
         ),
       );
+      _isSending = false;
+      _voiceNotice = response.errors.any(
+        (error) => error['code'] == 'NETWORK_FALLBACK',
+      )
+          ? '离线兜底：请检查后端连接'
+          : null;
     });
-    await _chatHistoryService.saveMessage(
-      sessionId: _sessionId,
-      sender: MessageSender.assistant,
-      text: response.replyText,
-      avatarState: response.avatarState,
+    unawaited(
+      _chatHistoryService.saveMessage(
+        sessionId: _sessionId,
+        sender: MessageSender.assistant,
+        text: response.replyText,
+        avatarState: response.avatarState,
+      ).catchError((_) {
+        if (mounted) {
+          setState(() {
+            _voiceNotice = '回复已显示，本地聊天记录暂存失败';
+          });
+        }
+      }),
     );
     _scrollToBottom();
     final voiceText = response.voiceText.trim().isNotEmpty
@@ -169,8 +200,9 @@ class _ChatPageState extends State<ChatPage> {
     if (!mounted) return;
     setState(() {
       _voiceNotice = spoken
-          ? null
+          ? _voiceNotice
           : (_voiceInteractionService.lastFailureMessage ??
+                _voiceNotice ??
                 '系统语音播报暂不可用，已保留文字回复');
     });
   }
@@ -347,7 +379,7 @@ class _ChatPageState extends State<ChatPage> {
                       children: [
                         _QuickChip(
                           label: '规划路线',
-                          onTap: () => context.push('/trip'),
+                          onTap: () => context.go('/trip'),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _QuickChip(
@@ -357,12 +389,12 @@ class _ChatPageState extends State<ChatPage> {
                         const SizedBox(width: AppTheme.spacingSm),
                         _QuickChip(
                           label: '调整行程',
-                          onTap: () => context.push('/trip'),
+                          onTap: () => context.go('/trip'),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         _QuickChip(
                           label: '生成复盘',
-                          onTap: () => context.push('/review'),
+                          onTap: () => context.go('/review'),
                         ),
                       ],
                     ),
