@@ -31,12 +31,14 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private val reminderNotificationChannelId = "lanxin_reminders"
     private val galleryRequestCode = 4201
     private val cameraRequestCode = 4202
+    private val cameraPermissionRequestCode = 4203
     private val locationPermissionRequestCode = 4301
     private val speechRequestCode = 4401
     private val recordAudioPermissionRequestCode = 4402
     private val notificationPermissionRequestCode = 4501
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraUri: Uri? = null
+    private var pendingCameraPermissionResult: MethodChannel.Result? = null
     private var pendingLocationResult: MethodChannel.Result? = null
     private var pendingVoiceResult: MethodChannel.Result? = null
     private var pendingNotificationResult: MethodChannel.Result? = null
@@ -280,6 +282,15 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun launchCamera(result: MethodChannel.Result) {
+        if (!hasCameraPermission()) {
+            pendingCameraPermissionResult = result
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.CAMERA),
+                cameraPermissionRequestCode,
+            )
+            return
+        }
         if (!claimPendingResult(result)) return
         val outputUri = createCameraOutputUri()
         if (outputUri == null) {
@@ -298,6 +309,10 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             pendingCameraUri = null
             clearPendingWithError("camera_unavailable", "No camera app can handle image capture")
         }
+    }
+
+    private fun hasCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun claimPendingResult(result: MethodChannel.Result): Boolean {
@@ -333,6 +348,15 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
+            cameraPermissionRequestCode -> {
+                val result = pendingCameraPermissionResult ?: return
+                pendingCameraPermissionResult = null
+                if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
+                    launchCamera(result)
+                } else {
+                    result.error("camera_permission_denied", "Camera permission was denied", null)
+                }
+            }
             locationPermissionRequestCode -> {
                 val result = pendingLocationResult ?: return
                 pendingLocationResult = null

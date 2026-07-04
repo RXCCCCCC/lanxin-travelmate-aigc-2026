@@ -28,6 +28,11 @@
 
 ### 2026-07-04
 
+- Android 真机验收发现旅拍“拍摄照片”没有先申请运行时相机权限，已在 `MainActivity.kt` 增加 `CAMERA` 权限申请和授权后继续拉起系统相机的流程，并在 Manifest package visibility 中补充图片文档选择和相机 intent 查询。
+- 真机允许授权路径已验证：定位可填入真实坐标；点击“拍摄照片”后出现系统相机权限弹窗，选择允许后可进入系统相机拍照界面。用户确认照片流程可以继续。
+- 用户拿回真机后已切换到 Android 模拟器 `emulator-5554` 调试；最新 debug APK 安装成功，`adb reverse tcp:8000 tcp:8000` 已配置，首页同屏聊天真实后端回复通过。
+- 模拟器启动期出现一次 `System UI isn't responding`，选择 `Wait` 后恢复首页；当前未见 App 崩溃。后续常规验收按用户要求模拟真实用户允许路径，不主动点击“拒绝授权”。
+
 - Reverted runtime Lanxiaoxin avatar assets per user feedback: `apps/mobile/assets/avatars/lanxiaoxin_*.png` now match `project/img/lanxiaoxin/lanxiaoxin_*.png` byte-for-byte instead of using processed transparent variants.
 - Updated avatar guardrails from transparency checks to original-material consistency checks in `services/api/tests/test_mobile_avatar_assets.py` and `scripts/submission_readiness_report.py`; removed the no-longer-needed direct `pillow` dependency from `services/api`.
 - Validation passed: `uv run pytest tests/test_mobile_avatar_assets.py tests/test_submission_readiness_report.py -q`; `python -m py_compile scripts/submission_readiness_report.py`; `python scripts/submission_readiness_report.py --json --skip-git`.
