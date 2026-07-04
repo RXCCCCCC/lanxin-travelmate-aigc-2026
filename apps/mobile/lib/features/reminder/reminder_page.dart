@@ -151,105 +151,112 @@ class _ReminderPageState extends State<ReminderPage> {
                   : (_dashboardReminders.isNotEmpty
                         ? _dashboardReminders
                         : _evaluatedReminders));
-        return Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF5FA4FF), Color(0xFFAAD6FF), Color(0xFFE8F7FF)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF5FA4FF),
+                  Color(0xFFAAD6FF),
+                  Color(0xFFE8F7FF),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: metrics.horizontalPadding - 8,
-                    vertical: 4,
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => navigateBackOrHome(context),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const Expanded(
-                        child: Text(
-                          '主动提醒',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
-                if (_profile != null)
-                  _ProfileReminderContext(
-                    profile: _profile!,
-                    suppressedReason: _suppressedReason,
-                    cooldownRemainingSeconds: _cooldownRemainingSeconds,
-                  ),
-                if (_notificationStatus != null)
-                  _NotificationStatusBanner(message: _notificationStatus!),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    metrics.horizontalPadding,
-                    4,
-                    metrics.horizontalPadding,
-                    8,
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.horizontalPadding - 8,
+                      vertical: 4,
+                    ),
                     child: Row(
                       children: [
-                        _TriggerChip(
-                          label: '拍照触发',
-                          onTap: () => _simulateTrigger('behavior', {
-                            'event': 'newPhoto',
-                          }),
+                        IconButton(
+                          onPressed: () => navigateBackOrHome(context),
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
-                        const SizedBox(width: AppTheme.spacingSm),
-                        _TriggerChip(
-                          label: '状态触发',
-                          onTap: () =>
-                              _simulateTrigger('status', {'energy': 32}),
+                        const Expanded(
+                          child: Text(
+                            '主动提醒',
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                        const SizedBox(width: AppTheme.spacingSm),
-                        _TriggerChip(
-                          label: '天气触发',
-                          onTap: () => _simulateTrigger('external', {
-                            'event': 'weatherChanged',
-                          }),
-                        ),
+                        const SizedBox(width: 48),
                       ],
                     ),
                   ),
-                ),
-                Expanded(
-                  child: activeAgentReminders.isEmpty
-                      ? _EmptyReminderState(onRetry: _loadProfileAndEvaluate)
-                      : ListView(
-                          padding: EdgeInsets.only(
-                            top: AppTheme.spacingSm,
-                            bottom: metrics.listBottomPadding,
+                  if (_profile != null)
+                    _ProfileReminderContext(
+                      profile: _profile!,
+                      suppressedReason: _suppressedReason,
+                      cooldownRemainingSeconds: _cooldownRemainingSeconds,
+                    ),
+                  if (_notificationStatus != null)
+                    _NotificationStatusBanner(message: _notificationStatus!),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      metrics.horizontalPadding,
+                      4,
+                      metrics.horizontalPadding,
+                      8,
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _TriggerChip(
+                            label: '拍照触发',
+                            onTap: () => _simulateTrigger('behavior', {
+                              'event': 'newPhoto',
+                            }),
                           ),
-                          children: activeAgentReminders
-                              .map(
-                                (reminder) =>
-                                    _AgentReminderCard(reminder: reminder),
-                              )
-                              .toList(),
-                        ),
-                ),
-              ],
+                          const SizedBox(width: AppTheme.spacingSm),
+                          _TriggerChip(
+                            label: '状态触发',
+                            onTap: () =>
+                                _simulateTrigger('status', {'energy': 32}),
+                          ),
+                          const SizedBox(width: AppTheme.spacingSm),
+                          _TriggerChip(
+                            label: '天气触发',
+                            onTap: () => _simulateTrigger('external', {
+                              'event': 'weatherChanged',
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: activeAgentReminders.isEmpty
+                        ? _EmptyReminderState(onRetry: _loadProfileAndEvaluate)
+                        : ListView(
+                            padding: EdgeInsets.only(
+                              top: AppTheme.spacingSm,
+                              bottom: metrics.listBottomPadding,
+                            ),
+                            children: activeAgentReminders
+                                .map(
+                                  (reminder) =>
+                                      _AgentReminderCard(reminder: reminder),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
