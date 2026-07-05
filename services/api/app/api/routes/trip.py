@@ -349,9 +349,60 @@ def _as_list(value: object) -> list[str]:
     return [str(value)]
 
 
+_PACE_ALIASES: dict[str, str] = {}
+_BUDGET_ALIASES: dict[str, str] = {}
+
+
+def _build_aliases() -> None:
+    if _PACE_ALIASES:
+        return
+    pace_entries: list[tuple[str, list[str]]] = [
+        ("慢节奏", ["慢节奏", "慢", "慢一点", "悠闲", "休闲", "轻松", "slow", "relaxed", "easy"]),
+        ("紧凑", ["紧凑", "快", "快节奏", "赶路", "特种兵", "满", "packed", "fast", "tight", "intense"]),
+        ("适中", ["适中", "中等", "平衡", "中等强度", "balanced", "moderate", "normal", "medium"]),
+    ]
+    budget_entries: list[tuple[str, list[str]]] = [
+        ("低预算", ["低预算", "低", "便宜", "省钱", "穷游", "经济", "low", "cheap"]),
+        ("中等预算", ["中等预算", "中等", "正常", "一般", "medium", "moderate", "normal"]),
+        ("高预算", ["高预算", "高", "贵", "奢侈", "不差钱", "豪华", "high", "luxury", "expensive"]),
+    ]
+    for canonical, aliases in pace_entries:
+        for alias in aliases:
+            _PACE_ALIASES[alias] = canonical
+            _PACE_ALIASES[alias.lower()] = canonical
+    for canonical, aliases in budget_entries:
+        for alias in aliases:
+            _BUDGET_ALIASES[alias] = canonical
+            _BUDGET_ALIASES[alias.lower()] = canonical
+
+
+def _normalize_pace(raw: str) -> str:
+    _build_aliases()
+    value = raw.strip()
+    return _PACE_ALIASES.get(value, _PACE_ALIASES.get(value.lower(), value))
+
+
+def _normalize_budget(raw: str) -> str:
+    _build_aliases()
+    value = raw.strip()
+    return _BUDGET_ALIASES.get(value, _BUDGET_ALIASES.get(value.lower(), value))
+
+
+_PACE_ORDER = {"慢节奏": 0, "适中": 1, "紧凑": 2}
+_BUDGET_ORDER = {"低预算": 0, "中等预算": 1, "高预算": 2}
+
+
 def _detect_group_conflicts(members: list[GroupMemberPayload]) -> list[dict[str, object]]:
-    paces = {str(member.preferences.get("pace")) for member in members if member.preferences.get("pace")}
-    budgets = {str(member.preferences.get("budget")) for member in members if member.preferences.get("budget")}
+    paces = {
+        _normalize_pace(str(member.preferences.get("pace")))
+        for member in members
+        if member.preferences.get("pace")
+    }
+    budgets = {
+        _normalize_budget(str(member.preferences.get("budget")))
+        for member in members
+        if member.preferences.get("budget")
+    }
     dietary_sets = [set(_as_list(member.preferences.get("dietary"))) for member in members]
     conflicts: list[dict[str, object]] = []
     if len(paces) > 1:
@@ -359,14 +410,14 @@ def _detect_group_conflicts(members: list[GroupMemberPayload]) -> list[dict[str,
             "type": "pace",
             "title": "节奏偏好不一致",
             "summary": "同行成员对行程强度的期待不同，建议按较慢节奏安排主线，并保留可选加餐点。",
-            "values": sorted(paces),
+            "values": sorted(paces, key=lambda p: _PACE_ORDER.get(p, 99)),
         })
     if len(budgets) > 1:
         conflicts.append({
             "type": "budget",
             "title": "预算偏好不一致",
             "summary": "预算期待存在差异，建议主方案控制在较低预算，体验型项目作为可选项。",
-            "values": sorted(budgets),
+            "values": sorted(budgets, key=lambda b: _BUDGET_ORDER.get(b, 99)),
         })
     dietary_union = sorted(set().union(*dietary_sets)) if dietary_sets else []
     if len(dietary_union) > 1:
@@ -380,18 +431,38 @@ def _detect_group_conflicts(members: list[GroupMemberPayload]) -> list[dict[str,
 
 
 def _build_compromise_plan(destination: str | None, members: list[GroupMemberPayload]) -> dict[str, object]:
-    paces = {str(member.preferences.get("pace")) for member in members if member.preferences.get("pace")}
-    budgets = {str(member.preferences.get("budget")) for member in members if member.preferences.get("budget")}
+    paces = {
+        _normalize_pace(str(member.preferences.get("pace")))
+        for member in members
+        if member.preferences.get("pace")
+    }
+    budgets = {
+        _normalize_budget(str(member.preferences.get("budget")))
+        for member in members
+        if member.preferences.get("budget")
+    }
     shared_interests = None
     for member in members:
         interests = set(_as_list(member.preferences.get("interests")))
         shared_interests = interests if shared_interests is None else shared_interests & interests
     all_interests = sorted({interest for member in members for interest in _as_list(member.preferences.get("interests"))})
     dietary_notes = sorted({note for member in members for note in _as_list(member.preferences.get("dietary"))})
+    if "慢节奏" in paces and len(paces) > 1:
+        pace = "偏慢节奏"
+    elif paces:
+        pace = sorted(paces, key=lambda p: _PACE_ORDER.get(p, 99))[0]
+    else:
+        pace = "适中"
+    if "低预算" in budgets and len(budgets) > 1:
+        budget = "低预算优先"
+    elif budgets:
+        budget = sorted(budgets, key=lambda b: _BUDGET_ORDER.get(b, 99))[0]
+    else:
+        budget = "预算适中"
     return {
         "destination": destination,
-        "pace": "balanced_slow" if "slow" in paces and len(paces) > 1 else (sorted(paces)[0] if paces else "balanced"),
-        "budget": "low_first" if "low" in budgets else (sorted(budgets)[0] if budgets else "balanced"),
+        "pace": pace,
+        "budget": budget,
         "sharedInterests": sorted(shared_interests or []) or all_interests[:3],
         "optionalInterests": [interest for interest in all_interests if interest not in (shared_interests or set())],
         "dietaryStrategy": "提前备注餐厅和菜品忌口" if dietary_notes else "无特殊饮食冲突",
@@ -600,7 +671,7 @@ def create_trip_plan(
     _apply_planning_input_explanations(plan, planning_inputs)
     now = utc_now()
     trip = session.get(CloudTrip, trip_id)
-    destination = payload.destination or str(plan.get("destination") or "Unnamed destination")
+    destination = payload.destination or str(plan.get("destination") or "未命名目的地")
     if trip:
         trip.destination = destination
         trip.status = "planning"
@@ -789,34 +860,34 @@ def _evaluate_reminder_triggers(payload: ReminderEvaluateRequest) -> list[dict[s
     if hour is not None and 17 <= hour <= 19:
         candidates.append({
             "id": "auto-dinner-time",
-            "title": "Dinner timing reminder",
+            "title": "用餐时间提醒",
             "triggerType": "time",
-            "description": "It is dinner time; reserve a lighter meal before the evening route.",
+            "description": "现在接近用餐时间，建议先安排一顿清淡餐食，再继续晚间路线。",
             "cooldownMinutes": 45,
         })
     if payload.location:
         candidates.append({
             "id": "auto-location-nearby",
-            "title": "Nearby route reminder",
+            "title": "周边路线提醒",
             "triggerType": "location",
-            "description": f"You are near {payload.location}; check the next stop before walking further.",
+            "description": f"已经到达{payload.location}附近，查看下一步路线后再继续步行。",
             "cooldownMinutes": 45,
         })
     if energy_value is not None and energy_value <= 40:
         candidates.append({
             "id": "auto-low-energy",
-            "title": "Low energy reminder",
+            "title": "体力偏低提醒",
             "triggerType": "status",
-            "description": "Energy is low; switch to a shorter or indoor alternative.",
+            "description": "当前精力偏低，建议切换为更短路线或室内备选。",
             "cooldownMinutes": 45,
             "energy": energy_value,
         })
     if payload.external.get("weatherWarning") or payload.external.get("queueLevel") == "high":
         candidates.append({
             "id": "auto-external-risk",
-            "title": "External risk reminder",
+            "title": "外部风险提醒",
             "triggerType": "external",
-            "description": "Weather or queue conditions changed; keep a backup plan ready.",
+            "description": "天气或排队情况发生变化，建议准备一个备选方案。",
             "cooldownMinutes": 45,
             "event": payload.external,
         })

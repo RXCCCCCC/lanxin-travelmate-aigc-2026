@@ -697,7 +697,7 @@ class _GroupCoordinationResultCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '折中节奏：${compromise['pace'] ?? 'balanced'} · 预算：${compromise['budget'] ?? 'balanced'}',
+            '折中节奏：${compromise['pace'] ?? '—'} · 预算：${compromise['budget'] ?? '—'}',
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontSize: 13,
@@ -1284,6 +1284,12 @@ const Map<String, String> _planDisplayMap = {
   'transit': '公共交通',
   'walking': '步行',
   'driving': '自驾',
+  'self_drive': '自驾',
+  'balanced': '适中',
+  'balanced_slow': '偏慢节奏',
+  'low_first': '低预算优先',
+  'light': '轻量',
+  'premium': '舒适',
   'route_tool': '路线服务',
   'model_provider': '智能服务',
 };
