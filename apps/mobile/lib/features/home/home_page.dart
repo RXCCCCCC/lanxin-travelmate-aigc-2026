@@ -206,8 +206,8 @@ class _HomePageState extends State<HomePage>
     if (viewportHeight <= 0) return;
     setState(() {
       _panelHeightRatio = (_panelHeightRatio - delta / viewportHeight).clamp(
-        0.24,
-        0.56,
+        0.16,
+        0.78,
       );
     });
   }
@@ -244,13 +244,18 @@ class _HomePageState extends State<HomePage>
             final topSafe = metrics.safeInsets.top;
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
-            final baseRatio = math.max(
-              _panelHeightRatio,
-              compact ? 0.29 : 0.27,
+            final weatherTop = topSafe + 2;
+            final actionsTop = topSafe + 40;
+            final tripTop = topSafe + 92;
+            final purePanelTop = topSafe + 140;
+            final minPanelHeight = compact ? 166.0 : 178.0;
+            final maxPanelHeight = math.max(
+              minPanelHeight,
+              h - purePanelTop - 10 - keyboardInset,
             );
-            final ratio = baseRatio;
+            final ratio = _panelHeightRatio;
             final panelHeight = (h * ratio)
-                .clamp(205.0, compact ? 340.0 : 390.0)
+                .clamp(minPanelHeight, maxPanelHeight)
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
                 ? math.min(panelHeight, compact ? 230.0 : 240.0)
@@ -293,7 +298,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 顶部主操作：模式、消息、历史 ──
                 Positioned(
-                  top: topSafe + 8,
+                  top: actionsTop,
                   left: sidePadding,
                   right: sidePadding,
                   child: Row(
@@ -325,16 +330,12 @@ class _HomePageState extends State<HomePage>
 
                 // ── 顶部天气长条 ──
                 Positioned(
-                  top: topSafe + 62,
-                  left: sidePadding,
-                  right: sidePadding,
-                  child: _ModeExitBubble(
-                    hidden: _isPureMode,
-                    direction: AxisDirection.up,
-                    child: _WeatherStrip(
-                      summary: _weatherSummary,
-                      onTap: _loadCurrentWeather,
-                    ),
+                  top: weatherTop,
+                  left: 4,
+                  right: 4,
+                  child: _WeatherStrip(
+                    summary: _weatherSummary,
+                    onTap: _loadCurrentWeather,
                   ),
                 ),
 
@@ -383,7 +384,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 旅行胶囊 ──
                 Positioned(
-                  top: topSafe + 108,
+                  top: tripTop,
                   left: sidePadding,
                   child: _TripPill(
                     label: _dashboardSummary.tripLabel,
@@ -403,7 +404,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 右侧蓝小心状态抽屉 ──
                 Positioned(
-                  top: topSafe + 120,
+                  top: tripTop + 18,
                   right: 0,
                   child: _ModeExitBubble(
                     hidden: _isPureMode,
@@ -422,8 +423,8 @@ class _HomePageState extends State<HomePage>
                   curve: Curves.easeOutCubic,
                   left: sidePadding,
                   right: sidePadding,
-                  top: _isPureMode ? topSafe + 126 : null,
-                  bottom: 10 + keyboardInset,
+                  top: _isPureMode ? purePanelTop : null,
+                  bottom: 4 + keyboardInset,
                   height: _isPureMode ? null : effectivePanelHeight,
                   child: _ChatGlassPanel(
                     controller: _chatController,
@@ -671,12 +672,6 @@ class _WeatherStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLoading = summary.state == HomeWeatherState.loading;
-    final icon = switch (summary.state) {
-      HomeWeatherState.ready => Icons.wb_sunny_rounded,
-      HomeWeatherState.failure => Icons.refresh_rounded,
-      HomeWeatherState.loading => Icons.my_location_rounded,
-      HomeWeatherState.idle => Icons.cloud_sync_rounded,
-    };
     final location = (summary.city == null || summary.city!.isEmpty)
         ? summary.title
         : summary.city!;
@@ -689,30 +684,50 @@ class _WeatherStrip extends StatelessWidget {
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: GlassBox(
-        borderRadius: BorderRadius.circular(22),
-        opacity: 0.28,
+        height: 30,
+        borderRadius: BorderRadius.circular(15),
+        opacity: 0.20,
         borderColor: Colors.white.withOpacity(0.78),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '$location  $weather  $temperature',
+                location,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF174C9F),
                   fontWeight: FontWeight.w900,
-                  fontSize: 13.4,
+                  fontSize: 12.4,
                 ),
               ),
             ),
-            Icon(
-              isLoading ? Icons.more_horiz_rounded : Icons.refresh_rounded,
-              color: const Color(0xFF5F9BFF),
-              size: 16,
+            Expanded(
+              child: Text(
+                weather,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF174C9F),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12.4,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                temperature,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF174C9F),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12.4,
+                ),
+              ),
             ),
           ],
         ),
@@ -729,82 +744,72 @@ class _StatusDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          child: expanded
-              ? GlassBox(
-                  key: const ValueKey('status-panel'),
-                  width: 136,
-                  opacity: 0.27,
-                  borderColor: Colors.white.withOpacity(0.74),
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _StatusMetric(
-                        icon: Icons.favorite_rounded,
-                        label: '默契',
-                        value: '12',
-                        color: Color(0xFFFF8CCF),
-                      ),
-                      SizedBox(height: 10),
-                      _StatusMetric(
-                        icon: Icons.mood_rounded,
-                        label: '心情',
-                        value: '开心',
-                        color: Color(0xFFFFDA7D),
-                      ),
-                      SizedBox(height: 10),
-                      _StatusMetric(
-                        icon: Icons.bolt_rounded,
-                        label: '精力',
-                        value: '90',
-                        color: Color(0xFFFFD953),
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox.shrink(key: ValueKey('status-empty')),
-        ),
-        const SizedBox(width: 6),
-        GestureDetector(
-          onTap: onToggle,
-          behavior: HitTestBehavior.opaque,
-          child: GlassBox(
-            width: 34,
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(18),
-            ),
-            opacity: 0.30,
-            borderColor: Colors.white.withOpacity(0.74),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
+    return GestureDetector(
+      onTap: onToggle,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        width: expanded ? 154 : 38,
+        child: GlassBox(
+          borderRadius: const BorderRadius.horizontal(
+            left: Radius.circular(24),
+          ),
+          opacity: 0.27,
+          borderColor: Colors.white.withOpacity(0.74),
+          padding: EdgeInsets.fromLTRB(expanded ? 27 : 9, 11, 12, 11),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.centerLeft,
+            children: [
+              Positioned(
+                left: expanded ? -24 : 0,
+                child: Icon(
                   expanded
                       ? Icons.keyboard_arrow_right_rounded
-                      : Icons.favorite_rounded,
+                      : Icons.keyboard_arrow_left_rounded,
                   color: const Color(0xFF215ECA),
-                  size: 18,
+                  size: 21,
                 ),
-                if (!expanded) ...[
-                  const SizedBox(height: 5),
-                  const Column(
-                    children: [
-                      Text('状', style: _statusTabTextStyle),
-                      Text('态', style: _statusTabTextStyle),
-                    ],
-                  ),
-                ],
-              ],
-            ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: expanded
+                    ? const Column(
+                        key: ValueKey('status-panel'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StatusMetric(
+                            icon: Icons.favorite_rounded,
+                            label: '默契',
+                            value: '12',
+                            color: Color(0xFFFF8CCF),
+                          ),
+                          SizedBox(height: 9),
+                          _StatusMetric(
+                            icon: Icons.mood_rounded,
+                            label: '心情',
+                            value: '开心',
+                            color: Color(0xFFFFDA7D),
+                          ),
+                          SizedBox(height: 9),
+                          _StatusMetric(
+                            icon: Icons.bolt_rounded,
+                            label: '精力',
+                            value: '90',
+                            color: Color(0xFFFFD953),
+                          ),
+                        ],
+                      )
+                    : const SizedBox(
+                        key: ValueKey('status-collapsed'),
+                        height: 72,
+                      ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -849,12 +854,6 @@ class _StatusMetric extends StatelessWidget {
     );
   }
 }
-
-const _statusTabTextStyle = TextStyle(
-  color: Color(0xFF174C9F),
-  fontSize: 11,
-  fontWeight: FontWeight.w900,
-);
 
 class _MemoryFloatBadge extends StatelessWidget {
   const _MemoryFloatBadge({required this.count});
@@ -1012,10 +1011,10 @@ class _ChatGlassPanel extends StatelessWidget {
     return GlassBox(
       borderRadius: BorderRadius.circular(30),
       padding: EdgeInsets.fromLTRB(
-        metrics.isCompactPhone ? 10 : 13,
-        8,
-        metrics.isCompactPhone ? 10 : 13,
-        8,
+        metrics.isCompactPhone ? 7 : 9,
+        6,
+        metrics.isCompactPhone ? 7 : 9,
+        5,
       ),
       opacity: 0.20,
       blur: 30.0,
@@ -1026,7 +1025,7 @@ class _ChatGlassPanel extends StatelessWidget {
             onPanUpdate: (details) => onResize(details.delta.dy),
             onVerticalDragUpdate: (details) => onResize(details.delta.dy),
             child: SizedBox(
-              height: 22,
+              height: 18,
               width: double.infinity,
               child: Center(
                 child: Container(
@@ -1051,7 +1050,7 @@ class _ChatGlassPanel extends StatelessWidget {
               controller: scrollController,
               padding: EdgeInsets.zero,
               itemCount: itemCount,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
               itemBuilder: (_, index) {
                 if (index >= visibleMessages.length) {
                   return _ThinkingBubble(
@@ -1073,13 +1072,13 @@ class _ChatGlassPanel extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: onFocusInput,
             child: GlassBox(
               borderRadius: BorderRadius.circular(22),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
               opacity: 0.12,
               blur: 16,
               child: Row(
@@ -1134,7 +1133,7 @@ class _ChatGlassPanel extends StatelessWidget {
             ),
           ),
           if (isSending) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
             Row(
               children: [
                 Expanded(
@@ -1164,9 +1163,9 @@ class _ChatGlassPanel extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           SizedBox(
-            height: 32,
+            height: 30,
             child: Row(
               children: [
                 Expanded(
@@ -1223,8 +1222,8 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxBubbleWidth = math.min(
-      252.0,
-      MediaQuery.sizeOf(context).width - 112,
+      330.0,
+      MediaQuery.sizeOf(context).width - 76,
     );
     if (isUser) {
       return Row(
@@ -1389,8 +1388,8 @@ class _ThinkingBubbleState extends State<_ThinkingBubble> {
   @override
   Widget build(BuildContext context) {
     final maxBubbleWidth = math.min(
-      252.0,
-      MediaQuery.sizeOf(context).width - 112,
+      330.0,
+      MediaQuery.sizeOf(context).width - 76,
     );
     final dots = List.filled(_dotCount, '.').join();
     final text = widget.queuedMessage == null
@@ -1474,8 +1473,8 @@ class _QuickChip extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [

@@ -96,9 +96,9 @@ class HomeChatController extends ChangeNotifier {
     if (isSending) {
       _queuedMessage = _mergeQueuedMessage(_queuedMessage, trimmed);
       _addUserMessage(trimmed);
-      await _saveMessage(MessageSender.user, trimmed);
       _setStatus('已加入下一轮思考');
       notifyListeners();
+      unawaited(_saveMessage(MessageSender.user, trimmed).catchError((_) {}));
       return HomeChatSendResult.queued;
     }
     _activeRequest = _sendToAgent(trimmed, addUserMessage: true);
@@ -128,11 +128,13 @@ class HomeChatController extends ChangeNotifier {
   Future<void> _sendToAgent(String text, {required bool addUserMessage}) async {
     if (addUserMessage) {
       _addUserMessage(text);
-      await _saveMessage(MessageSender.user, text);
     }
     isSending = true;
     _cancelToken = CancelToken();
     notifyListeners();
+    if (addUserMessage) {
+      unawaited(_saveMessage(MessageSender.user, text).catchError((_) {}));
+    }
 
     try {
       final response = await _agentChatService.sendMessage(
@@ -154,10 +156,14 @@ class HomeChatController extends ChangeNotifier {
         response.replyText,
         avatarState: response.avatarState,
       );
-      await _saveMessage(
-        MessageSender.assistant,
-        response.replyText,
-        avatarState: response.avatarState,
+      isSending = false;
+      notifyListeners();
+      unawaited(
+        _saveMessage(
+          MessageSender.assistant,
+          response.replyText,
+          avatarState: response.avatarState,
+        ).catchError((_) {}),
       );
     } on AgentChatCancelledException {
       return;
@@ -165,12 +171,16 @@ class HomeChatController extends ChangeNotifier {
       const fallbackText = '后端暂时连不上，我先用离线模式陪你继续规划。';
       avatarState = AvatarState.thinking;
       _addAssistantMessage(fallbackText, avatarState: avatarState);
-      await _saveMessage(
-        MessageSender.assistant,
-        fallbackText,
-        avatarState: avatarState,
-      );
+      isSending = false;
+      notifyListeners();
       _setStatus('后端暂时连不上，已显示离线回复');
+      unawaited(
+        _saveMessage(
+          MessageSender.assistant,
+          fallbackText,
+          avatarState: avatarState,
+        ).catchError((_) {}),
+      );
     } finally {
       isSending = false;
       _cancelToken = null;
