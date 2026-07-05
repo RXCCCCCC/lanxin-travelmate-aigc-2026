@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from app.api.routes import photo
@@ -9,12 +11,21 @@ client = TestClient(app)
 PNG_1X1_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
 
 
+def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
+    response = client.post("/api/auth/guest", json={"deviceId": device_id, "displayName": "Photo Test Guest"})
+    assert response.status_code == 200
+    payload = response.json()
+    return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
+
+
 def test_photo_candidates_return_tags_scores_and_review_flag():
+    _user_id, headers = _guest_headers(f"photo-tags-{uuid4().hex}")
     create = client.post(
         "/api/photo/candidates",
+        headers=headers,
         json={
             "id": "photo-night",
-            "userId": "photo-user-a",
+            "userId": "guest",
             "tripId": "trip-photo-a",
             "location": "洪崖洞",
             "score": 9.3,
@@ -25,7 +36,7 @@ def test_photo_candidates_return_tags_scores_and_review_flag():
     )
     assert create.status_code == 200
 
-    response = client.get("/api/photo/candidates", params={"userId": "photo-user-a"})
+    response = client.get("/api/photo/candidates", headers=headers)
 
     assert response.status_code == 200
     items = response.json()["items"]
@@ -36,10 +47,12 @@ def test_photo_candidates_return_tags_scores_and_review_flag():
 
 
 def test_photo_upload_metadata_does_not_persist_device_local_path():
+    _user_id, headers = _guest_headers(f"photo-metadata-{uuid4().hex}")
     response = client.post(
         "/api/photo/upload-metadata",
+        headers=headers,
         json={
-            "userId": "photo-user-a",
+            "userId": "guest",
             "filename": "night.jpg",
             "contentType": "image/jpeg",
             "localPath": "content://photo/night.jpg",
@@ -53,8 +66,10 @@ def test_photo_upload_metadata_does_not_persist_device_local_path():
 
 
 def test_photo_analyze_uses_preview_bytes_for_chinese_analysis():
+    _user_id, headers = _guest_headers(f"photo-analyze-{uuid4().hex}")
     response = client.post(
         "/api/photo/analyze",
+        headers=headers,
         json={
             "userId": "guest",
             "tripId": "photo-analyze-trip",
@@ -81,11 +96,13 @@ def test_photo_analyze_uses_preview_bytes_for_chinese_analysis():
 
 
 def test_photo_copywriting_returns_multiple_share_formats():
+    _user_id, headers = _guest_headers(f"photo-copy-{uuid4().hex}")
     client.post(
         "/api/photo/candidates",
+        headers=headers,
         json={
             "id": "photo-copy-a",
-            "userId": "photo-copy-user",
+            "userId": "guest",
             "location": "山城步道",
             "score": 8.8,
             "description": "街巷纵深感强。",
@@ -95,8 +112,9 @@ def test_photo_copywriting_returns_multiple_share_formats():
     )
     response = client.post(
         "/api/photo/copywriting",
+        headers=headers,
         json={
-            "userId": "photo-copy-user",
+            "userId": "guest",
             "photoIds": ["photo-copy-a"],
             "persona": "活泼向导",
             "style": "轻松",
@@ -113,6 +131,8 @@ def test_photo_copywriting_returns_multiple_share_formats():
 
 
 def test_photo_copywriting_uses_valid_model_provider_output(monkeypatch):
+    _user_id, headers = _guest_headers(f"photo-model-{uuid4().hex}")
+
     class CopywritingProvider:
         name = "copywriting-provider"
 
@@ -134,9 +154,10 @@ def test_photo_copywriting_uses_valid_model_provider_output(monkeypatch):
     monkeypatch.setattr(photo, "build_model_provider", lambda settings: CopywritingProvider())
     client.post(
         "/api/photo/candidates",
+        headers=headers,
         json={
             "id": "photo-model-a",
-            "userId": "photo-model-user",
+            "userId": "guest",
             "location": "River Walk",
             "score": 9.1,
             "description": "real model candidate",
@@ -146,7 +167,8 @@ def test_photo_copywriting_uses_valid_model_provider_output(monkeypatch):
 
     response = client.post(
         "/api/photo/copywriting",
-        json={"userId": "photo-model-user", "photoIds": ["photo-model-a"]},
+        headers=headers,
+        json={"userId": "guest", "photoIds": ["photo-model-a"]},
     )
 
     assert response.status_code == 200
@@ -157,6 +179,8 @@ def test_photo_copywriting_uses_valid_model_provider_output(monkeypatch):
 
 
 def test_photo_copywriting_normalizes_real_provider_aliases(monkeypatch):
+    _user_id, headers = _guest_headers(f"photo-alias-{uuid4().hex}")
+
     class AliasCopywritingProvider:
         name = "alias-copywriting-provider"
 
@@ -172,9 +196,10 @@ def test_photo_copywriting_normalizes_real_provider_aliases(monkeypatch):
     monkeypatch.setattr(photo, "build_model_provider", lambda settings: AliasCopywritingProvider())
     client.post(
         "/api/photo/candidates",
+        headers=headers,
         json={
             "id": "photo-alias-a",
-            "userId": "photo-alias-user",
+            "userId": "guest",
             "location": "West Lake",
             "score": 8.9,
             "description": "alias model candidate",
@@ -184,8 +209,9 @@ def test_photo_copywriting_normalizes_real_provider_aliases(monkeypatch):
 
     response = client.post(
         "/api/photo/copywriting",
+        headers=headers,
         json={
-            "userId": "photo-alias-user",
+            "userId": "guest",
             "photoIds": ["photo-alias-a"],
             "persona": "quiet guide",
             "style": "warm",
@@ -204,6 +230,8 @@ def test_photo_copywriting_normalizes_real_provider_aliases(monkeypatch):
 
 
 def test_photo_copywriting_falls_back_when_model_schema_is_invalid(monkeypatch):
+    _user_id, headers = _guest_headers(f"photo-invalid-{uuid4().hex}")
+
     class InvalidCopywritingProvider:
         name = "invalid-copywriting-provider"
 
@@ -213,9 +241,10 @@ def test_photo_copywriting_falls_back_when_model_schema_is_invalid(monkeypatch):
     monkeypatch.setattr(photo, "build_model_provider", lambda settings: InvalidCopywritingProvider())
     client.post(
         "/api/photo/candidates",
+        headers=headers,
         json={
             "id": "photo-invalid-a",
-            "userId": "photo-invalid-user",
+            "userId": "guest",
             "location": "Mountain Street",
             "score": 8.7,
             "description": "invalid model candidate",
@@ -225,7 +254,8 @@ def test_photo_copywriting_falls_back_when_model_schema_is_invalid(monkeypatch):
 
     response = client.post(
         "/api/photo/copywriting",
-        json={"userId": "photo-invalid-user", "photoIds": ["photo-invalid-a"]},
+        headers=headers,
+        json={"userId": "guest", "photoIds": ["photo-invalid-a"]},
     )
 
     assert response.status_code == 200
@@ -245,11 +275,13 @@ def test_blind_box_tasks_return_five_demo_task_types():
     assert {task["type"] for task in tasks} >= {"photo", "food", "route", "interaction", "story"}
 
 def test_photo_candidates_do_not_return_device_local_uri():
+    _user_id, headers = _guest_headers(f"photo-local-uri-{uuid4().hex}")
     create = client.post(
         "/api/photo/candidates",
+        headers=headers,
         json={
             "id": "photo-local-uri",
-            "userId": "photo-user-private",
+            "userId": "guest",
             "localUri": "content://media/external/images/42",
             "remoteUrl": "https://cdn.example.test/photo.jpg",
             "location": "Local Only",
