@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-项目主链路代码和交接文档已经基本成型，当前重点是比赛提交前的真实能力验收、Android/vivo 真机验证、APK/部署验证、Demo/PPT/素材与平台提交。
+项目主链路代码和交接文档已经基本成型，当前重点已经从模拟器切到真实设备与真实 API：先完成 vivo 文本模型、高德 Web 服务和 Android/vivo 真机联调，再继续交接、Demo 和平台提交。
 
 ## 当前结论
 
@@ -16,14 +16,39 @@
 - 项目仍保持 Android/vivo 优先，不主动恢复 iOS、macOS、Windows、Linux、Web 平台工程。
 - 移动端调试优先使用已连接的 Android/vivo 真机；没有真机、真机不可用或需要复现模拟器专属问题时，再使用 Android 模拟器。
 - vivo AIGC 在线文档已镜像到 `docs/reference/vivo-aigc/`，后续接入蓝心/文本生成/ASR/TTS/LBS/端侧能力时优先读取 `README.md`、具体 `id-标题.md` 或聚合版 `all-documents.md`。
+- 当前真实文本模型优先按 vivo AIGC `1745-大模型` 口径接入：`POST https://api-ai.vivo.com.cn/v1/chat/completions`，`Authorization: Bearer <AppKey>`，建议补 `requestId` query 参数；当前项目代码只消费 `LANXIN_LANXIN_BASE_URL`、`LANXIN_LANXIN_API_KEY`、`LANXIN_LANXIN_MODEL`。
+- 当前 `services/api/.env` 若仍是 `LANXIN_MODEL_PROVIDER=mock`，代表真实模型链路尚未切换完成；用户本地会自行填写 Key，`.env` 不能提交。
+- 当前用户本机 `.env` 已切到真实 provider，`uv run python scripts/real_provider_smoke.py` 最新结果为：高德天气/步行路线 `provider=amap fallback=False`，vivo 文本模型 `provider=lanxin ok=True`。
+- 真机联调时 Flutter 需改用 `--dart-define=API_BASE_URL=http://<电脑局域网IP>:8000`，不能继续沿用模拟器 `10.0.2.2`。
+- 这一轮先不把图片生成、视频生成、TTS、声音复刻、Function Calling 当主链路阻塞项。
+- Android 当前包名已确认：`com.lanxin.lanxin_travelmate`；release 签名仍未配置，暂时继续用 debug signing，不作为当前真机联调阻塞项。
 - 代码变更前要遵守现有 GitNexus/验证要求；文档类轻量变更可做 `git diff --check` 作为基本检查。
 
 ## 下一步
 
 1. 每个新 AI 会话先读本文件，确认当前阶段、约束和下一步。
-2. 如果继续做代码开发，按 `CLAUDE.md` 中的 GitNexus、测试和 Android-only 约束执行。
-3. 如果继续做提交准备，优先推进 `docs/todo.md` 中真实模型、高德 Key、真机、APK、Docker、PPT、Demo 和上传确认。
-4. 每次阶段性工作结束后，用 3 到 8 条短 bullet 更新本文件，保证下一位 AI 能直接接手。
+2. 用户本机真实 `.env` 已经打通，回来后直接进入真机联调，不需要重新排查高德/蓝心 key 类型。
+3. 真机联调前先启动后端：`cd services/api && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000`，再用局域网 IP 运行 Flutter。
+4. 如果继续做代码开发，优先补 vivo 文本 provider 的 `requestId` 和兼容性处理，再按 `CLAUDE.md` 中的 GitNexus、测试和 Android-only 约束执行。
+5. 如果继续做提交准备，优先推进 `docs/todo.md` 中真实模型、高德 Key、真机、APK、Docker、PPT、Demo 和上传确认。
+6. 每次阶段性工作结束后，用 3 到 8 条短 bullet 更新本文件，保证下一位 AI 能直接接手。
+
+## 当前配置与测试记忆
+
+- 关键配置文件：`services/api/.env`；模板：`services/api/.env.example`。
+- 当前第一优先真实配置只有两类：vivo 文本模型 AppKey、高德 Web 服务 Key。
+- 推荐本地最小真实 `.env` 组合：
+  - `LANXIN_MODEL_PROVIDER=lanxin`
+  - `LANXIN_LANXIN_BASE_URL=https://api-ai.vivo.com.cn/v1`
+  - `LANXIN_LANXIN_API_KEY=<本机本地填写>`
+  - `LANXIN_LANXIN_MODEL=Doubao-Seed-2.0-mini`
+  - `LANXIN_AMAP_API_KEY=<本机本地填写>`
+- 真实模型验收命令：`cd services/api && uv run python scripts/real_provider_smoke.py`
+- 最新真实 smoke 结论：高德原先误用了 Android 平台 key，换成 Web 服务 key 后已恢复正常。
+- 后端定向回归：`uv run pytest tests/test_model_providers.py -q`
+- 真机联调命令：`cd apps/mobile && flutter run --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000`
+- 真机首轮检查项：聊天真实回复、POI/天气/路线真实数据、相机/相册/定位/麦克风权限、首页稳定启动。
+- 用户回来后联调优先排查的 bug 范围：手机无法访问后端、局域网 IP 配错、Android 权限弹窗异常、真实模型超时回退、页面仍出现 mock/fallback 固定样例。
 
 ## 最近日报
 

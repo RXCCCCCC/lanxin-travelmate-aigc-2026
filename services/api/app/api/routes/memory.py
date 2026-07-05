@@ -68,6 +68,8 @@ def create_memory_capsule(
     existing = session.get(CloudMemory, payload.id)
     now = utc_now()
     if existing:
+        if existing.user_id != effective_user_id:
+            raise HTTPException(status_code=403, detail="Memory capsule belongs to another user")
         existing.user_id = effective_user_id
         existing.title = payload.title
         existing.content = payload.content

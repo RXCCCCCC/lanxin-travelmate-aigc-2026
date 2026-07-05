@@ -85,7 +85,7 @@ def test_migration_plan_script_validates_revision_chain():
     )
 
     assert "OK: " in result.stdout
-    assert "head=0007_tool_call_user_id" in result.stdout
+    assert "head=0008_trip_review_scope" in result.stdout
 
 
 def test_alembic_revision_ids_fit_default_version_table():

@@ -47,10 +47,17 @@ def _run_lightweight_migrations() -> None:
         return
     _add_column_if_missing("auth_credentials", "password_hash", "password_hash VARCHAR")
     _add_column_if_missing("tool_call_logs", "user_id", "user_id VARCHAR DEFAULT 'guest' NOT NULL")
+    _add_column_if_missing("cloud_trip_reviews", "user_id", "user_id VARCHAR DEFAULT 'guest' NOT NULL")
+    _add_column_if_missing("cloud_trip_reviews", "created_at", "created_at DATETIME DEFAULT '1970-01-01 00:00:00' NOT NULL")
     _add_index_if_missing(
         "tool_call_logs",
         "ix_tool_call_logs_user_id",
         "CREATE INDEX ix_tool_call_logs_user_id ON tool_call_logs (user_id)",
+    )
+    _add_index_if_missing(
+        "cloud_trip_reviews",
+        "ix_cloud_trip_reviews_user_id",
+        "CREATE INDEX ix_cloud_trip_reviews_user_id ON cloud_trip_reviews (user_id)",
     )
 
 

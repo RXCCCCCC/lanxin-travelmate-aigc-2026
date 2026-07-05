@@ -79,6 +79,25 @@ class TripReviewService {
 
   final Dio _dio;
 
+  Future<TripReviewPayload?> fetchReview({required String tripId}) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '/api/trip/review',
+        queryParameters: {'tripId': tripId},
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final review = data['review'];
+        if (review is Map<String, dynamic> && review.isNotEmpty) {
+          return TripReviewPayload.fromJson(review);
+        }
+      }
+      return null;
+    } on DioException {
+      return null;
+    }
+  }
+
   Future<TripReviewPayload> generateReview({
     String message = '生成今天旅行复盘',
     String? tripId,

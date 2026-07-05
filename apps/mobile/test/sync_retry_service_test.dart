@@ -9,9 +9,10 @@ import 'package:lanxin_travelmate/features/settings/data/settings_data_service.d
 import 'package:lanxin_travelmate/features/settings/data/sync_retry_service.dart';
 
 class _RetryDataStub extends SettingsDataService {
-  _RetryDataStub({this.offline = false}) : super(dio: Dio());
+  _RetryDataStub({this.offline = false, this.revokedCount}) : super(dio: Dio());
 
   final bool offline;
+  final int? revokedCount;
   List<SyncMemoryDraft> pushedMemories = const [];
   List<String> revokedMemoryIds = const [];
 
@@ -40,7 +41,7 @@ class _RetryDataStub extends SettingsDataService {
     if (offline) return const DataActionResult(status: 'offline');
     return DataActionResult(
       status: 'ok',
-      revoked: {'memories': memoryIds.length, 'profile': 0, 'trips': 0},
+      revoked: {'memories': revokedCount ?? memoryIds.length, 'profile': 0, 'trips': 0},
     );
   }
 }
@@ -132,5 +133,44 @@ void main() {
     expect(pending.single.entityId, 'retry-offline-memory');
     expect(pending.single.attemptCount, 1);
     expect(pending.single.lastError, 'offline');
+  });
+
+  test('SyncRetryService keeps delete pending when cloud revoke is a no-op', () async {
+    final database = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    final repository = MemoryRepository(database);
+    addTearDown(database.close);
+
+    await repository.saveCandidate(
+      MemoryCandidate(
+        id: 'retry-missing-delete-memory',
+        title: 'Retry missing delete',
+        content: 'Cloud revoke will not find this memory.',
+        scopeOptions: const ['longTerm'],
+        recommendedScope: 'longTerm',
+        reason: 'delete retry',
+      ),
+      scope: 'longTerm',
+    );
+    final pendingBeforeDelete = await repository.listPendingSyncOperations();
+    await repository.markSyncOperationsSucceeded(
+      pendingBeforeDelete.map((item) => item.id).toList(growable: false),
+    );
+    await repository.deleteMemory('retry-missing-delete-memory');
+
+    final result = await SyncRetryService(
+      repository: repository,
+      dataService: _RetryDataStub(revokedCount: 0),
+    ).retryPendingOperations();
+
+    expect(result.failedOperations, 1);
+    expect(result.revokedMemories, 0);
+    final pending = await repository.listPendingSyncOperations();
+    expect(pending.single.entityId, 'retry-missing-delete-memory');
+    expect(pending.single.lastError, 'cloud_revoke_noop');
   });
 }

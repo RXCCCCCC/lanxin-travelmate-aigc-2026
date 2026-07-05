@@ -1,7 +1,11 @@
+import json
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
+from app.db.models import ModelCallLog
+from app.db.session import engine
 from app.main import app
 
 
@@ -47,10 +51,15 @@ def test_profile_settings_are_persisted_and_loaded_into_agent_context():
     )
     assert chat.status_code == 200
 
-    audit = client.get("/api/audit/model-calls", params={"provider": "mock", "limit": 5})
-    assert audit.status_code == 200
-    latest = audit.json()["items"][0]
-    summary = latest["requestSummary"]
+    with Session(engine) as session:
+        records = session.exec(
+            select(ModelCallLog).where(
+                ModelCallLog.scenario == "trip_planning",
+            )
+        ).all()
+
+    latest = next(record for record in records if user_id in record.request_summary_json)
+    summary = json.loads(latest.request_summary_json)
     assert summary["userSettings"]["personality"] == "gentle_companion"
     assert summary["userSettings"]["proactivityLevel"] == "quiet"
     assert summary["userSettings"]["syncStrategy"] == "selectedOnly"

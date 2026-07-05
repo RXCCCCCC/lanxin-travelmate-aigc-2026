@@ -151,7 +151,7 @@ class _TripPageState extends State<TripPage> {
         tripStyle: 'custom',
         replanReason: replanReason,
         groupCoordination: _groupCoordination,
-        message: 'Create a travel plan for $destination.',
+        message: '请为$destination生成中文旅行行程，画像匹配解释必须使用中文。',
       ),
     );
     if (!mounted) return;

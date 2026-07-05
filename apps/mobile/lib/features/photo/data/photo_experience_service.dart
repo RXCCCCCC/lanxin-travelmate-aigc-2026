@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
@@ -59,6 +62,34 @@ class PhotoExperienceService {
     } on DioException {
       return _fallbackUploadMetadata(filename: filename, remoteUrl: remoteUrl);
     }
+  }
+
+  Future<Map<String, dynamic>> analyzePhoto({
+    String userId = 'guest',
+    String? tripId,
+    required String filename,
+    required String contentType,
+    required Uint8List previewBytes,
+    String source = 'gallery',
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        '/api/photo/analyze',
+        data: {
+          'userId': userId,
+          if (tripId != null) 'tripId': tripId,
+          'filename': filename,
+          'contentType': contentType,
+          'imageBase64': base64Encode(previewBytes),
+          'source': source,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+    } on DioException {
+      return _fallbackPhotoAnalysis(source: source);
+    }
+    return _fallbackPhotoAnalysis(source: source);
   }
 
   Future<Map<String, dynamic>> createCandidate({
@@ -185,6 +216,18 @@ class PhotoExperienceService {
       'localUri': null,
       'remoteUrl': remoteUrl,
       'canAddToReview': true,
+      'offline': true,
+    };
+  }
+
+  Map<String, dynamic> _fallbackPhotoAnalysis({required String source}) {
+    return {
+      'location': source == 'camera' ? '相机拍摄照片' : '系统相册照片',
+      'score': 7.2,
+      'description': '图片分析暂不可用，已保留真实预览，可稍后重试分析。',
+      'tags': [source == 'camera' ? '相机拍摄' : '相册导入', '分析失败，可重试'],
+      'reviewSuggestion': '分析失败时建议重试后再加入复盘高光。',
+      'canAddToReview': false,
       'offline': true,
     };
   }

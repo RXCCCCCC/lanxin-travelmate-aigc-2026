@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from app.agents.travelmate.graph import TravelMateGraph
+from app.agents.travelmate.nodes.fallback_nodes import build_rule_memory_candidates
 from app.agents.travelmate.state import create_initial_state
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import CloudUserProfile
@@ -37,6 +38,69 @@ def _load_user_settings(session: Session, user_id: str | None) -> dict[str, obje
     }
 
 
+def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict[str, object]:
+    message = str(state.get("message") or "")
+    normalized_message = message.lower()
+    if any(keyword in message for keyword in ("复盘", "总结")):
+        result = graph.invoke_review_only(state)
+        reply = "复盘已经生成，我把重点放在完成任务、照片高光和下次建议上。"
+        result["response"] = {
+            "replyText": reply,
+            "voiceText": reply,
+            "avatarState": "after_playing",
+            "emotion": "reflective",
+            "cards": [{"type": "tripReview", "payload": result.get("review", {})}],
+            "memoryCandidates": [],
+            "toolTrace": result.get("tool_trace", []),
+            "nextActions": [],
+            "syncSuggestions": [],
+            "errors": result.get("errors", []),
+        }
+        return result
+    if any(keyword in normalized_message for keyword in ("plan", "route", "itinerary", "destination", "weekend")):
+        result = graph.invoke_plan_only(state)
+        memory_candidates = build_rule_memory_candidates(message)
+        destination = result.get("trip_plan", {}).get("destination", "this trip")
+        reply = (
+            f"I have prepared a travel plan for {destination}. "
+            "You can keep adjusting budget, transport, or companions."
+        )
+        result["response"] = {
+            "replyText": reply,
+            "voiceText": reply,
+            "avatarState": "planning",
+            "emotion": "curious",
+            "cards": [{"type": "tripPlan", "payload": result.get("trip_plan", {})}],
+            "memoryCandidates": memory_candidates,
+            "toolTrace": result.get("tool_trace", []),
+            "nextActions": [{"type": "openTripPlan", "label": "View trip plan"}],
+            "syncSuggestions": [],
+            "errors": result.get("errors", []),
+        }
+        return result
+    if any(keyword in message for keyword in ("规划", "路线", "行程", "周末", "两天", "目的地")) and not any(
+        keyword in message for keyword in ("你好", "在吗")
+    ):
+        result = graph.invoke_plan_only(state)
+        memory_candidates = build_rule_memory_candidates(message)
+        destination = result.get("trip_plan", {}).get("destination", "这次旅行")
+        reply = f"我已经按轻松节奏生成{destination}行程，你可以继续让我调整预算、交通或同行人安排。"
+        result["response"] = {
+            "replyText": reply,
+            "voiceText": reply,
+            "avatarState": "planning",
+            "emotion": "curious",
+            "cards": [{"type": "tripPlan", "payload": result.get("trip_plan", {})}],
+            "memoryCandidates": memory_candidates,
+            "toolTrace": result.get("tool_trace", []),
+            "nextActions": [{"type": "openTripPlan", "label": "查看行程"}],
+            "syncSuggestions": [],
+            "errors": result.get("errors", []),
+        }
+        return result
+    return graph.invoke_chat_only(state)
+
+
 @router.post("/chat", response_model=AgentChatResponse)
 def chat(
     request: AgentChatRequest,
@@ -56,7 +120,7 @@ def chat(
         trip_id=request.tripId,
         context=context,
     )
-    result = graph.invoke(state)
+    result = _route_agent_graph(graph, state)
     persist_model_call_logs(session, result.get("model_call_logs", []))
     return AgentChatResponse.model_validate(result["response"])
 

@@ -161,6 +161,16 @@ class HomeChatController extends ChangeNotifier {
       );
     } on AgentChatCancelledException {
       return;
+    } catch (_) {
+      const fallbackText = '后端暂时连不上，我先用离线模式陪你继续规划。';
+      avatarState = AvatarState.thinking;
+      _addAssistantMessage(fallbackText, avatarState: avatarState);
+      await _saveMessage(
+        MessageSender.assistant,
+        fallbackText,
+        avatarState: avatarState,
+      );
+      _setStatus('后端暂时连不上，已显示离线回复');
     } finally {
       isSending = false;
       _cancelToken = null;

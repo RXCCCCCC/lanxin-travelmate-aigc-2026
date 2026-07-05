@@ -68,6 +68,10 @@ class SyncRetryService {
       if (result.status == 'offline') {
         await repository.markSyncOperationsFailed(ids, 'offline');
         failedOperations += ids.length;
+      } else if (((result.revoked['memories'] as num?)?.toInt() ?? 0) <
+          pendingDeletes.length) {
+        await repository.markSyncOperationsFailed(ids, 'cloud_revoke_noop');
+        failedOperations += ids.length;
       } else {
         await repository.markSyncOperationsSucceeded(ids);
         revokedMemories += ids.length;

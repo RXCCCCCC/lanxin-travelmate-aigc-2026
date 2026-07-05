@@ -1,9 +1,18 @@
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 
 
 client = TestClient(app)
+
+
+def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
+    response = client.post("/api/auth/guest", json={"deviceId": device_id, "displayName": "Review Test Guest"})
+    assert response.status_code == 200
+    payload = response.json()
+    return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
 
 
 def test_trip_review_endpoint_returns_p1_review_fields():
@@ -66,3 +75,46 @@ def test_trip_review_empty_context_does_not_inject_fixed_city_fixtures():
     assert payload["route"] == ""
     assert payload["highlightPhotos"] == []
     assert payload["nextTripSuggestions"] == []
+
+
+def test_direct_trip_review_uses_review_only_graph(monkeypatch):
+    from app.api.routes import trip
+
+    class ReviewOnlyGraph:
+        def invoke(self, state):
+            raise AssertionError("direct trip review route should not run the full agent graph")
+
+        def invoke_review_only(self, state):
+            return {
+                **state,
+                "completed_tasks": state["context"]["completedTasks"],
+                "temporary_memory_promotions": [],
+                "review": {
+                    "route": state["context"]["route"],
+                    "highlightPhotos": [],
+                    "newMemories": [],
+                    "completedTasks": state["context"]["completedTasks"],
+                    "reminderHighlights": [],
+                    "avatarStatusChanges": [],
+                    "nextTripSuggestions": [],
+                    "temporaryMemoryPromotions": [],
+                    "profileContext": state["context"]["profileContext"],
+                },
+                "model_call_logs": [],
+            }
+
+    monkeypatch.setattr(trip, "TravelMateGraph", ReviewOnlyGraph)
+    user_id, headers = _guest_headers(f"review-only-{uuid4().hex}")
+
+    response = client.post(
+        "/api/trip/review",
+        headers=headers,
+        json={
+            "userId": user_id,
+            "tripId": "review-only-trip",
+            "completedTasks": [{"id": "task-a", "title": "完成夜景拍照", "status": "completed"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["completedTasks"][0]["title"] == "完成夜景拍照"

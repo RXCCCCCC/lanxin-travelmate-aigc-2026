@@ -83,9 +83,13 @@ def test_trip_core_routes_scope_guest_payload_to_authenticated_user():
     assert review.status_code == 200
     assert review.json()["tripId"] == trip_id
 
-    read_review = client.get("/api/trip/review", params={"tripId": trip_id})
+    read_review = client.get("/api/trip/review", headers=headers, params={"tripId": trip_id})
     assert read_review.status_code == 200
     assert read_review.json()["reviewId"] == review.json()["reviewId"]
+
+    global_read_review = client.get("/api/trip/review", params={"tripId": trip_id})
+    assert global_read_review.status_code == 200
+    assert global_read_review.json()["reviewId"] is None
 
     global_guest = client.get("/api/trip/current")
     assert global_guest.status_code == 200

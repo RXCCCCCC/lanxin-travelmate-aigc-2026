@@ -74,8 +74,10 @@ class CloudTripReview(SQLModel, table=True):
     __tablename__ = "cloud_trip_reviews"
 
     id: str = Field(primary_key=True)
+    user_id: str = Field(index=True, default="guest")
     trip_id: str = Field(index=True)
     review_json: str
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class SyncRecord(SQLModel, table=True):

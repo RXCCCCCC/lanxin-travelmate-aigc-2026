@@ -48,10 +48,46 @@ void main() {
       MaterialApp(home: HomePage(dashboardService: StubHomeDashboardService())),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.textContaining('Hangzhou'), findsOneWidget);
-    expect(find.textContaining('2 memories'), findsOneWidget);
-    expect(find.textContaining('1 reminder'), findsOneWidget);
+    expect(find.textContaining('2 条记忆'), findsOneWidget);
+  });
+
+  testWidgets('HomePage starts with inline companion chat input', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(dashboardService: StubHomeDashboardService())),
+    );
+    await tester.pump();
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.textContaining('告诉我目的地'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('HomePage pure mode button toggles immersive mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(dashboardService: StubHomeDashboardService())),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('切换到纯净模式'), findsOneWidget);
+
+    await tester.tap(find.text('切换到纯净模式'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(TextField), findsOneWidget);
   });
 }

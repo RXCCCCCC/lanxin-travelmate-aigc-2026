@@ -6,6 +6,8 @@ from app.main import app
 
 client = TestClient(app)
 
+PNG_1X1_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+
 
 def test_photo_candidates_return_tags_scores_and_review_flag():
     create = client.post(
@@ -48,6 +50,30 @@ def test_photo_upload_metadata_does_not_persist_device_local_path():
     assert response.json()["filename"] == "night.jpg"
     assert response.json()["localPath"] is None
     assert response.json()["privacy"]["localPathStored"] is False
+
+
+def test_photo_analyze_uses_preview_bytes_for_chinese_analysis():
+    response = client.post(
+        "/api/photo/analyze",
+        json={
+            "userId": "photo-analyze-user",
+            "tripId": "photo-analyze-trip",
+            "filename": "preview.png",
+            "contentType": "image/png",
+            "imageBase64": PNG_1X1_BASE64,
+            "source": "camera",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["width"] == 1
+    assert payload["height"] == 1
+    assert payload["orientation"] == "方图"
+    assert payload["score"] > 0
+    assert "真实图片" in payload["description"]
+    assert "待分析" not in payload["tags"]
+    assert all("imageBase64" not in str(value) for value in payload.values())
 
 
 def test_photo_copywriting_returns_multiple_share_formats():

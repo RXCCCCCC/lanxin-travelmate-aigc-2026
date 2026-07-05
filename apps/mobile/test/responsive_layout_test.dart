@@ -86,6 +86,9 @@ Future<void> _pumpAtSize(
   } else {
     await tester.pump(const Duration(milliseconds: 100));
   }
+  if (child is HomePage) {
+    await tester.pump(const Duration(seconds: 1));
+  }
   expect(tester.takeException(), isNull);
 }
 

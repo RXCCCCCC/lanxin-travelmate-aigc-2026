@@ -23,6 +23,32 @@ NODE_SEQUENCE = [
     "error_fallback",
 ]
 
+PLAN_ONLY_NODE_SEQUENCE = [
+    "input_normalizer",
+    "context_loader",
+    "intent_router",
+    "trip_context_builder",
+    "tool_planner",
+    "tool_executor",
+    "trip_planner",
+    "trip_adjuster",
+]
+
+REVIEW_ONLY_NODE_SEQUENCE = [
+    "input_normalizer",
+    "context_loader",
+    "intent_router",
+    "review_generator",
+]
+
+CHAT_ONLY_NODE_SEQUENCE = [
+    "input_normalizer",
+    "context_loader",
+    "intent_router",
+    "fast_chat_response",
+    "error_fallback",
+]
+
 
 NODE_TABLE = {
     "input_normalizer": real_nodes.input_normalizer,
@@ -42,6 +68,7 @@ NODE_TABLE = {
     "copywriter": real_nodes.copywriter,
     "review_generator": real_nodes.review_generator,
     "avatar_state_mapper": real_nodes.avatar_state_mapper,
+    "fast_chat_response": real_nodes.fast_chat_response,
     "response_composer": real_nodes.response_composer,
     "error_fallback": real_nodes.error_fallback,
 }

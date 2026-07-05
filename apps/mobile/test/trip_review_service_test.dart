@@ -94,4 +94,42 @@ void main() {
       expect(review.temporaryMemoryPromotions, isNotEmpty);
     },
   );
+
+  test('TripReviewService reads existing review by trip id', () async {
+    RequestOptions? capturedRequest;
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          capturedRequest = options;
+          handler.resolve(
+            Response<dynamic>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'reviewId': 'review-a',
+                'tripId': 'trip-a',
+                'review': {
+                  'route': '西湖 → 南山路',
+                  'highlightPhotos': [],
+                  'newMemories': [],
+                  'completedTasks': [],
+                  'avatarStatusChanges': [],
+                  'nextTripSuggestions': [],
+                  'temporaryMemoryPromotions': [],
+                },
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    final service = TripReviewService(dio: dio);
+    final review = await service.fetchReview(tripId: 'trip-a');
+
+    expect(capturedRequest?.path, '/api/trip/review');
+    expect(capturedRequest?.queryParameters['tripId'], 'trip-a');
+    expect(review?.route, '西湖 → 南山路');
+  });
 }

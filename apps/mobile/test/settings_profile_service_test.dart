@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,7 @@ class StubSettingsProfileService extends ProfileService {
   StubSettingsProfileService() : super(dio: Dio());
 
   ProfilePayload? updatedProfile;
+  final List<ProfilePayload> updateRequests = [];
 
   @override
   Future<ProfilePayload> fetchProfile({String userId = 'guest'}) async {
@@ -34,8 +37,24 @@ class StubSettingsProfileService extends ProfileService {
     String userId = 'guest',
     required ProfilePayload profile,
   }) async {
+    updateRequests.add(profile);
     updatedProfile = profile;
     return profile;
+  }
+}
+
+class DelayedSettingsProfileService extends StubSettingsProfileService {
+  final List<Completer<ProfilePayload>> completions = [];
+
+  @override
+  Future<ProfilePayload> updateProfile({
+    String userId = 'guest',
+    required ProfilePayload profile,
+  }) {
+    updateRequests.add(profile);
+    final completer = Completer<ProfilePayload>();
+    completions.add(completer);
+    return completer.future;
   }
 }
 
@@ -82,12 +101,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('quiet_planner'), findsWidgets);
-    expect(find.text('quiet'), findsWidgets);
-    expect(find.text('selectedOnly'), findsWidgets);
+    expect(find.text('安静规划师'), findsWidgets);
+    expect(find.text('安静'), findsWidgets);
+    expect(find.text('仅已选择'), findsWidgets);
     expect(find.text('Keep reminders quiet.'), findsOneWidget);
 
-    await tester.tap(find.text('active').first);
+    await tester.tap(find.text('主动').first);
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(service.updatedProfile?.proactivityLevel, 'active');
@@ -110,5 +129,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(dataService.lastAction, 'export');
     expect(find.text('已导出 3 条记忆'), findsOneWidget);
+  });
+
+  testWidgets('SettingsPage ignores stale profile save responses', (
+    tester,
+  ) async {
+    final service = DelayedSettingsProfileService();
+    final dataService = StubSettingsDataService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SettingsPage(profileService: service, dataService: dataService),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('主动').first);
+    await tester.pump();
+    await tester.tap(find.text('标准').first);
+    await tester.pump();
+
+    expect(service.updateRequests.map((item) => item.proactivityLevel), [
+      'active',
+      'standard',
+    ]);
+
+    service.completions[1].complete(service.updateRequests[1]);
+    await tester.pump();
+    expect(find.text('标准'), findsWidgets);
+
+    service.completions[0].complete(service.updateRequests[0]);
+    await tester.pump();
+
+    expect(find.textContaining('保持标准频率'), findsOneWidget);
+    expect(find.textContaining('更积极地发现'), findsNothing);
   });
 }

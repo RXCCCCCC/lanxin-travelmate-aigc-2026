@@ -43,6 +43,8 @@ def _extract_destination_from_message(message: str) -> str | None:
 
     explicit_patterns = [
         "\u76ee\u7684\u5730(?:\u662f|\u4e3a|:|\uff1a)?\\s*([\u4e00-\u9fffA-Za-z]{2,20})",
+        "(?:\u89c4\u5212|\u5b89\u6392|\u5b9a\u5236)\\s*([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u884c\u7a0b|\u8def\u7ebf|\u65c5\u6e38|\u65c5\u884c|\u6e38\u73a9|\u653b\u7565|\u4e00\u5929|\u4e24\u5929|\u4e09\u5929|\u56db\u5929|\u4e94\u5929|\u5468\u672b|\uff0c|\u3002|,|\\.|!|\uff01|\\?|\uff1f|\\s|$)",
+        "\u4e3a\\s*([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u89c4\u5212|\u5b89\u6392|\u5b9a\u5236)",
         "(?:\u53bb|\u5230)\\s*([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u4e24\u5929|\u4e09\u5929|\u56db\u5929|\u4e94\u5929|\u4e00\u5929|\u4e00\u5468|\u5468\u672b|\u65c5\u6e38|\u65c5\u884c|\u73a9|\u901b|\u51fa\u5dee|\uff0c|\u3002|,|\\.|!|\uff01|\\?|\uff1f|\\s|$)",
     ]
     for pattern in explicit_patterns:
@@ -268,7 +270,7 @@ def context_loader(state: TravelMateState) -> TravelMateState:
     next_state["user_profile"] = {
         "dietaryPreferences": ["不吃香菜"],
         "travelPace": "慢节奏",
-        "interestTags": ["夜景", "山城步道", "轻量美食"],
+        "interestTags": ["夜景", "轻量美食"],
     }
     return next_state
 
@@ -853,6 +855,36 @@ def _model_chat_response(next_state: TravelMateState) -> dict[str, Any]:
     return result
 
 
+def fast_chat_response(state: TravelMateState) -> TravelMateState:
+    next_state = _next_state(state, "fast_chat_response")
+    text = str(next_state.get("normalized_input") or next_state.get("message") or "").strip()
+    next_state["memory_candidates"] = build_rule_memory_candidates(text)
+    next_state["avatar_state"] = "hello"
+    next_state["emotion"] = "warm"
+    next_state["next_actions"] = [
+        {"type": "openTripPlan", "label": "需要时我可以继续帮你生成行程"},
+        {"type": "openReview", "label": "旅行结束后我可以帮你复盘"},
+    ]
+    reply = "我在，刚刚这句已经收到。你可以直接告诉我目的地、时间、同行人或想避开的点，我会用更轻的链路先快速回应你。"
+    if any(keyword in text for keyword in ("你好", "在吗", "蓝小心", "小心")):
+        reply = "我在呢。刚才如果一直没回应，多半是旧版聊天链路太重；现在普通聊天会先走快速回复。"
+    elif text:
+        reply = f"收到：{text}。我先记下你的想法，需要我继续规划路线、调整节奏或整理复盘时，直接告诉我就行。"
+    next_state["response"] = {
+        "replyText": reply,
+        "voiceText": reply,
+        "avatarState": next_state["avatar_state"],
+        "emotion": next_state["emotion"],
+        "cards": [],
+        "memoryCandidates": next_state["memory_candidates"],
+        "toolTrace": [{"tool": "chat_only", "fallback": False}],
+        "nextActions": next_state["next_actions"],
+        "syncSuggestions": next_state["sync_suggestions"],
+        "errors": next_state["errors"],
+    }
+    return next_state
+
+
 def response_composer(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "response_composer")
     trip_plan = next_state["trip_plan"]
@@ -884,6 +916,8 @@ def response_composer(state: TravelMateState) -> TravelMateState:
     if get_settings().model_provider != "mock":
         try:
             next_state["response"] = _model_chat_response(next_state)
+            next_state["response"]["replyText"] = reply
+            next_state["response"]["voiceText"] = reply
         except (AttributeError, ModelProviderError) as exc:
             _append_chat_model_trace(next_state, {
                 "tool": "model_provider",

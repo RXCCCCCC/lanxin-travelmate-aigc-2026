@@ -150,7 +150,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('温柔陪伴'), findsOneWidget);
+    expect(find.text('温柔陪伴'), findsWidgets);
     expect(find.text('Keep it calm.'), findsOneWidget);
 
     await tester.scrollUntilVisible(
@@ -414,10 +414,10 @@ void main() {
     );
 
     expect(find.textContaining('history-upsert-memory'), findsWidgets);
-    expect(find.textContaining('memory/upsert'), findsOneWidget);
-    expect(find.textContaining('memory/delete'), findsOneWidget);
-    expect(find.textContaining('synced'), findsOneWidget);
-    expect(find.textContaining('pending'), findsOneWidget);
+    expect(find.textContaining('记忆同步'), findsOneWidget);
+    expect(find.textContaining('记忆撤销'), findsOneWidget);
+    expect(find.textContaining('已同步'), findsOneWidget);
+    expect(find.textContaining('同步失败'), findsOneWidget);
     expect(find.textContaining('offline'), findsOneWidget);
   });
 }

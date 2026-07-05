@@ -40,6 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
   SyncPushResult? _syncPushResult;
   bool _loading = true;
   bool _saving = false;
+  int _saveSequence = 0;
 
   static const _personalityOptions = <_OptionItem>[
     _OptionItem('gentle_companion', '温柔陪伴'),
@@ -108,12 +109,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _save(ProfilePayload profile) async {
+    final saveId = ++_saveSequence;
     setState(() {
       _profile = profile;
       _saving = true;
     });
     final saved = await _profileService.updateProfile(profile: profile);
     if (!mounted) return;
+    if (saveId != _saveSequence) return;
     setState(() {
       _profile = saved;
       _saving = false;

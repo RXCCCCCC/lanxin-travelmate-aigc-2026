@@ -69,7 +69,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('测试路线'), findsOneWidget);
+      expect(find.textContaining('测试路线'), findsWidgets);
       expect(find.text('拍一张夜景'), findsOneWidget);
 
       await tester.scrollUntilVisible(

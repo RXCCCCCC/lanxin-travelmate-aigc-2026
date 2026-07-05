@@ -40,8 +40,15 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
     assert plan["planningInputs"]["budget"] == "medium"
     assert plan["planningInputs"]["companions"] == ["mother", "child"]
     assert plan["planningInputs"]["preferences"] == ["night view", "less walking"]
-    assert any("medium" in item for item in plan["profileMatches"])
-    assert any("transit" in item for item in plan["profileMatches"])
+    explanation_text = "\n".join(plan["profileMatches"] + plan["risks"])
+    assert "medium" not in explanation_text
+    assert "transit" not in explanation_text
+    assert "night view" not in explanation_text
+    assert "less walking" not in explanation_text
+    assert "中等预算" in explanation_text
+    assert "公共交通" in explanation_text
+    assert "夜景" in explanation_text
+    assert "少走路" in explanation_text
 
     second = client.post(
         "/api/trip/plan",
@@ -64,7 +71,8 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
     assert second.status_code == 200
     replanned = second.json()
     assert replanned["planningInputs"]["replanReason"] == "weather_risk"
-    assert any("weather_risk" in item for item in replanned["risks"])
+    assert not any("weather_risk" in item for item in replanned["risks"])
+    assert any("天气风险" in item for item in replanned["risks"])
 
     current = client.get("/api/trip/current", params={"userId": user_id})
     assert current.status_code == 200
@@ -109,3 +117,71 @@ def test_trip_plan_keeps_group_coordination_context_in_planning_inputs():
     assert coordination["coordinationId"] == "group-test"
     assert coordination["compromisePlan"]["pace"] == "balanced_slow"
     assert coordination["conflicts"][0]["type"] == "pace"
+
+
+def test_direct_trip_plan_uses_plan_only_graph(monkeypatch):
+    from app.api.routes import trip
+
+    class PlanOnlyGraph:
+        def invoke(self, state):
+            raise AssertionError("direct trip plan route should not run the full agent graph")
+
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "trip_plan": {
+                    "title": "杭州轻松行程",
+                    "destination": "杭州",
+                    "summary": "按轻松节奏安排西湖和夜景。",
+                    "profileMatches": [],
+                    "risks": [],
+                    "alternatives": [],
+                },
+                "model_call_logs": [],
+            }
+
+    monkeypatch.setattr(trip, "TravelMateGraph", PlanOnlyGraph)
+
+    response = client.post(
+        "/api/trip/plan",
+        json={
+            "userId": f"plan-only-user-{uuid4().hex}",
+            "tripId": f"plan-only-trip-{uuid4().hex}",
+            "message": "请规划杭州两天轻松路线",
+            "destination": "杭州",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "杭州轻松行程"
+
+
+def test_trip_plan_input_explanations_are_chinese():
+    response = client.post(
+        "/api/trip/plan",
+        json={
+            "userId": f"plan-cn-user-{uuid4().hex}",
+            "tripId": f"plan-cn-trip-{uuid4().hex}",
+            "message": "请规划杭州两天轻松路线",
+            "destination": "杭州",
+            "budget": "中等预算",
+            "companions": ["妈妈"],
+            "preferences": ["夜景", "少走路"],
+            "transportMode": "公共交通",
+            "replanReason": "天气变化",
+            "groupCoordination": {
+                "coordinationId": "group-cn",
+                "compromisePlan": {"pace": "慢节奏", "budget": "中等预算"},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    text = "\n".join(response.json()["profileMatches"] + response.json()["risks"])
+    assert "Budget preference considered" not in text
+    assert "Transport mode considered" not in text
+    assert "Companion needs considered" not in text
+    assert "Current trip preferences considered" not in text
+    assert "Replan reason applied" not in text
+    assert "Group coordination" not in text
+    assert "已参考预算偏好：中等预算。" in text

@@ -92,6 +92,81 @@ def test_sync_routes_scope_guest_payload_to_authenticated_user():
     assert selected.json()["selected"][0]["id"] == memory_id
 
 
+def test_sync_and_memory_routes_reject_cross_user_record_hijack():
+    _user_a, headers_a = _guest_headers(f"scope-hijack-a-{uuid4().hex}")
+    _user_b, headers_b = _guest_headers(f"scope-hijack-b-{uuid4().hex}")
+    memory_id = f"hijack-memory-{uuid4().hex}"
+    trip_id = f"hijack-trip-{uuid4().hex}"
+
+    created = client.post(
+        "/api/memory/capsules",
+        headers=headers_a,
+        json={
+            "id": memory_id,
+            "userId": "guest",
+            "title": "Owner A",
+            "content": "A owns this memory.",
+            "scope": "longTerm",
+        },
+    )
+    assert created.status_code == 200
+
+    hijack_memory = client.post(
+        "/api/memory/capsules",
+        headers=headers_b,
+        json={
+            "id": memory_id,
+            "userId": "guest",
+            "title": "Owner B",
+            "content": "B must not take this memory.",
+            "scope": "longTerm",
+        },
+    )
+    assert hijack_memory.status_code == 403
+
+    pushed_a = client.post(
+        "/api/sync/push",
+        headers=headers_a,
+        json={
+            "userId": "guest",
+            "trips": [
+                {
+                    "id": trip_id,
+                    "destination": "杭州",
+                    "status": "planning",
+                    "plan": {"title": "A trip"},
+                }
+            ],
+        },
+    )
+    assert pushed_a.status_code == 200
+
+    hijack_sync = client.post(
+        "/api/sync/push",
+        headers=headers_b,
+        json={
+            "userId": "guest",
+            "memories": [
+                {
+                    "id": memory_id,
+                    "title": "Owner B",
+                    "content": "B must not update A memory.",
+                    "scope": "longTerm",
+                }
+            ],
+            "trips": [
+                {
+                    "id": trip_id,
+                    "destination": "广州",
+                    "status": "planning",
+                    "plan": {"title": "B trip"},
+                }
+            ],
+        },
+    )
+    assert hijack_sync.status_code == 403
+
+
 def test_tool_call_response_scopes_guest_payload_to_authenticated_user():
     user_id, headers = _guest_headers(f"scope-tool-{uuid4().hex}")
 

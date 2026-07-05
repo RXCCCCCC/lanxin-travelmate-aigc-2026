@@ -5,9 +5,12 @@ import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -24,6 +27,7 @@ import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.util.Locale
 
 class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
@@ -349,14 +353,20 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             return
         }
         if (!claimPendingResult(result)) return
+        val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (cameraIntent.resolveActivity(packageManager) == null) {
+            clearPendingWithError("camera_unavailable", "No camera app can handle image capture")
+            return
+        }
         val outputUri = createCameraOutputUri()
         if (outputUri == null) {
-            clearPendingWithError("camera_output_unavailable", "Could not create camera output uri")
+            launchCameraWithoutOutput()
             return
         }
         pendingCameraUri = outputUri
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
             putExtra(MediaStore.EXTRA_OUTPUT, outputUri)
+            clipData = ClipData.newUri(contentResolver, "Lanxin TravelMate photo", outputUri)
             addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         try {
@@ -364,7 +374,20 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         } catch (_: Exception) {
             contentResolver.delete(outputUri, null, null)
             pendingCameraUri = null
+            launchCameraWithoutOutput()
+        }
+    }
+
+    private fun launchCameraWithoutOutput() {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (intent.resolveActivity(packageManager) == null) {
             clearPendingWithError("camera_unavailable", "No camera app can handle image capture")
+            return
+        }
+        try {
+            startActivityForResult(intent, cameraRequestCode)
+        } catch (_: Exception) {
+            clearPendingWithError("camera_launch_failed", "Camera app failed to start")
         }
     }
 
@@ -397,7 +420,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             galleryRequestCode -> handlePickerResult(resultCode, data?.data, "gallery")
-            cameraRequestCode -> handlePickerResult(resultCode, pendingCameraUri, "camera")
+            cameraRequestCode -> handleCameraResult(resultCode, data)
             speechRequestCode -> handleSpeechResult(resultCode, data)
         }
     }
@@ -469,13 +492,92 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         result.success(photoPayload(uri, source))
     }
 
-    private fun photoPayload(uri: Uri, source: String): Map<String, String> {
-        return mapOf(
+    private fun handleCameraResult(resultCode: Int, data: Intent?) {
+        val result = pendingResult ?: return
+        val outputUri = pendingCameraUri
+        pendingResult = null
+        pendingCameraUri = null
+        if (resultCode != Activity.RESULT_OK) {
+            outputUri?.let { contentResolver.delete(it, null, null) }
+            result.success(null)
+            return
+        }
+        if (outputUri != null) {
+            result.success(photoPayload(outputUri, "camera"))
+            return
+        }
+        val thumbnail = data?.extras?.get("data") as? Bitmap
+        if (thumbnail == null) {
+            result.success(null)
+            return
+        }
+        val savedUri = saveCameraThumbnail(thumbnail)
+        if (savedUri == null) {
+            result.error("camera_output_unavailable", "Could not save camera thumbnail", null)
+            return
+        }
+        result.success(photoPayload(savedUri, "camera"))
+    }
+
+    private fun saveCameraThumbnail(bitmap: Bitmap): Uri? {
+        val uri = createCameraOutputUri() ?: return null
+        return try {
+            contentResolver.openOutputStream(uri)?.use { stream ->
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 92, stream)) {
+                    contentResolver.delete(uri, null, null)
+                    return null
+                }
+            } ?: run {
+                contentResolver.delete(uri, null, null)
+                return null
+            }
+            uri
+        } catch (_: Exception) {
+            contentResolver.delete(uri, null, null)
+            null
+        }
+    }
+
+    private fun photoPayload(uri: Uri, source: String): Map<String, Any> {
+        val payload = mutableMapOf<String, Any>(
             "localUri" to uri.toString(),
             "filename" to displayName(uri),
             "mimeType" to (contentResolver.getType(uri) ?: "image/jpeg"),
             "source" to source,
         )
+        previewBytes(uri)?.let { payload["previewBytes"] = it }
+        return payload
+    }
+
+    private fun previewBytes(uri: Uri): ByteArray? {
+        return try {
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+            val longestSide = maxOf(options.outWidth, options.outHeight)
+            val sampleSize = when {
+                longestSide > 2400 -> 8
+                longestSide > 1200 -> 4
+                longestSide > 600 -> 2
+                else -> 1
+            }
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+            }
+            val bitmap = contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: return null
+            ByteArrayOutputStream().use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 78, output)
+                bitmap.recycle()
+                output.toByteArray()
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun displayName(uri: Uri): String {

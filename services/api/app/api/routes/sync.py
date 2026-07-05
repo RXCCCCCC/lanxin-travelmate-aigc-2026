@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -128,6 +128,8 @@ def push_sync(
     conflicts: list[dict[str, object]] = []
     for item in payload.memories:
         memory = session.get(CloudMemory, item.id)
+        if memory and memory.user_id != effective_user_id:
+            raise HTTPException(status_code=403, detail="Memory belongs to another user")
         client_updated_at = _parse_client_updated_at(item.updatedAt)
         has_conflict = memory is not None and client_updated_at is not None and _timestamp(client_updated_at) < _timestamp(memory.updated_at)
         if memory and has_conflict and payload.conflictStrategy != "clientWins":
@@ -180,6 +182,8 @@ def push_sync(
 
     for item in payload.trips:
         trip = session.get(CloudTrip, item.id)
+        if trip and trip.user_id != effective_user_id:
+            raise HTTPException(status_code=403, detail="Trip belongs to another user")
         if trip:
             trip.destination = item.destination
             trip.status = item.status
