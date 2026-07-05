@@ -1,4 +1,4 @@
-name: lanxin_travelmate
+﻿name: lanxin_travelmate
 description: "蓝心同行 - 懂你的全旅程AI旅游搭子"
 publish_to: 'none'
 version: 1.0.0+1
@@ -18,11 +18,13 @@ dependencies:
   drift_flutter: ^0.3.0
   path_provider: ^2.1.5
   sqlite3_flutter_libs: ^0.6.0+eol
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  path_provider_platform_interface: ^2.1.2
   build_runner: ^2.15.0
   drift_dev: ^2.34.0
 
@@ -30,4 +32,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/avatars/
-
+    - assets/splash/

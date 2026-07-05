@@ -6,13 +6,22 @@ import 'data/local/app_database.dart';
 import 'data/repositories/memory_repository.dart';
 import 'features/settings/data/settings_data_service.dart';
 import 'features/settings/data/sync_retry_service.dart';
+import 'features/splash/splash_preference_service.dart';
+import 'features/splash/splash_video_gate.dart';
 
 typedef PendingSyncRetryCallback = Future<void> Function();
 
 class LanXinApp extends StatefulWidget {
-  const LanXinApp({super.key, this.onRetryPendingSync});
+  const LanXinApp({
+    super.key,
+    this.onRetryPendingSync,
+    this.splashEnabled = true,
+    this.splashPreferenceService,
+  });
 
   final PendingSyncRetryCallback? onRetryPendingSync;
+  final bool splashEnabled;
+  final SplashPreferenceService? splashPreferenceService;
 
   @override
   State<LanXinApp> createState() => _LanXinAppState();
@@ -71,6 +80,11 @@ class _LanXinAppState extends State<LanXinApp> with WidgetsBindingObserver {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: AppTheme.light,
       routerConfig: appRouter,
+      builder: (context, child) => SplashVideoGate(
+        enabled: widget.splashEnabled,
+        preferenceService: widget.splashPreferenceService,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

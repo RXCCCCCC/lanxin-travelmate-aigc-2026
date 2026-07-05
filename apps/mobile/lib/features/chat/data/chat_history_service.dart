@@ -241,6 +241,7 @@ class ChatHistoryService {
     required MessageSender sender,
     required String text,
     AvatarState? avatarState,
+    Map<String, dynamic>? tripPlanCard,
   }) async {
     final now = DateTime.now();
     await _db
@@ -252,6 +253,11 @@ class ChatHistoryService {
             sender: sender.name,
             body: text,
             avatarState: Value(avatarState?.name),
+            cardPayload: Value(
+              tripPlanCard == null || tripPlanCard.isEmpty
+                  ? null
+                  : jsonEncode(tripPlanCard),
+            ),
             createdAt: Value(now),
           ),
         );
@@ -283,9 +289,26 @@ class ChatHistoryService {
             avatarState: row.avatarState == null
                 ? null
                 : AvatarState.fromApiName(row.avatarState!),
+            tripPlanCard: _decodeCardPayload(row.cardPayload),
           ),
         )
         .toList();
+  }
+
+  /// 返回最近一条有消息的会话，用于首页自动恢复上次对话。
+  /// 无历史时返回 null。
+  Future<ChatSessionEntry?> latestSession({required String userId}) async {
+    final groups = await listGroupedSessions(userId: userId);
+    ChatSessionEntry? latest;
+    for (final group in groups) {
+      for (final session in group.sessions) {
+        if (session.messageCount <= 0) continue;
+        if (latest == null || session.updatedAt.isAfter(latest.updatedAt)) {
+          latest = session;
+        }
+      }
+    }
+    return latest;
   }
 
   Future<void> deleteSession(String sessionId) async {
@@ -383,4 +406,15 @@ String? _safeText(Object? value) {
   final text = value?.toString().trim();
   if (text == null || text.isEmpty) return null;
   return text;
+}
+
+Map<String, dynamic>? _decodeCardPayload(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return null;
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) return decoded;
+  } catch (_) {
+    // 旧数据或损坏 JSON 直接忽略，退化为纯文本消息。
+  }
+  return null;
 }

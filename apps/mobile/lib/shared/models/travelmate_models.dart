@@ -16,6 +16,7 @@ class ChatMessage {
     required this.text,
     required this.time,
     this.avatarState,
+    this.tripPlanCard,
   });
 
   final String id;
@@ -23,6 +24,12 @@ class ChatMessage {
   final String text;
   final String time;
   final AvatarState? avatarState;
+
+  /// 该助手消息附带的结构化行程卡 payload（对应后端响应 cards 中的 tripPlan）。
+  /// 为空表示这条消息只是普通文本。
+  final Map<String, dynamic>? tripPlanCard;
+
+  bool get hasTripPlanCard => tripPlanCard != null && tripPlanCard!.isNotEmpty;
 }
 
 enum MessageSender { user, assistant }

@@ -52,6 +52,7 @@ class ChatMessages extends Table {
   TextColumn get sender => text()();
   TextColumn get body => text().named('text')();
   TextColumn get avatarState => text().nullable()();
+  TextColumn get cardPayload => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
@@ -127,19 +128,21 @@ class LocalSyncOperations extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [
-  LocalUsers,
-  MemoryCapsules,
-  UserProfiles,
-  TripContexts,
-  ChatMessages,
-  ChatSummaries,
-  AvatarStates,
-  Reminders,
-  PhotoCandidates,
-  TripReviews,
-  LocalSyncOperations,
-])
+@DriftDatabase(
+  tables: [
+    LocalUsers,
+    MemoryCapsules,
+    UserProfiles,
+    TripContexts,
+    ChatMessages,
+    ChatSummaries,
+    AvatarStates,
+    Reminders,
+    PhotoCandidates,
+    TripReviews,
+    LocalSyncOperations,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
@@ -150,7 +153,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +161,9 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (migrator, from, to) async {
       if (from < 2) {
         await migrator.createTable(localSyncOperations);
+      }
+      if (from < 3) {
+        await migrator.addColumn(chatMessages, chatMessages.cardPayload);
       }
     },
   );

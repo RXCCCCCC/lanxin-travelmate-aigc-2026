@@ -9,6 +9,7 @@ import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../auth/data/auth_session_service.dart';
 import '../profile/data/profile_service.dart';
+import '../splash/splash_preference_service.dart';
 import 'data/settings_data_service.dart';
 import 'data/sync_retry_service.dart';
 
@@ -37,6 +38,7 @@ class _SettingsPageState extends State<SettingsPage> {
   ProfilePayload? _profile;
   AuthSession? _accountSession;
   PrivacySummaryPayload? _privacySummary;
+  SplashPlaybackPolicy _splashPolicy = SplashPlaybackPolicy.daily;
   List<PendingSyncOperation> _syncHistory = const [];
   String? _dataActionMessage;
   SyncPushResult? _syncPushResult;
@@ -63,6 +65,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _OptionItem('localOnly', '仅本机'),
   ];
 
+  static final _splashOptions = SplashPlaybackPolicy.values
+      .map((item) => _OptionItem(item.value, item.label))
+      .toList(growable: false);
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +87,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadProfile();
     _loadAccountSession();
     _loadPrivacySummary();
+    _loadSplashPolicy();
     _loadSyncHistory();
   }
 
@@ -108,6 +115,18 @@ class _SettingsPageState extends State<SettingsPage> {
     final summary = await _dataService.fetchPrivacySummary();
     if (!mounted) return;
     setState(() => _privacySummary = summary);
+  }
+
+  Future<void> _loadSplashPolicy() async {
+    final policy = await SplashPreferenceService().readPolicy();
+    if (!mounted) return;
+    setState(() => _splashPolicy = policy);
+  }
+
+  Future<void> _saveSplashPolicy(String value) async {
+    final policy = SplashPlaybackPolicy.fromValue(value);
+    setState(() => _splashPolicy = policy);
+    await SplashPreferenceService().savePolicy(policy);
   }
 
   Future<void> _loadSyncHistory() async {
@@ -434,7 +453,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: metrics.listPadding(top: AppTheme.spacingSm),
                   children: [
                     _AccountSettingsCard(
-                      accountLabel: _accountStatusLabel(_accountSession, profile),
+                      accountLabel: _accountStatusLabel(
+                        _accountSession,
+                        profile,
+                      ),
                       onOpen: _openAccountSettingsPage,
                     ),
                     SizedBox(height: metrics.sectionGap),
@@ -482,6 +504,25 @@ class _SettingsPageState extends State<SettingsPage> {
                         onSelected: (value) =>
                             _save(_copyProfile(syncStrategy: value)),
                         showRawValue: true,
+                      ),
+                    ),
+                    _SettingsSection(
+                      title: '\u{5F00}\u{5C4F}\u{52A8}\u{753B}',
+                      icon: Icons.movie_filter_rounded,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _OptionWrap(
+                            options: _splashOptions,
+                            selectedValue: _splashPolicy.value,
+                            onSelected: _saveSplashPolicy,
+                          ),
+                          const SizedBox(height: AppTheme.spacingSm),
+                          const _HintLine(
+                            text:
+                                '\u{9ED8}\u{8BA4}\u{6BCF}\u{65E5}\u{7B2C}\u{4E00}\u{6B21}\u{6253}\u{5F00}\u{65F6}\u{64AD}\u{653E}\u{FF0C}\u{89C6}\u{9891}\u{64AD}\u{653E}\u{5B8C}\u{540E}\u{4F1A}\u{6DE1}\u{5165}\u{8FDB}\u{5165}\u{9996}\u{9875}\u{3002}',
+                          ),
+                        ],
                       ),
                     ),
                     _SettingsSection(
@@ -812,16 +853,18 @@ class _AccountActionButton extends StatelessWidget {
   }
 }
 
-typedef AccountRegisterCallback = Future<AccountActionResult> Function({
-  required String account,
-  required String password,
-  required String displayName,
-});
+typedef AccountRegisterCallback =
+    Future<AccountActionResult> Function({
+      required String account,
+      required String password,
+      required String displayName,
+    });
 
-typedef AccountLoginCallback = Future<AccountActionResult> Function({
-  required String account,
-  required String password,
-});
+typedef AccountLoginCallback =
+    Future<AccountActionResult> Function({
+      required String account,
+      required String password,
+    });
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({
@@ -866,8 +909,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     final status = session == null
         ? '当前未读取到账号状态'
         : session.isGuest
-            ? '当前为游客账户 · ${_preferredAccountName(session)}'
-            : '当前已登录 · ${_preferredAccountName(session)}';
+        ? '当前为游客账户 · ${_preferredAccountName(session)}'
+        : '当前已登录 · ${_preferredAccountName(session)}';
     return Scaffold(
       appBar: AppBar(title: const Text('账号设置')),
       body: Container(
@@ -1036,10 +1079,7 @@ class _AccountLoginPanelState extends State<_AccountLoginPanel> {
             controller: _passwordController,
             obscureText: true,
             textInputAction: TextInputAction.next,
-            decoration: _revokeInputDecoration(
-              label: '密码',
-              hint: '至少 6 位',
-            ),
+            decoration: _revokeInputDecoration(label: '密码', hint: '至少 6 位'),
           ),
           const SizedBox(height: AppTheme.spacingSm),
           TextField(
@@ -1047,10 +1087,7 @@ class _AccountLoginPanelState extends State<_AccountLoginPanel> {
             controller: _displayNameController,
             textInputAction: TextInputAction.done,
             textAlignVertical: TextAlignVertical.center,
-            decoration: _revokeInputDecoration(
-              label: '昵称',
-              hint: '注册时使用',
-            ),
+            decoration: _revokeInputDecoration(label: '昵称', hint: '注册时使用'),
           ),
           const SizedBox(height: AppTheme.spacingSm),
           Row(
@@ -1070,7 +1107,9 @@ class _AccountLoginPanelState extends State<_AccountLoginPanel> {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const ValueKey('account-login-button'),
-                  onPressed: _submitting ? null : () => _submit(register: false),
+                  onPressed: _submitting
+                      ? null
+                      : () => _submit(register: false),
                   icon: const Icon(Icons.login_rounded, size: 18),
                   label: const Text('登录'),
                   style: OutlinedButton.styleFrom(

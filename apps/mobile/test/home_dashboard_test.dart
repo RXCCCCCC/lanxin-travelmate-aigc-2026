@@ -74,11 +74,10 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, __) =>
-              HomePage(
-                dashboardService: dashboardService ?? StubHomeDashboardService(),
-                authSessionService: authSessionService,
-              ),
+          builder: (_, __) => HomePage(
+            dashboardService: dashboardService ?? StubHomeDashboardService(),
+            authSessionService: authSessionService,
+          ),
         ),
         GoRoute(path: '/chat', builder: (_, __) => chatPage),
         GoRoute(path: '/trip', builder: (_, __) => const Text('行程页')),
@@ -112,8 +111,8 @@ void main() {
     await tester.pump();
 
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.text('切换到纯净模式'), findsOneWidget);
-    expect(find.text('规划路线'), findsOneWidget);
+    expect(find.text('纯净模式'), findsOneWidget);
+    expect(find.text('调整行程'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
   });
 
@@ -124,20 +123,18 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('切换到纯净模式'), findsOneWidget);
+    expect(find.text('纯净模式'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
 
-    await tester.tap(find.text('切换到纯净模式'));
+    await tester.tap(find.text('纯净模式'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
 
-    expect(find.text('切换到陪伴模式'), findsOneWidget);
+    expect(find.text('陪伴模式'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });
 
-  testWidgets('HomePage quick route action opens trip tab', (
-    tester,
-  ) async {
+  testWidgets('HomePage quick route action opens trip tab', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -148,8 +145,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('规划路线'), findsOneWidget);
-    await tester.tap(find.text('规划路线'));
+    expect(find.text('调整行程'), findsOneWidget);
+    await tester.tap(find.text('调整行程'));
     await tester.pumpAndSettle();
 
     expect(find.text('行程页'), findsOneWidget);

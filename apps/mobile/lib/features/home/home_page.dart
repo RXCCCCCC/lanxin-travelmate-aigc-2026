@@ -31,7 +31,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
-  static final AppDatabase _homeDatabase = AppDatabase();
+  static final AppDatabase _homeDatabase = AppDatabase.shared();
   static final ChatHistoryService _homeHistoryService = ChatHistoryService(
     _homeDatabase,
   );
@@ -75,6 +75,7 @@ class _HomePageState extends State<HomePage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _showHeroAvatar = true);
+      unawaited(_homeChatController.restoreLatestSession());
       Future<void>.delayed(
         const Duration(milliseconds: 600),
         _loadDashboardSummary,
@@ -296,13 +297,15 @@ class _HomePageState extends State<HomePage>
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
             final weatherTop = topSafe + 2;
-            final controlsLeft = 8.0;
-            final controlWidth = compact ? 154.0 : 162.0;
+            final controlsLeft = 0.0;
+            final controlWidth = compact ? 112.0 : 124.0;
             final actionsTop = topSafe + 36;
             final tripTop = topSafe + 82;
             final purePanelTop = topSafe + 128;
             final statusDrawerTop = tripTop + 18;
-            final companionPanelTopLimit = statusDrawerTop + 134;
+            final statusDrawerHeight = _statusExpanded ? 126.0 : 96.0;
+            final companionPanelTopLimit =
+                statusDrawerTop + statusDrawerHeight + 4;
             final minPanelHeight = compact ? 166.0 : 178.0;
             final maxPanelHeight = math.max(
               minPanelHeight,
@@ -319,7 +322,7 @@ class _HomePageState extends State<HomePage>
                 ? math.min(panelHeight, compact ? 230.0 : 240.0)
                 : panelHeight;
             final avatarHeight = h * (compact ? 0.54 : 0.62);
-            final avatarBottom = compact ? 46.0 : 58.0;
+            final avatarTop = weatherTop + 34;
 
             final content = Stack(
               children: [
@@ -371,7 +374,7 @@ class _HomePageState extends State<HomePage>
                   builder: (context, child) {
                     final t = math.sin(_floatCtrl.value * math.pi * 2);
                     return Positioned(
-                      bottom: avatarBottom + t * 6,
+                      top: avatarTop + t * 4,
                       left: -8,
                       right: -8,
                       height: avatarHeight,
@@ -487,7 +490,7 @@ class _HomePageState extends State<HomePage>
                 ),
                 Positioned(
                   top: actionsTop,
-                  right: sidePadding + 60,
+                  right: 55,
                   child: _TopIconPill(
                     icon: Icons.notifications_none_rounded,
                     label: '消息',
@@ -496,7 +499,7 @@ class _HomePageState extends State<HomePage>
                 ),
                 Positioned(
                   top: actionsTop,
-                  right: sidePadding,
+                  right: 1,
                   child: _TopIconPill(
                     icon: Icons.history_rounded,
                     label: '聊天历史',
@@ -539,12 +542,8 @@ class _PureModeButton extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: width,
-        constraints: BoxConstraints(minHeight: 39),
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 11,
-          vertical: 8,
-        ),
+        constraints: BoxConstraints(minHeight: 39, maxWidth: width),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 7, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.34),
           borderRadius: BorderRadius.circular(28),
@@ -565,15 +564,15 @@ class _PureModeButton extends StatelessWidget {
                   ? Icons.auto_awesome_motion_rounded
                   : Icons.chat_bubble_outline_rounded,
               color: const Color(0xFF215ECA),
-              size: 18,
+              size: 17,
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 4),
             Text(
-              isPureMode ? '切换到陪伴模式' : '切换到纯净模式',
+              isPureMode ? '陪伴模式' : '纯净模式',
               style: const TextStyle(
                 color: Color(0xFF174C9F),
                 fontWeight: FontWeight.w900,
-                fontSize: 12.1,
+                fontSize: 12,
               ),
             ),
           ],
@@ -708,36 +707,40 @@ class _TripPill extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: GlassBox(
-          width: width,
-          borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.location_on_rounded,
-                color: Color(0xFF5F9BFF),
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF2B5BA9),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.4,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: width),
+          child: GlassBox(
+            borderRadius: BorderRadius.circular(22),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.location_on_rounded,
+                  color: Color(0xFF5F9BFF),
+                  size: 17,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF2B5BA9),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.2,
+                    ),
                   ),
                 ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF326BCA),
-                size: 18,
-              ),
-            ],
+                const SizedBox(width: 1),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF326BCA),
+                  size: 17,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1133,10 +1136,7 @@ class _ChatGlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final visibleMessages = messages.length <= 2
-        ? messages
-        : messages.sublist(messages.length - 2);
-    final itemCount = visibleMessages.length + (isSending ? 1 : 0);
+    final itemCount = messages.length + (isSending ? 1 : 0);
     return GlassBox(
       borderRadius: BorderRadius.circular(30),
       padding: EdgeInsets.fromLTRB(
@@ -1181,21 +1181,19 @@ class _ChatGlassPanel extends StatelessWidget {
               itemCount: itemCount,
               separatorBuilder: (_, __) => const SizedBox(height: 6),
               itemBuilder: (_, index) {
-                if (index >= visibleMessages.length) {
+                if (index >= messages.length) {
                   return _ThinkingBubble(
                     queuedMessage: queuedMessage,
                     avatarPath: AvatarState.thinking.assetPath,
                   );
                 }
-                final message = visibleMessages[index];
+                final message = messages[index];
                 return AnimatedSwitcher(
                   duration: const Duration(milliseconds: 220),
-                  child: _ChatBubble(
+                  child: _ChatMessageTile(
                     key: ValueKey(message.id),
-                    isUser: message.sender == MessageSender.user,
-                    text: message.text,
-                    avatarPath:
-                        (message.avatarState ?? AvatarState.hello).assetPath,
+                    message: message,
+                    onOpenTrip: onOpenTrip,
                   ),
                 );
               },
@@ -1318,13 +1316,396 @@ class _ChatGlassPanel extends StatelessWidget {
   }
 }
 
+class _ChatMessageTile extends StatelessWidget {
+  const _ChatMessageTile({
+    super.key,
+    required this.message,
+    required this.onOpenTrip,
+  });
+
+  final ChatMessage message;
+  final VoidCallback onOpenTrip;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = message.sender == MessageSender.user;
+    return Column(
+      crossAxisAlignment: isUser
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        _ChatBubble(
+          isUser: isUser,
+          text: message.text,
+          avatarPath: (message.avatarState ?? AvatarState.hello).assetPath,
+        ),
+        if (!isUser && message.hasTripPlanCard) ...[
+          const SizedBox(height: 7),
+          Padding(
+            padding: const EdgeInsets.only(left: 40, right: 6),
+            child: _TripPlanChatCard(
+              plan: message.tripPlanCard!,
+              onOpenTrip: onOpenTrip,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TripPlanChatCard extends StatelessWidget {
+  const _TripPlanChatCard({required this.plan, required this.onOpenTrip});
+
+  final Map<String, dynamic> plan;
+  final VoidCallback onOpenTrip;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _planText(plan['title'], '蓝小心行程建议');
+    final destination = _planText(plan['destination'], '目的地待确认');
+    final dateRange = _planText(plan['dateRange'], '行程时间待确认');
+    final summary = _planText(plan['summary'], '我已经整理好核心路线，可以继续按预算、节奏和天气调整。');
+    final days = _planMapList(plan['days']);
+    final risks = _planTextList(plan['risks']).take(2).toList();
+    final alternatives = _planMapList(plan['alternatives']).take(2).toList();
+
+    return Container(
+      constraints: BoxConstraints(
+        maxWidth: math.min(340.0, MediaQuery.sizeOf(context).width - 72),
+      ),
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.48),
+            Colors.white.withOpacity(0.28),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.52), width: 0.9),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1F64C8).withOpacity(0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF4C8DFF), Color(0xFF8CC6FF)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.map_rounded,
+                  color: Colors.white,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF06224E),
+                        fontSize: 14.2,
+                        height: 1.25,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$destination · $dateRange',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF42699E),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            summary,
+            style: const TextStyle(
+              color: Color(0xFF17375E),
+              fontSize: 12.2,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (days.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ...days.take(3).map(_TripDayDigest.new),
+          ],
+          if (risks.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _MiniSection(
+              icon: Icons.warning_amber_rounded,
+              title: '提醒',
+              items: risks,
+            ),
+          ],
+          if (alternatives.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _MiniSection(
+              icon: Icons.alt_route_rounded,
+              title: '备选',
+              items: alternatives
+                  .map(
+                    (item) => _planText(
+                      item['summary'] ?? item['title'],
+                      '可按现场情况切换备选方案。',
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: onOpenTrip,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF215ECA).withOpacity(0.92),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.open_in_new_rounded,
+                    color: Colors.white,
+                    size: 15,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    '查看完整行程',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.4,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripDayDigest extends StatelessWidget {
+  const _TripDayDigest(this.day);
+
+  final Map<String, dynamic> day;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _planText(day['dayLabel'], '行程日');
+    final items = _planMapList(day['items']);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF0E4EA8),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (items.isEmpty)
+            const Text(
+              '已生成当天核心安排，进入行程页可继续细化。',
+              style: TextStyle(
+                color: Color(0xFF42699E),
+                fontSize: 11.8,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            ...items.take(3).map((item) => _TripItemDigest(item: item)),
+          if (items.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '还有 ${items.length - 3} 项安排，可查看完整行程。',
+                style: const TextStyle(
+                  color: Color(0xFF5C7EA8),
+                  fontSize: 11.2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripItemDigest extends StatelessWidget {
+  const _TripItemDigest({required this.item});
+
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = _planText(item['time'], '待定');
+    final location = _planText(item['location'], '待定地点');
+    final activity = _planText(item['activity'], '行程安排');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$time  ',
+            style: const TextStyle(
+              color: Color(0xFF42699E),
+              fontSize: 11.3,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '$location｜$activity',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF17375E),
+                fontSize: 11.8,
+                height: 1.28,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniSection extends StatelessWidget {
+  const _MiniSection({
+    required this.icon,
+    required this.title,
+    required this.items,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.32), width: 0.7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: const Color(0xFF215ECA), size: 14),
+              const SizedBox(width: 4),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF0E4EA8),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                '· $item',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF17375E),
+                  fontSize: 11.4,
+                  height: 1.28,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _planText(Object? value, String fallback) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty) return fallback;
+  return text;
+}
+
+List<Map<String, dynamic>> _planMapList(Object? value) {
+  return (value as List<dynamic>? ?? const [])
+      .whereType<Map<String, dynamic>>()
+      .toList();
+}
+
+List<String> _planTextList(Object? value) {
+  return (value as List<dynamic>? ?? const [])
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+}
+
 class _ChatBubble extends StatelessWidget {
   const _ChatBubble({
-    super.key,
     required this.isUser,
     required this.text,
     this.avatarPath,
   });
+
   final bool isUser;
   final String text;
   final String? avatarPath;

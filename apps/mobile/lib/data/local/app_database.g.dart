@@ -1399,6 +1399,17 @@ class $ChatMessagesTable extends ChatMessages
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _cardPayloadMeta = const VerificationMeta(
+    'cardPayload',
+  );
+  @override
+  late final GeneratedColumn<String> cardPayload = GeneratedColumn<String>(
+    'card_payload',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1418,6 +1429,7 @@ class $ChatMessagesTable extends ChatMessages
     sender,
     body,
     avatarState,
+    cardPayload,
     createdAt,
   ];
   @override
@@ -1470,6 +1482,15 @@ class $ChatMessagesTable extends ChatMessages
         ),
       );
     }
+    if (data.containsKey('card_payload')) {
+      context.handle(
+        _cardPayloadMeta,
+        cardPayload.isAcceptableOrUnknown(
+          data['card_payload']!,
+          _cardPayloadMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1505,6 +1526,10 @@ class $ChatMessagesTable extends ChatMessages
         DriftSqlType.string,
         data['${effectivePrefix}avatar_state'],
       ),
+      cardPayload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_payload'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1524,6 +1549,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
   final String sender;
   final String body;
   final String? avatarState;
+  final String? cardPayload;
   final DateTime createdAt;
   const ChatMessage({
     required this.id,
@@ -1531,6 +1557,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
     required this.sender,
     required this.body,
     this.avatarState,
+    this.cardPayload,
     required this.createdAt,
   });
   @override
@@ -1542,6 +1569,9 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
     map['text'] = Variable<String>(body);
     if (!nullToAbsent || avatarState != null) {
       map['avatar_state'] = Variable<String>(avatarState);
+    }
+    if (!nullToAbsent || cardPayload != null) {
+      map['card_payload'] = Variable<String>(cardPayload);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1556,6 +1586,9 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       avatarState: avatarState == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarState),
+      cardPayload: cardPayload == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cardPayload),
       createdAt: Value(createdAt),
     );
   }
@@ -1571,6 +1604,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       sender: serializer.fromJson<String>(json['sender']),
       body: serializer.fromJson<String>(json['body']),
       avatarState: serializer.fromJson<String?>(json['avatarState']),
+      cardPayload: serializer.fromJson<String?>(json['cardPayload']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1583,6 +1617,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       'sender': serializer.toJson<String>(sender),
       'body': serializer.toJson<String>(body),
       'avatarState': serializer.toJson<String?>(avatarState),
+      'cardPayload': serializer.toJson<String?>(cardPayload),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1593,6 +1628,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
     String? sender,
     String? body,
     Value<String?> avatarState = const Value.absent(),
+    Value<String?> cardPayload = const Value.absent(),
     DateTime? createdAt,
   }) => ChatMessage(
     id: id ?? this.id,
@@ -1600,6 +1636,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
     sender: sender ?? this.sender,
     body: body ?? this.body,
     avatarState: avatarState.present ? avatarState.value : this.avatarState,
+    cardPayload: cardPayload.present ? cardPayload.value : this.cardPayload,
     createdAt: createdAt ?? this.createdAt,
   );
   ChatMessage copyWithCompanion(ChatMessagesCompanion data) {
@@ -1611,6 +1648,9 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       avatarState: data.avatarState.present
           ? data.avatarState.value
           : this.avatarState,
+      cardPayload: data.cardPayload.present
+          ? data.cardPayload.value
+          : this.cardPayload,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -1623,14 +1663,22 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
           ..write('sender: $sender, ')
           ..write('body: $body, ')
           ..write('avatarState: $avatarState, ')
+          ..write('cardPayload: $cardPayload, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, sessionId, sender, body, avatarState, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    sessionId,
+    sender,
+    body,
+    avatarState,
+    cardPayload,
+    createdAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1640,6 +1688,7 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
           other.sender == this.sender &&
           other.body == this.body &&
           other.avatarState == this.avatarState &&
+          other.cardPayload == this.cardPayload &&
           other.createdAt == this.createdAt);
 }
 
@@ -1649,6 +1698,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
   final Value<String> sender;
   final Value<String> body;
   final Value<String?> avatarState;
+  final Value<String?> cardPayload;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
   const ChatMessagesCompanion({
@@ -1657,6 +1707,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     this.sender = const Value.absent(),
     this.body = const Value.absent(),
     this.avatarState = const Value.absent(),
+    this.cardPayload = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1666,6 +1717,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     required String sender,
     required String body,
     this.avatarState = const Value.absent(),
+    this.cardPayload = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -1678,6 +1730,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     Expression<String>? sender,
     Expression<String>? body,
     Expression<String>? avatarState,
+    Expression<String>? cardPayload,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -1687,6 +1740,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
       if (sender != null) 'sender': sender,
       if (body != null) 'text': body,
       if (avatarState != null) 'avatar_state': avatarState,
+      if (cardPayload != null) 'card_payload': cardPayload,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1698,6 +1752,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     Value<String>? sender,
     Value<String>? body,
     Value<String?>? avatarState,
+    Value<String?>? cardPayload,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
   }) {
@@ -1707,6 +1762,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
       sender: sender ?? this.sender,
       body: body ?? this.body,
       avatarState: avatarState ?? this.avatarState,
+      cardPayload: cardPayload ?? this.cardPayload,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -1730,6 +1786,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     if (avatarState.present) {
       map['avatar_state'] = Variable<String>(avatarState.value);
     }
+    if (cardPayload.present) {
+      map['card_payload'] = Variable<String>(cardPayload.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1747,6 +1806,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
           ..write('sender: $sender, ')
           ..write('body: $body, ')
           ..write('avatarState: $avatarState, ')
+          ..write('cardPayload: $cardPayload, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -4885,6 +4945,7 @@ typedef $$ChatMessagesTableCreateCompanionBuilder =
       required String sender,
       required String body,
       Value<String?> avatarState,
+      Value<String?> cardPayload,
       Value<DateTime> createdAt,
       Value<int> rowid,
     });
@@ -4895,6 +4956,7 @@ typedef $$ChatMessagesTableUpdateCompanionBuilder =
       Value<String> sender,
       Value<String> body,
       Value<String?> avatarState,
+      Value<String?> cardPayload,
       Value<DateTime> createdAt,
       Value<int> rowid,
     });
@@ -4930,6 +4992,11 @@ class $$ChatMessagesTableFilterComposer
 
   ColumnFilters<String> get avatarState => $composableBuilder(
     column: $table.avatarState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardPayload => $composableBuilder(
+    column: $table.cardPayload,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4973,6 +5040,11 @@ class $$ChatMessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cardPayload => $composableBuilder(
+    column: $table.cardPayload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -5002,6 +5074,11 @@ class $$ChatMessagesTableAnnotationComposer
 
   GeneratedColumn<String> get avatarState => $composableBuilder(
     column: $table.avatarState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cardPayload => $composableBuilder(
+    column: $table.cardPayload,
     builder: (column) => column,
   );
 
@@ -5045,6 +5122,7 @@ class $$ChatMessagesTableTableManager
                 Value<String> sender = const Value.absent(),
                 Value<String> body = const Value.absent(),
                 Value<String?> avatarState = const Value.absent(),
+                Value<String?> cardPayload = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChatMessagesCompanion(
@@ -5053,6 +5131,7 @@ class $$ChatMessagesTableTableManager
                 sender: sender,
                 body: body,
                 avatarState: avatarState,
+                cardPayload: cardPayload,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
@@ -5063,6 +5142,7 @@ class $$ChatMessagesTableTableManager
                 required String sender,
                 required String body,
                 Value<String?> avatarState = const Value.absent(),
+                Value<String?> cardPayload = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChatMessagesCompanion.insert(
@@ -5071,6 +5151,7 @@ class $$ChatMessagesTableTableManager
                 sender: sender,
                 body: body,
                 avatarState: avatarState,
+                cardPayload: cardPayload,
                 createdAt: createdAt,
                 rowid: rowid,
               ),

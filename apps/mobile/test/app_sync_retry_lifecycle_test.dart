@@ -9,7 +9,10 @@ void main() {
     var retryCount = 0;
 
     await tester.pumpWidget(
-      LanXinApp(onRetryPendingSync: () async => retryCount += 1),
+      LanXinApp(
+        onRetryPendingSync: () async => retryCount += 1,
+        splashEnabled: false,
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 

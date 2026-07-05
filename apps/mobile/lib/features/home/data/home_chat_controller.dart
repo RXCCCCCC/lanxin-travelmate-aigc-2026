@@ -24,7 +24,9 @@ class HomeChatController extends ChangeNotifier {
   }) : _authSessionService = authSessionService ?? AuthSessionService(),
        _agentChatService =
            agentChatService ??
-           AgentChatService(authSession: authSessionService ?? AuthSessionService()),
+           AgentChatService(
+             authSession: authSessionService ?? AuthSessionService(),
+           ),
        _chatHistoryService = chatHistoryService,
        sessionId =
            sessionId ?? 'home-session-${DateTime.now().millisecondsSinceEpoch}',
@@ -64,6 +66,42 @@ class HomeChatController extends ChangeNotifier {
       tripTitle: '未绑定行程',
       tripId: tripId,
     );
+  }
+
+  /// 进入首页时恢复最近一次有内容的会话，实现「保存对话状态、延续上次对话」。
+  /// 无历史或加载失败时回退到全新欢迎会话。
+  Future<void> restoreLatestSession() async {
+    final service = _chatHistoryService;
+    if (service == null) {
+      await bindInitialSession();
+      return;
+    }
+    try {
+      final userId =
+          (await _authSessionService.currentSession())?.userId ?? 'guest';
+      final latest = await service.latestSession(userId: userId);
+      if (latest == null) {
+        await bindInitialSession();
+        return;
+      }
+      final loaded = await service.loadMessages(latest.sessionId);
+      if (loaded.isEmpty) {
+        await bindInitialSession();
+        return;
+      }
+      stop(showStatus: false);
+      sessionId = latest.sessionId;
+      tripId = latest.tripId ?? tripId;
+      _messages
+        ..clear()
+        ..addAll(loaded);
+      avatarState = _messages.lastOrNull?.avatarState ?? AvatarState.hello;
+      memoryCandidateCount = 0;
+      notifyListeners();
+    } catch (_) {
+      // 恢复失败不应阻断首页，退回默认欢迎会话。
+      await bindInitialSession();
+    }
   }
 
   Future<void> resetForSessionChange() async {
@@ -182,9 +220,11 @@ class HomeChatController extends ChangeNotifier {
       latestAgentResponse.value = response;
       avatarState = response.avatarState;
       memoryCandidateCount = response.memoryCandidates.length;
+      final tripPlanCard = agentCardPayload(response, 'tripPlan');
       _addAssistantMessage(
         response.replyText,
         avatarState: response.avatarState,
+        tripPlanCard: tripPlanCard,
       );
       isSending = false;
       notifyListeners();
@@ -193,6 +233,7 @@ class HomeChatController extends ChangeNotifier {
           MessageSender.assistant,
           response.replyText,
           avatarState: response.avatarState,
+          tripPlanCard: tripPlanCard,
         ).catchError((_) {}),
       );
     } on AgentChatCancelledException {
@@ -236,7 +277,11 @@ class HomeChatController extends ChangeNotifier {
     );
   }
 
-  void _addAssistantMessage(String text, {AvatarState? avatarState}) {
+  void _addAssistantMessage(
+    String text, {
+    AvatarState? avatarState,
+    Map<String, dynamic>? tripPlanCard,
+  }) {
     _messages.add(
       ChatMessage(
         id: 'home-assistant-${DateTime.now().microsecondsSinceEpoch}',
@@ -244,6 +289,7 @@ class HomeChatController extends ChangeNotifier {
         text: text,
         time: _timeText(),
         avatarState: avatarState ?? AvatarState.hello,
+        tripPlanCard: tripPlanCard,
       ),
     );
   }
@@ -252,12 +298,14 @@ class HomeChatController extends ChangeNotifier {
     MessageSender sender,
     String text, {
     AvatarState? avatarState,
+    Map<String, dynamic>? tripPlanCard,
   }) async {
     await _chatHistoryService?.saveMessage(
       sessionId: sessionId,
       sender: sender,
       text: text,
       avatarState: avatarState,
+      tripPlanCard: tripPlanCard,
     );
   }
 
