@@ -229,3 +229,31 @@
 - 本轮继续按真机反馈微调首页：天气条恢复天气 icon，温度使用 15 分钟内高德实时缓存，左上模式/当前旅程气泡缩小且等宽对齐，右侧状态抽屉收得更窄，聊天面板和底部导航改为满宽显示。
 - 已修复首页大图头像状态初始化：`HomePage` 创建时读取共享 `HomeChatController.avatarState`，避免切 Tab 回首页时大图回到默认状态；真机切到行程再回首页后，会话内容仍保留在首页面板。
 - 真机 `8507100b` 最新验证：`adb reverse tcp:8000 tcp:8000` 正常，`/api/health` 正常；首页天气从旧缓存 `26°C` 更新为高德实时 `31°C`，切 Tab 短暂显示 `--°C` 后可恢复真实天气。截图位于 `E:\tmp\lanxin_home_refine_v3.png`、`E:\tmp\lanxin_after_tabs_real.png`、`E:\tmp\lanxin_after_weather_wait.png`。
+
+- 2026-07-05 本轮按真机反馈继续微调首页：运行时 `apps/mobile/assets/avatars/lanxiaoxin_*.png` 已覆盖为 `project/img/lanxiaoxin/*_transparent.png` 透明版，`lanxiaoxin_after_playing.png` 同步更新；蓝小心首页立绘改为以“当前旅程”胶囊下方为 top 锚点上移。
+- 首页对话面板拖拽上限改为按右侧属性抽屉底部计算，展开状态下保留约 4dp 缝隙；纯净模式仍按独立 top 限制。
+- 开屏动画已接入 `apps/mobile/assets/splash/lanxin_splash.mp4`，设置页已有“开屏动画”选项：永不播放、每日第一次打开时播放、每次重新打开应用都播放，默认每日第一次打开时播放；策略文件存放在应用支持目录。
+- 验证通过：`flutter test test/splash_preference_service_test.dart test/home_dashboard_test.dart` 结果 7 passed；`flutter analyze` No issues found；`python scripts/android_release_preflight.py --json` ok。
+- Windows 本机 Gradle/Kotlin 编译 `video_player_android` 时遇到跨盘符 Kotlin cache 问题，已在 `apps/mobile/android/gradle.properties` 加 `kotlin.incremental=false` 和 `kotlin.compiler.execution.strategy=in-process` 后用 `flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000` 构建成功。
+- 最新 debug APK 已覆盖安装到设备 `8507100b`，`adb reverse tcp:8000 tcp:8000` 已配置，并已通过 monkey 启动 `com.lanxin.lanxin_travelmate`；视觉效果按用户真机验收为准。
+
+- 2026-07-05 继续修正开屏体验：`SplashVideoGate` 不再把视频音量设为 0，新增默认 `videoVolume=1.0`，开屏动画按素材原声播放；首页 child 在开屏结束时以 900ms 淡入并轻微上浮，减少直接切首页的突兀感。
+- 新增回归测试 `apps/mobile/test/splash_video_gate_test.dart`，验证默认视频音量和首页淡入参数；验证通过：`flutter test test/splash_video_gate_test.dart test/splash_preference_service_test.dart --no-pub`、`flutter analyze --no-pub`。
+- 已重新构建并覆盖安装真机 `8507100b`：`flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000` 成功，随后 `adb install -r -d --no-streaming` 成功并已启动应用；视觉和声音效果继续按用户真机验收为准。
+
+- 2026-07-06 已按用户要求更新项目规则：`CLAUDE.md` 明确后续不编写过多测试，只补能验证核心功能、接口契约和关键回归的最小用例；UI/交互/视觉最终效果由用户真机验收。
+- 修复首页直聊“收到：...”固定确认模板：后端 `fast_chat_response` 现在先调用 `companion_chat` 模型回复，记忆候选只进入上下文和返回结构，不再把“收到/确认记忆胶囊”讲给用户。
+- 本轮只跑最小相关验证：`pytest tests/test_model_providers.py::test_chat_only_uses_model_reply_without_local_acknowledgement tests/test_agent_api.py::test_agent_chat_memory_preference_returns_candidates_without_ack_template -q` 通过；本机 `/api/health` 正常。
+- 本机 FastAPI 已重启到最新代码，`POST /api/agent/chat` 最小 smoke 显示 `provider=openai_compatible fallback=false` 且不含 `收到:` 模板；当前 adb 设备显示 offline，等真机重新在线后继续验收即可。
+
+- 2026-07-06 按用户真机反馈微调首页空间：左上“切换到纯净模式/当前旅程”气泡横向贴近屏幕左侧并略缩宽，右上消息/聊天历史图标贴近屏幕右侧；蓝小心立绘 top 锚点上移到天气条下方约 34dp，给角色露出腾出空间。
+- 2026-07-06 继续按用户截图微调首页：模式气泡文案从“切换到纯净模式/切换到陪伴模式”改为“纯净模式/陪伴模式”，左上两个气泡继续压窄到 compact 116dp、常规 124dp，内部图标、间距和文字尺寸同步收紧，减少遮挡蓝小心头部。轻量验证通过 `flutter analyze --no-pub`、`flutter test test/home_dashboard_test.dart --no-pub`、`flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000`，已覆盖安装并拉起真机 `8507100b`。
+- 轻量验证：GitNexus impact `HomePage` 为 LOW；`flutter analyze --no-pub` 通过。恢复 `pubspec.yaml` 中 sqlite3 hook 的 system 配置，避免 debug 构建时联网下载 native asset。
+- 已重新构建并覆盖安装真机 `8507100b`：`flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000` 成功，`adb install -r -d --no-streaming` 成功并已启动应用；视觉效果继续由用户真机验收。
+
+- 2026-07-06 已完成真实用户部署与安装包规划，新增 `docs/superpowers/plans/2026-07-06-real-user-deployment.md`。
+- 2026-07-06 按用户确认的开屏方案继续实现：新增 `apps/mobile/assets/splash/lanxin_idle_silent.mp4`，来源为 `project/img/lanxiaoxin/待机动画(不说话版本).mp4`；`SplashVideoGate` 改为开屏动画结束后瞬切到静音待机循环，显示“开始我们的旅行吧!!!” CTA，点击后视频缓慢淡出并让首页 3000ms 淡入。
+- 本轮仅补最小验证：`flutter test test/splash_video_gate_test.dart --no-pub` 通过，`flutter analyze --no-pub` 通过，`flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:8000` 成功；已覆盖安装并启动到真机 `8507100b`，`adb reverse tcp:8000 tcp:8000` 已配置。
+- 2026-07-06 修正开屏动画提前 2-3 秒切到待机动画的问题：根因为上一版 `maximumDisplay=8s` 兜底定时器直接触发 `_enterIdleLoop()`，当首段视频长于 8 秒时会被截断；现已改为首段 `VideoPlayerController` 初始化后按真实 `duration + 900ms` 仅作异常兜底，正常路径只在 `isCompleted` 后切待机。验证通过：`flutter test test/splash_video_gate_test.dart --no-pub`、`flutter analyze --no-pub`、debug APK 构建，且已覆盖安装并启动到真机 `8507100b`。
+- 云服务器只读探测结论：公网 SSH host 可连，Ubuntu 24.04.4，Docker 29.6.1，Docker Compose v5.3.0；根盘约 40G 已用 80%，内存约 1.6GiB，部署方案应保持单机轻量并加入日志/镜像清理。
+- 产品化路线结论：先部署 HTTPS 公网 API + Postgres + 备份，再用正式签名构建内置公网 `API_BASE_URL` 的 release APK；当前 GitHub Release/debug APK 和本地 adb reverse 都不能视为真实用户交付。

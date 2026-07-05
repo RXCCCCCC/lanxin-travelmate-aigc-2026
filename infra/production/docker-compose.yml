@@ -1,0 +1,46 @@
+services:
+  api:
+    build:
+      context: ../../services/api
+      args:
+        PYTHON_IMAGE: m.daocloud.io/docker.io/library/python:3.13-slim
+        UV_IMAGE: m.daocloud.io/ghcr.io/astral-sh/uv:latest
+    env_file:
+      - /opt/lanxin/env/api.env
+    environment:
+      LANXIN_DATABASE_URL: postgresql+psycopg://lanxin:${POSTGRES_PASSWORD}@postgres:5432/lanxin_travelmate
+      LANXIN_CORS_ORIGINS: '["https://api.rxcccccc.icu","http://api.rxcccccc.icu"]'
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: m.daocloud.io/docker.io/library/postgres:16-alpine
+    env_file:
+      - /opt/lanxin/env/api.env
+    environment:
+      POSTGRES_DB: lanxin_travelmate
+      POSTGRES_USER: lanxin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /opt/lanxin/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lanxin -d lanxin_travelmate"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
