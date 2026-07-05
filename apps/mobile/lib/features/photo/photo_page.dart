@@ -60,7 +60,10 @@ class _PhotoPageState extends State<PhotoPage> {
 
     final results = await Future.wait([
       if (_candidates.isEmpty) _photoExperienceService.fetchCandidates(),
-      if (_tasks.isEmpty) _photoExperienceService.fetchBlindBoxTasks(),
+      if (_tasks.isEmpty)
+        _photoExperienceService.fetchBlindBoxTasks(
+          tripId: _resolvedTripId(),
+        ),
     ]);
     var index = 0;
     if (_candidates.isEmpty) {
@@ -133,6 +136,7 @@ class _PhotoPageState extends State<PhotoPage> {
         .toList(growable: false);
     final candidate = await _photoExperienceService.createCandidate(
       id: 'selected-photo-$timestamp',
+      tripId: _resolvedTripId(),
       remoteUrl: upload['remoteUrl']?.toString(),
       location: analysis['location']?.toString() ??
           (selected.source == 'camera' ? '相机拍摄照片' : '系统相册照片'),
@@ -169,14 +173,7 @@ class _PhotoPageState extends State<PhotoPage> {
       _updatingTaskIds.add(taskId);
       _photoNotice = null;
     });
-    final tripId = _currentTripId;
-    if (tripId == null || tripId.isEmpty) {
-      setState(() {
-        _updatingTaskIds.remove(taskId);
-        _photoNotice = '请先创建或同步真实旅程后再更新盲盒任务';
-      });
-      return;
-    }
+    final tripId = _resolvedTripId(task);
     final updated = await _photoExperienceService.updateBlindBoxTaskStatus(
       tripId: tripId,
       taskId: taskId,
@@ -491,6 +488,23 @@ String? _tripIdFromDashboard(TripDashboardPayload dashboard) {
   return null;
 }
 
+String _fallbackTripId({String userId = 'guest'}) => 'current-$userId-trip';
+
+extension on _PhotoPageState {
+  String _resolvedTripId([Map<String, dynamic>? task]) {
+    final values = [
+      _currentTripId,
+      task?['tripId'],
+      _fallbackTripId(),
+    ];
+    for (final value in values) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty && text != 'null') return text;
+    }
+    return _fallbackTripId();
+  }
+}
+
 class _PhotoEmptyState extends StatelessWidget {
   const _PhotoEmptyState({required this.hasError, required this.onRetry});
 
@@ -617,7 +631,7 @@ class _AgentPhotoCandidateCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${photo['score'] ?? 9.0}',
+                      '推荐度 ${((photo['score'] as num?)?.toDouble() ?? 9.0).toStringAsFixed(1)}/10',
                       style: const TextStyle(
                         color: AppTheme.primary,
                         fontSize: 12,

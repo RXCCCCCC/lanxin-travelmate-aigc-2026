@@ -1,4 +1,7 @@
+import json
+import struct
 from uuid import uuid4
+import zlib
 
 from fastapi.testclient import TestClient
 
@@ -16,6 +19,66 @@ def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
     assert response.status_code == 200
     payload = response.json()
     return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
+
+
+def _solid_png_base64(width: int, height: int, rgba: tuple[int, int, int, int]) -> str:
+    row = bytes([0]) + bytes(rgba) * width
+    raw = row * height
+    compressed = zlib.compress(raw, level=9)
+
+    def chunk(chunk_type: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + chunk_type
+            + data
+            + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
+        )
+
+    png = b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)),
+            chunk(b"IDAT", compressed),
+            chunk(b"IEND", b""),
+        ]
+    )
+    return photo.base64.b64encode(png).decode("ascii")
+
+
+def _checker_png_base64(
+    width: int,
+    height: int,
+    block_size: int,
+    light_rgba: tuple[int, int, int, int],
+    dark_rgba: tuple[int, int, int, int],
+) -> str:
+    rows = []
+    for y in range(height):
+        row = bytearray([0])
+        for x in range(width):
+            rgba = light_rgba if ((x // block_size) + (y // block_size)) % 2 == 0 else dark_rgba
+            row.extend(rgba)
+        rows.append(bytes(row))
+    raw = b"".join(rows)
+    compressed = zlib.compress(raw, level=9)
+
+    def chunk(chunk_type: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + chunk_type
+            + data
+            + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
+        )
+
+    png = b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)),
+            chunk(b"IDAT", compressed),
+            chunk(b"IEND", b""),
+        ]
+    )
+    return photo.base64.b64encode(png).decode("ascii")
 
 
 def test_photo_candidates_return_tags_scores_and_review_flag():
@@ -93,6 +156,120 @@ def test_photo_analyze_uses_preview_bytes_for_chinese_analysis():
         assert technical_word not in payload["description"]
     assert "待分析" not in payload["tags"]
     assert all("imageBase64" not in str(value) for value in payload.values())
+
+
+def test_photo_analyze_scores_change_with_real_image_features(monkeypatch):
+    _user_id, headers = _guest_headers(f"photo-score-{uuid4().hex}")
+
+    def unavailable_scene_analysis(payload):
+        raise photo.ModelProviderError("vision endpoint unavailable")
+
+    monkeypatch.setattr(photo, "_build_photo_scene_analysis", unavailable_scene_analysis)
+
+    flat = client.post(
+        "/api/photo/analyze",
+        headers=headers,
+        json={
+            "userId": "guest",
+            "tripId": "photo-score-trip",
+            "filename": "flat.png",
+            "contentType": "image/png",
+            "imageBase64": _solid_png_base64(1000, 1000, (180, 180, 180, 255)),
+            "source": "gallery",
+        },
+    )
+    textured = client.post(
+        "/api/photo/analyze",
+        headers=headers,
+        json={
+            "userId": "guest",
+            "tripId": "photo-score-trip",
+            "filename": "textured.png",
+            "contentType": "image/png",
+            "imageBase64": _checker_png_base64(
+                1000,
+                1000,
+                40,
+                (230, 190, 120, 255),
+                (30, 70, 140, 255),
+            ),
+            "source": "gallery",
+        },
+    )
+
+    assert flat.status_code == 200
+    assert textured.status_code == 200
+    flat_score = flat.json()["score"]
+    textured_score = textured.json()["score"]
+    assert textured_score > flat_score
+    assert abs(textured_score - flat_score) >= 0.2
+
+
+def test_photo_analyze_fallback_describes_visible_travel_scene_not_placeholder(monkeypatch):
+    _user_id, headers = _guest_headers(f"photo-fallback-{uuid4().hex}")
+
+    def unavailable_scene_analysis(payload):
+        raise photo.ModelProviderError("vision endpoint unavailable")
+
+    monkeypatch.setattr(photo, "_build_photo_scene_analysis", unavailable_scene_analysis)
+
+    response = client.post(
+        "/api/photo/analyze",
+        headers=headers,
+        json={
+            "userId": "guest",
+            "tripId": "photo-fallback-trip",
+            "filename": "street-walk.png",
+            "contentType": "image/png",
+            "imageBase64": PNG_1X1_BASE64,
+            "source": "gallery",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    combined_text = json.dumps(payload, ensure_ascii=False)
+    assert "旅行场景" in combined_text
+    assert "复盘" in payload["reviewSuggestion"]
+    for placeholder in ["地点待确认", "地点待标注", "补充地点", "旅拍候选", "候选继续生成文案"]:
+        assert placeholder not in combined_text
+
+
+def test_photo_analyze_prefers_model_scene_understanding_when_available(monkeypatch):
+    _user_id, headers = _guest_headers(f"photo-vision-{uuid4().hex}")
+
+    class VisionProvider:
+        name = "vision-provider"
+
+    monkeypatch.setattr(photo, "_build_photo_scene_analysis", lambda payload: {
+        "location": "广州永庆坊",
+        "tags": ["岭南骑楼", "城市漫步", "街巷生活"],
+        "description": "画面主体是带骑楼立面的老街区步行场景，适合表现广州城市漫游和街巷生活感。",
+        "reviewSuggestion": "可在复盘里作为广州老城漫步的代表照片，补一句当时停留的街角和店铺记忆。",
+        "provider": "vision-provider",
+        "fallback": False,
+    })
+
+    response = client.post(
+        "/api/photo/analyze",
+        headers=headers,
+        json={
+            "userId": "guest",
+            "tripId": "photo-vision-trip",
+            "filename": "yongqingfang.png",
+            "contentType": "image/png",
+            "imageBase64": PNG_1X1_BASE64,
+            "source": "gallery",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["location"] == "广州永庆坊"
+    assert "岭南骑楼" in payload["tags"]
+    assert "街巷生活" in payload["description"]
+    assert payload["provider"] == "vision-provider"
+    assert payload["fallback"] is False
 
 
 def test_photo_copywriting_returns_multiple_share_formats():

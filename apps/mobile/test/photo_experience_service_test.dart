@@ -117,6 +117,46 @@ void main() {
   );
 
   test(
+    'PhotoExperienceService offline analysis avoids placeholder wording',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                error: 'offline',
+              ),
+            );
+          },
+        ),
+      );
+
+      final result = await PhotoExperienceService(dio: dio).analyzePhoto(
+        filename: 'offline.png',
+        contentType: 'image/png',
+        previewBytes: Uint8List.fromList([1, 2, 3, 4]),
+        source: 'gallery',
+      );
+
+      final combined = [
+        result['location'],
+        result['description'],
+        result['reviewSuggestion'],
+        ...(result['tags'] as List<dynamic>? ?? const []),
+      ].join(' ');
+
+      expect(combined, contains('旅行场景'));
+      expect(combined, contains('复盘'));
+      for (final placeholder in ['地点待确认', '地点待标注', '补充地点', '旅拍候选']) {
+        expect(combined, isNot(contains(placeholder)));
+      }
+    },
+  );
+
+  test(
     'PhotoExperienceService creates photo candidates and upload metadata',
     () async {
       final requests = <RequestOptions>[];

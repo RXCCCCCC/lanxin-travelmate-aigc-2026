@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
@@ -361,6 +362,7 @@ class _MemoryPageState extends State<MemoryPage> {
                         _loadStoredMemories();
                         _loadDashboardMemories();
                       },
+                      onOpenChat: () => context.push('/chat'),
                     )
                   : ListView.builder(
                       padding: EdgeInsets.only(
@@ -448,9 +450,10 @@ class _MemoryPageState extends State<MemoryPage> {
 }
 
 class _EmptyMemoryState extends StatelessWidget {
-  const _EmptyMemoryState({required this.onRetry});
+  const _EmptyMemoryState({required this.onRetry, required this.onOpenChat});
 
   final VoidCallback onRetry;
+  final VoidCallback onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -486,22 +489,43 @@ class _EmptyMemoryState extends StatelessWidget {
               ),
               const SizedBox(height: AppTheme.spacingSm),
               const Text(
-                '和蓝小心聊天并确认记忆后，这里会展示真实保存的偏好；如果你已在云端保存过记忆，可以重试加载。',
+                '测试方法：先去蓝小心聊天，说“我不吃香菜、喜欢轻松慢游”，出现“确认记忆胶囊”后点确认；返回这里即可看到保存的偏好。',
                 style: TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 13,
                   height: 1.4,
                 ),
               ),
-              const SizedBox(height: AppTheme.spacingMd),
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  key: const ValueKey('memory-retry-load'),
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('重试加载'),
+              const SizedBox(height: AppTheme.spacingSm),
+              const Text(
+                '复盘页产生的新增记忆，也会在确认沉淀后同步到这里。',
+                style: TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 12,
+                  height: 1.35,
                 ),
+              ),
+              const SizedBox(height: AppTheme.spacingMd),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('memory-retry-load'),
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('重试加载'),
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spacingSm),
+                  Expanded(
+                    child: FilledButton.icon(
+                      key: const ValueKey('memory-open-chat'),
+                      onPressed: onOpenChat,
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                      label: const Text('去聊天生成'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

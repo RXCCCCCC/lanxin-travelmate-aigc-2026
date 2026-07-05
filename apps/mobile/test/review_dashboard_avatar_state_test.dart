@@ -61,6 +61,7 @@ class CapturingReviewService extends TripReviewService {
       highlightPhotos: [],
       newMemories: [],
       completedTasks: [],
+      reminderHighlights: [],
       avatarStatusChanges: [],
       nextTripSuggestions: ['夜景轻松线'],
       temporaryMemoryPromotions: [],

@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lanxin_travelmate/data/local/app_database.dart';
 import 'package:lanxin_travelmate/data/repositories/memory_repository.dart';
 import 'package:lanxin_travelmate/features/chat/data/agent_chat_models.dart';
@@ -37,6 +38,29 @@ class StubMemoryDashboardService extends TripDashboardService {
           'createdAt': '2026-06-20T10:00:00',
         },
       ],
+    );
+  }
+}
+
+class EmptyMemoryDashboardService extends TripDashboardService {
+  EmptyMemoryDashboardService() : super(dio: Dio());
+
+  @override
+  Future<TripDashboardPayload> fetchDashboard({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
+    return TripDashboardPayload(
+      userId: userId,
+      tripId: tripId,
+      currentTrip: const {},
+      routePoints: const {},
+      reminderHistory: const [],
+      blindBoxTasks: const [],
+      avatarStateEvents: const [],
+      latestReview: const {},
+      photoCandidates: const [],
+      memories: const [],
     );
   }
 }
@@ -151,5 +175,44 @@ void main() {
       operation: 'upsert',
     );
     expect(pending.map((item) => item.entityId), ['memory-sync-unselected']);
+  });
+
+  testWidgets('MemoryPage empty state explains how to create memories', (
+    tester,
+  ) async {
+    final database = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    addTearDown(database.close);
+    final router = GoRouter(
+      initialLocation: '/memory',
+      routes: [
+        GoRoute(
+          path: '/memory',
+          builder: (_, __) => MemoryPage(
+            database: database,
+            repository: MemoryRepository(database),
+            dashboardService: EmptyMemoryDashboardService(),
+          ),
+        ),
+        GoRoute(path: '/chat', builder: (_, __) => const Text('chat page')),
+      ],
+    );
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('暂无记忆胶囊'), findsOneWidget);
+    expect(find.textContaining('我不吃香菜、喜欢轻松慢游'), findsOneWidget);
+    expect(find.byKey(const ValueKey('memory-open-chat')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('memory-open-chat')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('chat page'), findsOneWidget);
   });
 }

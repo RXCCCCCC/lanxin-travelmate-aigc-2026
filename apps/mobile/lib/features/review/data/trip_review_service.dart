@@ -8,6 +8,7 @@ class TripReviewPayload {
     required this.highlightPhotos,
     required this.newMemories,
     required this.completedTasks,
+    required this.reminderHighlights,
     required this.avatarStatusChanges,
     required this.nextTripSuggestions,
     required this.temporaryMemoryPromotions,
@@ -18,6 +19,7 @@ class TripReviewPayload {
   final List<String> highlightPhotos;
   final List<String> newMemories;
   final List<Map<String, dynamic>> completedTasks;
+  final List<Map<String, dynamic>> reminderHighlights;
   final List<String> avatarStatusChanges;
   final List<String> nextTripSuggestions;
   final List<Map<String, dynamic>> temporaryMemoryPromotions;
@@ -29,6 +31,7 @@ class TripReviewPayload {
       highlightPhotos: _stringList(json['highlightPhotos']),
       newMemories: _stringList(json['newMemories']),
       completedTasks: _mapList(json['completedTasks']),
+      reminderHighlights: _mapList(json['reminderHighlights']),
       avatarStatusChanges: _stringList(json['avatarStatusChanges']),
       nextTripSuggestions: _stringList(json['nextTripSuggestions']),
       temporaryMemoryPromotions: _mapList(json['temporaryMemoryPromotions']),
@@ -48,6 +51,7 @@ class TripReviewPayload {
           'status': 'pending',
         },
       ],
+      reminderHighlights: [],
       avatarStatusChanges: ['蓝小心进入离线陪伴模式'],
       nextTripSuggestions: ['后端恢复后重新生成真实路线复盘'],
       temporaryMemoryPromotions: [
@@ -66,6 +70,7 @@ class TripReviewPayload {
       'highlightPhotos': highlightPhotos,
       'newMemories': newMemories,
       'completedTasks': completedTasks,
+      'reminderHighlights': reminderHighlights,
       'avatarStatusChanges': avatarStatusChanges,
       'nextTripSuggestions': nextTripSuggestions,
       'temporaryMemoryPromotions': temporaryMemoryPromotions,

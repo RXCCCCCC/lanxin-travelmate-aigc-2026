@@ -13,7 +13,9 @@ class StubPhotoExperienceService extends PhotoExperienceService {
 
   bool createdCandidate = false;
   String? createdCandidateLocalUri;
+  String? createdCandidateTripId;
   final List<String> updatedTaskStatuses = [];
+  final List<String> updatedTaskTripIds = [];
 
   @override
   Future<List<Map<String, dynamic>>> fetchCandidates() async {
@@ -60,8 +62,10 @@ class StubPhotoExperienceService extends PhotoExperienceService {
     bool canAddToReview = true,
   }) async {
     createdCandidate = true;
+    createdCandidateTripId = tripId;
     return {
       'id': id ?? 'photo-manual',
+      'tripId': tripId,
       'location': location,
       'score': score,
       'description': description,
@@ -87,7 +91,10 @@ class StubPhotoExperienceService extends PhotoExperienceService {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks() async {
+  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
     return const [
       {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景'},
     ];
@@ -102,6 +109,7 @@ class StubPhotoExperienceService extends PhotoExperienceService {
     String? note,
   }) async {
     updatedTaskStatuses.add('$taskId:$status');
+    updatedTaskTripIds.add(tripId);
     return {
       'id': 'record-$taskId',
       'taskId': taskId,
@@ -118,7 +126,10 @@ class EmptyPhotoExperienceService extends StubPhotoExperienceService {
   Future<List<Map<String, dynamic>>> fetchCandidates() async => const [];
 
   @override
-  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks() async => const [];
+  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks({
+    String userId = 'guest',
+    String? tripId,
+  }) async => const [];
 }
 
 class EmptyPhotoDashboardService extends TripDashboardService {
@@ -357,7 +368,54 @@ void main() {
       'task-photo:accepted',
       'task-photo:completed',
     ]);
+    expect(service.updatedTaskTripIds, ['photo-trip', 'photo-trip']);
     expect(find.textContaining('完成盲盒任务'), findsOneWidget);
+  });
+
+  testWidgets('PhotoPage can update blind box tasks with fallback trip id', (
+    tester,
+  ) async {
+    final service = StubPhotoExperienceService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PhotoPage(
+          photoExperienceService: service,
+          dashboardService: EmptyPhotoDashboardService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('拍一张夜景'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('blind-box-task-photo-skip')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.updatedTaskStatuses, ['task-photo:skipped']);
+    expect(service.updatedTaskTripIds, ['current-guest-trip']);
+    expect(find.text('已跳过'), findsOneWidget);
+  });
+
+  testWidgets('PhotoPage shows score with explicit recommendation label', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PhotoPage(
+          photoExperienceService: StubPhotoExperienceService(),
+          dashboardService: EmptyTripPhotoDashboardService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('推荐度 9.3/10'), findsOneWidget);
   });
 
   testWidgets('PhotoPage can register a manual photo candidate through API', (
@@ -380,7 +438,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(service.createdCandidate, isTrue);
-    expect(find.text('相册地点待确认'), findsOneWidget);
+    expect(service.createdCandidateTripId, 'photo-trip');
+    expect(find.text('相册旅行画面'), findsOneWidget);
     expect(find.textContaining('真实旅拍'), findsWidgets);
     expect(find.textContaining('已登记 manual-night.jpg'), findsOneWidget);
   });

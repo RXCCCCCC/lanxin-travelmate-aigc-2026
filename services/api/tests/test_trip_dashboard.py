@@ -8,6 +8,13 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
+    response = client.post("/api/auth/guest", json={"deviceId": device_id, "displayName": "Dashboard Test Guest"})
+    assert response.status_code == 200
+    payload = response.json()
+    return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
+
+
 def test_trip_dashboard_aggregates_persisted_trip_context():
     user_id = f'dashboard-user-{uuid4().hex}'
     trip_id = f'dashboard-trip-{uuid4().hex}'
@@ -78,3 +85,36 @@ def test_trip_dashboard_does_not_expose_other_users_trip():
     payload = dashboard.json()
     assert payload['currentTrip']['status'] == 'empty'
     assert payload['currentTrip'].get('destination') is None
+
+
+def test_trip_dashboard_uses_default_current_trip_for_unplanned_photo_flow():
+    user_id, headers = _guest_headers(f'dashboard-default-device-{uuid4().hex}')
+    trip_id = f'current-{user_id}-trip'
+
+    task = client.post('/api/trip/blind-box/tasks/task-photo-night/status', json={
+        'userId': user_id,
+        'tripId': trip_id,
+        'status': 'completed',
+    }, headers=headers)
+    assert task.status_code == 200
+    photo = client.post('/api/photo/candidates', json={
+        'id': f'dashboard-default-photo-{uuid4().hex}',
+        'userId': user_id,
+        'tripId': trip_id,
+        'remoteUrl': 'https://cdn.example.test/default-photo.jpg',
+        'location': '默认行程旅拍',
+        'score': 8.8,
+        'description': '默认行程下上传的旅拍',
+        'tags': ['旅拍'],
+        'canAddToReview': True,
+    }, headers=headers)
+    assert photo.status_code == 200
+
+    dashboard = client.get('/api/trip/dashboard', params={'userId': user_id}, headers=headers)
+
+    assert dashboard.status_code == 200
+    payload = dashboard.json()
+    assert payload['tripId'] == trip_id
+    assert payload['currentTrip']['tripId'] == trip_id
+    assert any(item['id'] == 'task-photo-night' and item['status'] == 'completed' for item in payload['blindBoxTasks']['items'])
+    assert any(item['location'] == '默认行程旅拍' for item in payload['photoCandidates']['items'])

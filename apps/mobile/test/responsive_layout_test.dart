@@ -38,7 +38,10 @@ class _StubPhotoExperienceService extends PhotoExperienceService {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks() async {
+  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
     return const [
       {'id': 'task-photo', 'type': 'photo', 'title': '拍一张夜景高光'},
     ];

@@ -27,11 +27,11 @@ class ReviewPage extends StatefulWidget {
   State<ReviewPage> createState() => _ReviewPageState();
 }
 
-class _ReviewPageState extends State<ReviewPage> {
+class _ReviewPageState extends State<ReviewPage> with WidgetsBindingObserver {
   late final TripReviewService _tripReviewService;
   late final TripDashboardService _dashboardService;
   late final ProfileService _profileService;
-  late final Future<TripReviewPayload> _generatedReview;
+  late Future<TripReviewPayload> _generatedReview;
   late final String _localReviewTripId;
 
   @override
@@ -41,31 +41,71 @@ class _ReviewPageState extends State<ReviewPage> {
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _profileService = widget.profileService ?? ProfileService();
     _localReviewTripId = 'review-trip-${DateTime.now().millisecondsSinceEpoch}';
+    WidgetsBinding.instance.addObserver(this);
     _generatedReview = _loadReview();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshReview();
+    }
+  }
+
+  Future<void> _refreshReview() async {
+    if (!mounted) return;
+    setState(() {
+      _generatedReview = _loadReview();
+    });
+    await _generatedReview;
   }
 
   Future<TripReviewPayload> _loadReview() async {
     final requestedTripId = _tripIdFromAgentResponse();
+    final cachedAgentReview = _reviewFromAgentResponse();
+    TripReviewPayload? requestedExistingReview;
     if (requestedTripId != null) {
-      final existingReview = await _tripReviewService.fetchReview(
+      requestedExistingReview = await _tripReviewService.fetchReview(
         tripId: requestedTripId,
       );
-      if (existingReview != null) return existingReview;
     }
 
     final shouldReadDashboard =
         widget.dashboardService != null || widget.tripReviewService == null;
     String? dashboardTripId;
+    var shouldRegenerateReview = false;
+    TripReviewPayload? dashboardExistingReview;
+    TripReviewPayload? dashboardReview;
+    TripReviewPayload? dashboardStateReview;
     if (shouldReadDashboard) {
       final dashboard = await _dashboardService.fetchDashboard(
         tripId: requestedTripId,
       );
       dashboardTripId = _tripIdFromDashboard(dashboard);
-      final dashboardReview = _reviewFromDashboard(dashboard.latestReview);
+      if (dashboardTripId != null && dashboardTripId != requestedTripId) {
+        dashboardExistingReview = await _tripReviewService.fetchReview(
+          tripId: dashboardTripId,
+        );
+      }
+      shouldRegenerateReview = _hasReviewablePhotoNewerThanReview(dashboard);
+      dashboardReview = _reviewFromDashboard(dashboard.latestReview);
+      dashboardStateReview = _reviewFromDashboardStateEvents(dashboard);
+    }
+
+    if (!shouldRegenerateReview) {
+      if (requestedExistingReview != null) return requestedExistingReview;
+      if (dashboardExistingReview != null) return dashboardExistingReview;
       if (dashboardReview != null) return dashboardReview;
-      final dashboardStateReview = _reviewFromDashboardStateEvents(dashboard);
       if (dashboardStateReview != null) return dashboardStateReview;
     }
+
+    if (cachedAgentReview != null) return cachedAgentReview;
 
     final profile = await _profileService.fetchProfile();
     final reviewTripId =
@@ -104,9 +144,36 @@ class _ReviewPageState extends State<ReviewPage> {
     return null;
   }
 
+  bool _hasReviewablePhotoNewerThanReview(TripDashboardPayload dashboard) {
+    final reviewCreatedAt = _parseDate(dashboard.latestReview['createdAt']);
+    if (reviewCreatedAt == null) return false;
+    for (final photo in dashboard.photoCandidates) {
+      if (photo['canAddToReview'] == false) continue;
+      final updatedAt = _parseDate(photo['updatedAt'] ?? photo['createdAt']);
+      if (updatedAt != null && updatedAt.isAfter(reviewCreatedAt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  DateTime? _parseDate(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty || text == 'null') return null;
+    return DateTime.tryParse(text);
+  }
+
   TripReviewPayload? _reviewFromDashboard(Map<String, dynamic> latestReview) {
     final review = latestReview['review'];
     if (review is Map<String, dynamic> && review.isNotEmpty) {
+      return TripReviewPayload.fromJson(review);
+    }
+    return null;
+  }
+
+  TripReviewPayload? _reviewFromAgentResponse() {
+    final review = agentCardPayload(latestAgentResponse.value, 'tripReview');
+    if (review != null && review.isNotEmpty) {
       return TripReviewPayload.fromJson(review);
     }
     return null;
@@ -122,6 +189,7 @@ class _ReviewPageState extends State<ReviewPage> {
       highlightPhotos: const [],
       newMemories: const [],
       completedTasks: const [],
+      reminderHighlights: const [],
       avatarStatusChanges: dashboard.avatarStateEvents
           .map(_avatarStateEventText)
           .where((item) => item.isNotEmpty)
@@ -133,75 +201,75 @@ class _ReviewPageState extends State<ReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: latestAgentResponse,
-      builder: (context, response, _) {
-        final metrics = context.responsive;
-        final agentReview = agentCardPayload(response, 'tripReview');
-        return Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF5FA4FF), Color(0xFFAAD6FF), Color(0xFFE8F7FF)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // 顶部栏
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: metrics.horizontalPadding - 8,
-                    vertical: 4,
+    final metrics = context.responsive;
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF5FA4FF), Color(0xFFAAD6FF), Color(0xFFE8F7FF)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: metrics.horizontalPadding - 8,
+                vertical: 4,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => navigateBackOrHome(context),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => navigateBackOrHome(context),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: AppTheme.textPrimary,
-                        ),
+                  const Expanded(
+                    child: Text(
+                      '旅行复盘',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
                       ),
-                      const Expanded(
-                        child: Text(
-                          '旅行复盘',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: agentReview == null
-                      ? FutureBuilder<TripReviewPayload>(
-                          future: _generatedReview,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              return _AgentReviewView(
-                                review: snapshot.data!.toJson(),
-                              );
-                            }
-                            if (snapshot.hasError) {
-                              return const _ReviewErrorState();
-                            }
-                            return const _ReviewLoadingState();
-                          },
-                        )
-                      : _AgentReviewView(review: agentReview),
-                ),
-              ],
+                  IconButton(
+                    key: const ValueKey('review-refresh-button'),
+                    tooltip: '刷新复盘',
+                    onPressed: _refreshReview,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+            Expanded(
+              child: FutureBuilder<TripReviewPayload>(
+                future: _generatedReview,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    return RefreshIndicator(
+                      onRefresh: _refreshReview,
+                      child: _AgentReviewView(review: snapshot.data!.toJson()),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return const _ReviewErrorState();
+                  }
+                  return const _ReviewLoadingState();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

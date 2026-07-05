@@ -11,37 +11,41 @@ from app.agents.travelmate.state import create_initial_state
 from app.db.models import AvatarStateEventRecord, BlindBoxTaskRecord, CloudMemory, CloudTrip, CloudTripReview, GroupCoordinationRecord, PhotoCandidateRecord, ReminderEvent, TripRoutePointRecord, utc_now
 from app.db.session import get_session
 from app.services.model_audit import persist_model_call_logs
+from app.services.trip_plan_formatter import _CN_VALUE_MAP, cn_value, sanitize_trip_plan_for_client
 
 
 router = APIRouter(prefix="/trip", tags=["trip"])
 
 
-_CN_VALUE_MAP = {
-    "medium": "中等预算",
-    "low": "低预算",
-    "high": "高预算",
-    "transit": "公共交通",
-    "walking": "步行",
-    "taxi": "打车",
-    "self_drive": "自驾",
-    "slow pace": "慢节奏",
-    "relaxed pace": "轻松节奏",
-    "balanced_slow": "偏慢的均衡节奏",
-    "low_first": "优先控制预算",
-    "night view": "夜景",
-    "night views": "夜景",
-    "less walking": "少走路",
-    "indoor": "室内活动",
-    "weather_risk": "天气风险",
-    "mother": "妈妈",
-    "child": "孩子",
-    "family_relaxed": "家庭轻松游",
-}
+_PLACEHOLDER_PHOTO_LOCATION_MARKERS = (
+    "无法仅凭画面确认",
+    "无法仅凭这张图确认",
+    "无法确认城市或景点",
+    "地点待确认",
+    "待确认地点",
+    "未标注地点",
+    "补充地点",
+    "待确认照片",
+    "无法僅憑",
+    "無法僅憑",
+    "ÎÞ·¨½öÆ¾",
+)
 
 
 def _cn_value(value: object) -> str:
-    text = str(value)
-    return _CN_VALUE_MAP.get(text, text)
+    return cn_value(value)
+
+
+def _is_placeholder_photo_location(value: object) -> bool:
+    text = str(value or "").strip()
+    return not text or any(marker in text for marker in _PLACEHOLDER_PHOTO_LOCATION_MARKERS)
+
+
+def _photo_review_label(record: PhotoCandidateRecord, index: int) -> str:
+    label = str(record.location_label or "").strip()
+    if _is_placeholder_photo_location(label):
+        return f"图片{index + 1}"
+    return label
 
 
 def _localize_text(value: object, fallback: str) -> str:
@@ -73,8 +77,30 @@ def _localize_risk_text(value: object, fallback: str) -> str:
 
 
 def _localize_product_text(value: object, fallback: str) -> str:
+    raw_text = str(value or "").strip()
+    raw_normalized = raw_text.lower()
+    if "reserve another highlight photo stop around" in raw_normalized:
+        marker = "reserve another highlight photo stop around"
+        start = raw_normalized.find(marker)
+        location = raw_text[start + len(marker):] if start >= 0 else raw_text
+        for suffix in ["based on this trip's saved photos.", "based on this trip's saved photos"]:
+            location = location.replace(suffix, "")
+        location = location.strip(" 。,.，")
+        location = location or "这次旅拍表现不错的位置"
+        return f"下次可以在{location}附近再预留一个高光拍照点，延续这次旅拍效果。"
     text = _localize_text(value, fallback)
     normalized = text.lower()
+    if "reserve another highlight photo stop around" in normalized:
+        location = text
+        marker = "reserve another highlight photo stop around"
+        start = normalized.find(marker)
+        if start >= 0:
+            location = text[start + len(marker):]
+        for suffix in ["based on this trip's saved photos.", "based on this trip's saved photos"]:
+            location = location.replace(suffix, "")
+        location = location.strip(" 。,.，")
+        location = location or "这次旅拍表现不错的位置"
+        return f"下次可以在{location}附近再预留一个高光拍照点，延续这次旅拍效果。"
     if (
         "真实模型" in text
         or "模型返回" in text
@@ -86,6 +112,8 @@ def _localize_product_text(value: object, fallback: str) -> str:
         or "route_tool" in normalized
         or "model_provider" in normalized
         or "provider=" in normalized
+        or "based on this trip" in normalized
+        or "highlight photo stop" in normalized
     ):
         return fallback
     return text
@@ -102,6 +130,13 @@ def _localize_risk_list(values: object, fallback: str) -> list[str]:
     result = []
     for index, item in enumerate(values or []):
         result.append(_localize_risk_text(item, f"{fallback}{index + 1}。"))
+    return result
+
+
+def _localize_review_list(values: object, fallback: str) -> list[str]:
+    result = []
+    for index, item in enumerate(values or []):
+        result.append(_localize_product_text(item, f"{fallback}{index + 1}。"))
     return result
 
 
@@ -240,10 +275,12 @@ def _trip_response(trip: CloudTrip) -> dict[str, object]:
 
 
 def _review_response(record: CloudTripReview) -> dict[str, object]:
+    review = json.loads(record.review_json)
+    route = str(review.get("route") or "")
     return {
         "reviewId": record.id,
         "tripId": record.trip_id,
-        "review": json.loads(record.review_json),
+        "review": _normalized_trip_review(review, route),
         "createdAt": record.created_at.isoformat(),
     }
 
@@ -418,7 +455,7 @@ def read_trip_dashboard(
             select(CloudTrip).where(CloudTrip.user_id == effective_user_id).order_by(CloudTrip.updated_at.desc())
         ).first()
 
-    resolved_trip_id = trip.id if trip else tripId
+    resolved_trip_id = trip.id if trip else (tripId or f"current-{effective_user_id}-trip")
     current_trip: dict[str, object] = _trip_response(trip) if trip else {
         'tripId': resolved_trip_id,
         'userId': effective_user_id,
@@ -517,7 +554,14 @@ def _apply_planning_input_explanations(plan: dict[str, object], planning_inputs:
             )
     plan["profileMatches"] = profile_matches
     plan["risks"] = risks
-    _localize_trip_plan_text(plan)
+    sanitized_plan = sanitize_trip_plan_for_client(
+        dict(plan),
+        planning_inputs=planning_inputs,
+        requested_destination=str(planning_inputs.get("destination") or ""),
+        message=str(planning_inputs.get("destination") or ""),
+    )
+    plan.clear()
+    plan.update(sanitized_plan)
 
 
 @router.post("/plan")
@@ -613,26 +657,27 @@ def create_trip_review(
     effective_user_id = resolve_effective_user_id(payload.userId, current_user)
     trip_id = payload.tripId or f"current-{effective_user_id}-trip"
     route = _review_route(session, effective_user_id, trip_id)
+    review_context = {
+        "completedTasks": payload.completedTasks or _completed_blind_box_tasks(session, effective_user_id, trip_id),
+        "temporaryMemories": payload.temporaryMemories or _review_temporary_memories(session, effective_user_id, trip_id),
+        "newMemories": _review_new_memories(session, effective_user_id, trip_id),
+        "highlightPhotos": _review_photo_highlights(session, effective_user_id, trip_id),
+        "reminderHighlights": _review_reminder_highlights(session, effective_user_id, trip_id),
+        "avatarStatusChanges": _review_avatar_status_changes(session, effective_user_id, trip_id),
+        "route": route,
+        "nextTripSuggestions": _review_next_trip_suggestions(session, effective_user_id, trip_id),
+        "profileContext": payload.profileContext,
+    }
     state = create_initial_state(
         message=payload.message,
         session_id=f"trip-review-{effective_user_id}-{trip_id}",
         user_id=effective_user_id,
         trip_id=trip_id,
-        context={
-            "completedTasks": payload.completedTasks or _completed_blind_box_tasks(session, effective_user_id, trip_id),
-            "temporaryMemories": payload.temporaryMemories or _review_temporary_memories(session, effective_user_id, trip_id),
-            "newMemories": _review_new_memories(session, effective_user_id, trip_id),
-            "highlightPhotos": _review_photo_highlights(session, effective_user_id, trip_id),
-            "reminderHighlights": _review_reminder_highlights(session, effective_user_id, trip_id),
-            "avatarStatusChanges": _review_avatar_status_changes(session, effective_user_id, trip_id),
-            "route": route,
-            "nextTripSuggestions": _review_next_trip_suggestions(session, effective_user_id, trip_id),
-            "profileContext": payload.profileContext,
-        },
+        context=review_context,
     )
     result = TravelMateGraph().invoke_review_only(state)
     persist_model_call_logs(session, result.get("model_call_logs", []))
-    review = _normalized_trip_review(result["review"], route)
+    review = _normalized_trip_review(result["review"], route, review_context)
     record = CloudTripReview(
         id=f"review-{uuid4().hex}",
         user_id=effective_user_id,
@@ -940,9 +985,33 @@ def _review_route(session: Session, user_id: str, trip_id: str) -> str | None:
     return str(_route_points_payload(records)["route"])
 
 
-def _normalized_trip_review(review: dict[str, object], route: str | None) -> dict[str, object]:
+def _normalized_trip_review(
+    review: dict[str, object],
+    route: str | None,
+    context: dict[str, object] | None = None,
+) -> dict[str, object]:
     normalized = dict(review)
     normalized["route"] = route or ""
+    context = context or {}
+    for key in [
+        "completedTasks",
+        "temporaryMemories",
+        "newMemories",
+        "highlightPhotos",
+        "reminderHighlights",
+        "avatarStatusChanges",
+        "nextTripSuggestions",
+    ]:
+        if not normalized.get(key):
+            normalized[key] = context.get(key) or []
+    normalized["avatarStatusChanges"] = _localize_review_list(
+        normalized.get("avatarStatusChanges"),
+        "蓝小心记录了一次状态变化",
+    )
+    normalized["nextTripSuggestions"] = _localize_review_list(
+        normalized.get("nextTripSuggestions"),
+        "下次行程可继续沿用这次验证过的偏好与节奏",
+    )
     return normalized
 
 
@@ -966,19 +1035,23 @@ def _review_next_trip_suggestions(session: Session, user_id: str, trip_id: str) 
     suggestions: list[str] = []
     if memories and route_points:
         suggestions.append(
-            f"Plan a route like {route_points[0].label} next time because '{memories[0].title}' was confirmed."
+            f"下次可以继续安排像{route_points[0].label}这样的路线，并保留“{memories[0].title}”这类已确认偏好。"
         )
     if reminders:
-        location = reminders[0].location or (route_points[-1].label if route_points else "the last stop")
+        location = reminders[0].location or (route_points[-1].label if route_points else "上次行程末段")
         suggestions.append(
-            f"Keep a lighter backup near {location} when {reminders[0].trigger_type} context appears again."
+            f"如果下次在{location}附近再次出现类似提醒场景，可以提前准备一条更轻松的备选路线。"
         )
     if photos:
-        suggestions.append(
-            f"Reserve another highlight photo stop around {photos[0].location_label} based on this trip's saved photos."
-        )
+        photo_label = _photo_review_label(photos[0], 0)
+        if photo_label.startswith("图片"):
+            suggestions.append("下次可以再预留一个高光拍照点，延续这次旅拍效果。")
+        else:
+            suggestions.append(
+                f"可在{photo_label}附近再预留一个高光拍照点，延续这次旅拍效果。"
+            )
     if memories and not any(memory.title in " ".join(suggestions) for memory in memories):
-        suggestions.append(f"Reuse confirmed preference '{memories[0].title}' when creating the next plan.")
+        suggestions.append(f"下次制定行程时，继续优先采用“{memories[0].title}”这条已确认的旅行偏好。")
     return suggestions[:3]
 
 
@@ -1147,7 +1220,7 @@ def _review_photo_highlights(session: Session, user_id: str, trip_id: str) -> li
         .where(PhotoCandidateRecord.can_add_to_review == True)  # noqa: E712
         .order_by(PhotoCandidateRecord.share_score.desc())
     ).all()
-    return [record.location_label for record in records if record.location_label]
+    return [_photo_review_label(record, index) for index, record in enumerate(records)]
 
 
 def _review_reminder_highlights(session: Session, user_id: str, trip_id: str) -> list[dict[str, object]]:
@@ -1222,7 +1295,7 @@ def _review_avatar_status_changes(session: Session, user_id: str, trip_id: str) 
     changes: list[str] = []
     for record in _stored_avatar_state_events(session, user_id, trip_id):
         deltas = json.loads(record.deltas_json)
-        delta_text = "、".join(f"{key} {value:+g}" for key, value in deltas.items())
+        delta_text = "、".join(f"{_cn_value(key)} {value:+g}" for key, value in deltas.items())
         changes.append(f"{record.title}" + (f"（{delta_text}）" if delta_text else ""))
     return changes
 

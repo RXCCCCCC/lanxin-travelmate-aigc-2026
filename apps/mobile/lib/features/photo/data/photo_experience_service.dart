@@ -140,9 +140,18 @@ class PhotoExperienceService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks() async {
+  Future<List<Map<String, dynamic>>> fetchBlindBoxTasks({
+    String userId = 'guest',
+    String? tripId,
+  }) async {
     try {
-      final response = await _dio.get<dynamic>('/api/trip/blind-box/tasks');
+      final response = await _dio.get<dynamic>(
+        '/api/trip/blind-box/tasks',
+        queryParameters: {
+          'userId': userId,
+          if (tripId != null) 'tripId': tripId,
+        },
+      );
       final data = response.data;
       if (data is Map<String, dynamic>) return _mapList(data['items']);
       return const [];
@@ -223,11 +232,11 @@ class PhotoExperienceService {
   Map<String, dynamic> _fallbackPhotoAnalysis({required String source}) {
     final sourceLabel = source == 'camera' ? '相机现场拍摄' : '相册导入';
     return {
-      'location': source == 'camera' ? '拍摄地点待标注' : '相册地点待确认',
+      'location': source == 'camera' ? '现场旅行画面' : '相册旅行画面',
       'score': 7.2,
-      'description': '已保留这张真实旅拍预览，可先作为旅行场景候选；补充地点后能生成更准确的分享文案和复盘高光。',
-      'tags': ['真实旅拍', '旅行场景', sourceLabel, '待补充地点'],
-      'reviewSuggestion': '建议补充地点、同行人或当时心情后加入复盘，避免只留下没有上下文的照片。',
+      'description': '画面已作为真实旅行场景记录下来，适合在复盘里承担环境交代和情绪铺垫的作用。',
+      'tags': ['真实旅拍', '旅行场景', sourceLabel, '复盘素材'],
+      'reviewSuggestion': '复盘时可以围绕这张图写下当时的停留原因、同行互动或现场心情。',
       'canAddToReview': true,
       'offline': true,
     };

@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
@@ -6,12 +7,20 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
+    response = client.post("/api/auth/guest", json={"deviceId": device_id, "displayName": "Review Memory Test Guest"})
+    assert response.status_code == 200
+    payload = response.json()
+    return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
+
+
 def test_trip_review_uses_persisted_memories_for_new_memories_and_promotions():
-    user_id = "review-memory-user-a"
+    user_id, headers = _guest_headers(f"review-memory-user-{uuid4().hex}")
     trip_id = "review-memory-trip-a"
 
     current_trip_memory = client.post(
         "/api/memory/capsules",
+        headers=headers,
         json={
             "id": "review-memory-current-a",
             "userId": user_id,
@@ -28,6 +37,7 @@ def test_trip_review_uses_persisted_memories_for_new_memories_and_promotions():
 
     temporary_memory = client.post(
         "/api/memory/capsules",
+        headers=headers,
         json={
             "id": "review-memory-temp-a",
             "userId": user_id,
@@ -44,6 +54,7 @@ def test_trip_review_uses_persisted_memories_for_new_memories_and_promotions():
 
     review = client.post(
         "/api/trip/review",
+        headers=headers,
         json={"userId": user_id, "tripId": trip_id, "message": "生成记忆沉淀复盘"},
     )
 
