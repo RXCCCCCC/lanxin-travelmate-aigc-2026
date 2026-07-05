@@ -3,8 +3,11 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lanxin_travelmate/core/constants/avatar_states.dart' as avatar;
+import 'package:lanxin_travelmate/data/agent_response_cache.dart';
 import 'package:lanxin_travelmate/data/local/app_database.dart';
 import 'package:lanxin_travelmate/data/repositories/memory_repository.dart';
+import 'package:lanxin_travelmate/features/auth/data/auth_session_service.dart';
 import 'package:lanxin_travelmate/features/chat/data/agent_chat_models.dart';
 import 'package:lanxin_travelmate/features/profile/data/profile_service.dart';
 import 'package:lanxin_travelmate/features/settings/data/settings_data_service.dart';
@@ -38,6 +41,15 @@ class _DataStub extends SettingsDataService {
   List<SyncMemoryDraft> pushedMemories = const [];
   int pushCount = 0;
   bool conflictForSingleMemory = true;
+  String? registeredAccount;
+  String? loggedInAccount;
+  AuthSession currentSession = const AuthSession(
+    userId: 'guest',
+    displayName: '蓝心同行游客',
+    authMode: 'guest',
+    isGuest: true,
+    accessToken: 'token-guest',
+  );
 
   @override
   Future<PrivacySummaryPayload> fetchPrivacySummary() async {
@@ -99,6 +111,48 @@ class _DataStub extends SettingsDataService {
       ],
     );
   }
+
+  @override
+  Future<AccountActionResult> registerPasswordAccount({
+    required String account,
+    required String password,
+    required String displayName,
+  }) async {
+    registeredAccount = account;
+    currentSession = AuthSession(
+      userId: 'registered-user',
+      displayName: displayName,
+      authMode: 'password',
+      isGuest: false,
+      accessToken: 'token-register',
+    );
+    return AccountActionResult(
+      status: 'ok',
+      session: currentSession,
+    );
+  }
+
+  @override
+  Future<AccountActionResult> loginPasswordAccount({
+    required String account,
+    required String password,
+  }) async {
+    loggedInAccount = account;
+    currentSession = const AuthSession(
+      userId: 'login-user',
+      displayName: '蓝心用户',
+      authMode: 'password',
+      isGuest: false,
+      accessToken: 'token-login',
+    );
+    return AccountActionResult(
+      status: 'ok',
+      session: currentSession,
+    );
+  }
+
+  @override
+  Future<AuthSession?> readCurrentSession() async => currentSession;
 }
 
 class _MemoryRepositoryStub extends MemoryRepository {
@@ -152,6 +206,32 @@ void main() {
 
     expect(find.text('温柔陪伴'), findsWidgets);
     expect(find.text('Keep it calm.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('open-account-settings-page')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('open-account-settings-page')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('账号设置'), findsOneWidget);
+    expect(find.textContaining('使用用户名和密码注册或登录'), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-username-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-password-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-register-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-settings-status')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('account-username-field')),
+      'lanxin_user',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('account-password-field')),
+      'secret123',
+    );
+    await tester.tap(find.byKey(const ValueKey('account-register-button')));
+    await tester.pumpAndSettle();
+    expect(dataStub.registeredAccount, 'lanxin_user');
+    expect(find.textContaining('注册成功'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已登录账户 · 蓝心用户'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('自定义提示词'),
@@ -419,5 +499,58 @@ void main() {
     expect(find.textContaining('已同步'), findsOneWidget);
     expect(find.text('记忆撤销 · 待同步'), findsOneWidget);
     expect(find.textContaining('offline'), findsOneWidget);
+  });
+
+  testWidgets('Account settings notifies parent when session changes', (
+    tester,
+  ) async {
+    final dataStub = _DataStub();
+    AuthSession? changedSession;
+    latestAgentResponse.value = const AgentChatResponse(
+      replyText: '旧账号规划',
+      voiceText: '旧账号规划',
+        avatarState: avatar.AvatarState.planning,
+      emotion: 'curious',
+      memoryCandidates: [],
+      toolTrace: [],
+      nextActions: [],
+      syncSuggestions: [],
+      errors: [],
+      cards: [
+        {
+          'type': 'tripPlan',
+          'payload': {'title': '旧账号北京行程'},
+        },
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AccountSettingsPage(
+          dataService: dataStub,
+          initialSession: dataStub.currentSession,
+          onSessionChanged: (session) {
+            changedSession = session;
+            latestAgentResponse.value = null;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('account-username-field')),
+      'lanxin_login',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('account-password-field')),
+      'secret123',
+    );
+    await tester.tap(find.byKey(const ValueKey('account-login-button')));
+    await tester.pumpAndSettle();
+
+    expect(changedSession?.userId, 'login-user');
+    expect(latestAgentResponse.value, null);
+    expect(find.textContaining('当前已登录'), findsOneWidget);
   });
 }

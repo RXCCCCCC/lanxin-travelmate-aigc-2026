@@ -3,6 +3,7 @@ import '../../core/layout/responsive_metrics.dart';
 import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/agent_response_cache.dart';
+import '../auth/data/auth_session_service.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../profile/data/profile_service.dart';
 import 'data/location_selection_service.dart';
@@ -37,6 +38,7 @@ class _TripPageState extends State<TripPage> {
   late final ProfileService _profileService;
   late final TripGroupService _groupService;
   late final LocationSelectionService _locationService;
+  late final AuthSessionService _authSessionService;
   final _destinationController = TextEditingController();
   final _originCoordinateController = TextEditingController();
   final _destinationCoordinateController = TextEditingController();
@@ -72,6 +74,8 @@ class _TripPageState extends State<TripPage> {
     _profileService = widget.profileService ?? ProfileService();
     _groupService = widget.groupService ?? TripGroupService();
     _locationService = widget.locationService ?? LocationSelectionService();
+    _authSessionService = AuthSessionService();
+    _authSessionService.sessionListenable.addListener(_handleSessionChanged);
     _loadDashboardPlan();
     if (agentCardPayload(latestAgentResponse.value, 'tripPlan') == null) {
       _loadProfile();
@@ -80,6 +84,7 @@ class _TripPageState extends State<TripPage> {
 
   @override
   void dispose() {
+    _authSessionService.sessionListenable.removeListener(_handleSessionChanged);
     _destinationController.dispose();
     _originCoordinateController.dispose();
     _destinationCoordinateController.dispose();
@@ -94,11 +99,29 @@ class _TripPageState extends State<TripPage> {
     super.dispose();
   }
 
+  Future<void> _handleSessionChanged() async {
+    latestAgentResponse.value = null;
+    if (!mounted) return;
+    setState(() {
+      _dashboardPlan = null;
+      _createdPlan = null;
+      _dashboardRoutePoints = const {};
+      _groupCoordination = null;
+      _editingPlan = false;
+      _planError = null;
+      _groupError = null;
+    });
+    await _loadDashboardPlan();
+    await _loadProfile();
+  }
+
   Future<void> _loadDashboardPlan() async {
     if (agentCardPayload(latestAgentResponse.value, 'tripPlan') != null) {
       return;
     }
-    final dashboard = await _dashboardService.fetchDashboard();
+    final dashboard = await _dashboardService.fetchDashboard(
+      userId: _authSessionService.sessionListenable.value?.userId,
+    );
     final currentTrip = dashboard.currentTrip;
     final plan = currentTrip['plan'];
     if (!mounted || plan is! Map<String, dynamic> || plan.isEmpty) return;
@@ -109,7 +132,9 @@ class _TripPageState extends State<TripPage> {
   }
 
   Future<void> _loadProfile() async {
-    final profile = await _profileService.fetchProfile();
+    final profile = await _profileService.fetchProfile(
+      userId: _authSessionService.sessionListenable.value?.userId ?? 'guest',
+    );
     if (!mounted) return;
     setState(() {
       _profile = profile;
@@ -140,6 +165,7 @@ class _TripPageState extends State<TripPage> {
     });
     final result = await _planService.createPlan(
       TripPlanRequestDraft(
+        userId: _authSessionService.sessionListenable.value?.userId ?? 'guest',
         destination: destination,
         originCoordinate: _originCoordinate,
         startDate: _emptyToNull(_startDateController.text),
@@ -232,6 +258,7 @@ class _TripPageState extends State<TripPage> {
     });
     final result = await _groupService.coordinate(
       GroupCoordinationDraft(
+        userId: _authSessionService.sessionListenable.value?.userId ?? 'guest',
         tripId: 'group-${destination.hashCode.abs()}',
         destination: destination,
         members: [memberA, memberB],
@@ -1314,6 +1341,21 @@ String _adjustmentDisplayText(Map<String, dynamic> adjustment) {
   return '$trigger：$suggestion';
 }
 
+String _alternativeBestForText(Object? value) {
+  final text = _planDisplayText(value, '');
+  if (text.isEmpty) return '';
+  const genericTexts = {
+    '适合在原计划拥挤、天气变化或体力不足时切换。',
+    '适合在原计划拥挤、天气变化或体力不足时切换',
+    '适合在原计划拥挤，天气变化或体力不足时切换。',
+    '适合在原计划拥挤，天气变化或体力不足时切换',
+  };
+  if (genericTexts.contains(text)) {
+    return '';
+  }
+  return text;
+}
+
 List<String> _displayTextList(
   Object? values,
   String fallback,
@@ -1800,7 +1842,7 @@ class _AlternativePlanCard extends StatelessWidget {
     final metrics = context.responsive;
     final title = _planDisplayText(item['title'], '备选方案');
     final summary = _planDisplayText(item['summary'], '这条备选适合在天气、拥挤度或体力变化时切换。');
-    final bestFor = _planDisplayText(item['bestFor'], '适合在原计划拥挤、天气变化或体力不足时切换。');
+    final bestFor = _alternativeBestForText(item['bestFor']);
     return GlassBox(
       margin: EdgeInsets.symmetric(
         horizontal: metrics.horizontalPadding,

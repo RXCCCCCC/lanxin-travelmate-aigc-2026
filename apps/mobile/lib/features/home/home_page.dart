@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
+import '../../data/agent_response_cache.dart';
 import '../../data/local/app_database.dart' hide AvatarState, ChatMessage;
 import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
+import '../auth/data/auth_session_service.dart';
 import '../chat/data/chat_history_service.dart';
 import '../chat/widgets/trip_chat_history_sheet.dart';
 import 'data/home_chat_controller.dart';
@@ -18,9 +20,14 @@ import '../trip/data/trip_dashboard_service.dart';
 /// 上方 65%：天空渐变背景 + 蓝小心立绘浮动 + 浮动状态卡 + 品牌/天气/旅行胶囊
 /// 下方 35%：磨砂玻璃聊天面板 + 输入栏 + 快捷指令
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, this.dashboardService});
+  const HomePage({
+    super.key,
+    this.dashboardService,
+    this.authSessionService,
+  });
 
   final TripDashboardService? dashboardService;
+  final AuthSessionService? authSessionService;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -32,13 +39,12 @@ class _HomePageState extends State<HomePage>
   static final ChatHistoryService _homeHistoryService = ChatHistoryService(
     _homeDatabase,
   );
-  static final HomeChatController _homeChatController = HomeChatController(
-    chatHistoryService: _homeHistoryService,
-  );
 
   late final AnimationController _floatCtrl;
   late final TripDashboardService _dashboardService;
   late final HomeWeatherService _weatherService;
+  late final AuthSessionService _authSessionService;
+  late final HomeChatController _homeChatController;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   final _panelScrollController = ScrollController();
@@ -49,18 +55,25 @@ class _HomePageState extends State<HomePage>
   bool _isPureMode = false;
   bool _statusExpanded = false;
   double _panelHeightRatio = 0.30;
+  int _dashboardRequestToken = 0;
 
   @override
   void initState() {
     super.initState();
-    _avatarState = _homeChatController.avatarState;
     _floatCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3400),
     )..repeat(reverse: true);
+    _authSessionService = widget.authSessionService ?? AuthSessionService();
+    _homeChatController = HomeChatController(
+      authSessionService: _authSessionService,
+      chatHistoryService: _homeHistoryService,
+    );
+    _avatarState = _homeChatController.avatarState;
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _weatherService = HomeWeatherService();
     _homeChatController.addListener(_handleHomeChatChanged);
+    _authSessionService.sessionListenable.addListener(_handleSessionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _showHeroAvatar = true);
@@ -79,9 +92,23 @@ class _HomePageState extends State<HomePage>
     await _homeChatController.bindInitialSession();
   }
 
+  Future<void> _handleSessionChanged() async {
+    latestAgentResponse.value = null;
+    unawaited(
+      _homeChatController.resetForSessionChange().catchError((_) {
+        // 首页账号切换后，聊天本地重绑失败不应阻断真实账号数据刷新。
+      }),
+    );
+    await _loadDashboardSummary();
+    await _loadCurrentWeather();
+  }
+
   Future<void> _loadDashboardSummary() async {
-    final dashboard = await _dashboardService.fetchDashboard();
-    if (!mounted) return;
+    final requestToken = ++_dashboardRequestToken;
+    final dashboard = await _dashboardService.fetchDashboard(
+      userId: _authSessionService.sessionListenable.value?.userId,
+    );
+    if (!mounted || requestToken != _dashboardRequestToken) return;
     setState(
       () => _dashboardSummary = _HomeDashboardSummary.fromDashboard(dashboard),
     );
@@ -117,6 +144,7 @@ class _HomePageState extends State<HomePage>
   @override
   void dispose() {
     _homeChatController.removeListener(_handleHomeChatChanged);
+    _authSessionService.sessionListenable.removeListener(_handleSessionChanged);
     _floatCtrl.dispose();
     _chatController.dispose();
     _chatFocusNode.dispose();
@@ -134,8 +162,10 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _showChatHistorySheet() async {
     await _ensureInitialSession();
+    final userId =
+        _authSessionService.sessionListenable.value?.userId ?? 'guest';
     final groups = await _homeHistoryService.listGroupedSessions(
-      userId: 'guest',
+      userId: userId,
       includeEmptySessionId: _homeChatController.sessionId,
     );
     if (!mounted) return;
@@ -151,7 +181,7 @@ class _HomePageState extends State<HomePage>
         currentSessionId: _homeChatController.sessionId,
         onNewSession: () async {
           final sessionId = await _homeHistoryService.createSession(
-            userId: 'guest',
+            userId: userId,
           );
           if (!mounted) return;
           _homeChatController.switchSession(

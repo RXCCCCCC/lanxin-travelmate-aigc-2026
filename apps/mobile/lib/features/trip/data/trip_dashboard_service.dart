@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../auth/data/auth_session_service.dart';
 
 class TripDashboardPayload {
   const TripDashboardPayload({
@@ -64,19 +65,24 @@ class TripDashboardPayload {
 }
 
 class TripDashboardService {
-  TripDashboardService({Dio? dio}) : _dio = dio ?? buildApiClient();
+  TripDashboardService({Dio? dio, AuthSessionService? authSession})
+    : _authSession = authSession ?? AuthSessionService(),
+      _dio = dio ?? buildApiClient(authSession: authSession ?? AuthSessionService());
 
   final Dio _dio;
+  final AuthSessionService _authSession;
 
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
+    final resolvedUserId =
+        userId ?? (await _authSession.currentSession())?.userId ?? 'guest';
     try {
       final response = await _dio.get<dynamic>(
         '/api/trip/dashboard',
         queryParameters: {
-          'userId': userId,
+          'userId': resolvedUserId,
           if (tripId != null) 'tripId': tripId,
         },
       );
@@ -84,9 +90,9 @@ class TripDashboardService {
       if (data is Map<String, dynamic>) {
         return TripDashboardPayload.fromJson(data);
       }
-      return TripDashboardPayload.fallback(userId: userId, tripId: tripId);
+      return TripDashboardPayload.fallback(userId: resolvedUserId, tripId: tripId);
     } on DioException {
-      return TripDashboardPayload.fallback(userId: userId, tripId: tripId);
+      return TripDashboardPayload.fallback(userId: resolvedUserId, tripId: tripId);
     }
   }
 }

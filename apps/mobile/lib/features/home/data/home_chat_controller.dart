@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/constants/avatar_states.dart';
 import '../../../data/agent_response_cache.dart';
 import '../../../shared/models/travelmate_models.dart';
+import '../../auth/data/auth_session_service.dart';
 import '../../chat/data/agent_chat_service.dart';
 import '../../chat/data/chat_history_service.dart';
 
@@ -17,15 +18,20 @@ class HomeChatController extends ChangeNotifier {
   HomeChatController({
     AgentChatService? agentChatService,
     ChatHistoryService? chatHistoryService,
+    AuthSessionService? authSessionService,
     String? sessionId,
     String? tripId,
-  }) : _agentChatService = agentChatService ?? AgentChatService(),
+  }) : _authSessionService = authSessionService ?? AuthSessionService(),
+       _agentChatService =
+           agentChatService ??
+           AgentChatService(authSession: authSessionService ?? AuthSessionService()),
        _chatHistoryService = chatHistoryService,
        sessionId =
            sessionId ?? 'home-session-${DateTime.now().millisecondsSinceEpoch}',
        tripId = tripId ?? 'home-trip-${DateTime.now().millisecondsSinceEpoch}';
 
   final AgentChatService _agentChatService;
+  final AuthSessionService _authSessionService;
   final ChatHistoryService? _chatHistoryService;
   final List<ChatMessage> _messages = [
     const ChatMessage(
@@ -58,6 +64,30 @@ class HomeChatController extends ChangeNotifier {
       tripTitle: '未绑定行程',
       tripId: tripId,
     );
+  }
+
+  Future<void> resetForSessionChange() async {
+    stop(showStatus: false);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    sessionId = 'home-session-$now';
+    tripId = 'home-trip-$now';
+    _queuedMessage = null;
+    _statusMessage = null;
+    memoryCandidateCount = 0;
+    avatarState = AvatarState.hello;
+    _messages
+      ..clear()
+      ..add(
+        const ChatMessage(
+          id: 'home-welcome',
+          sender: MessageSender.assistant,
+          text: '账号已切换，可以继续告诉我目的地、时间和偏好。',
+          time: '现在',
+          avatarState: AvatarState.hello,
+        ),
+      );
+    await bindInitialSession();
+    notifyListeners();
   }
 
   void switchSession({
@@ -140,7 +170,7 @@ class HomeChatController extends ChangeNotifier {
       final response = await _agentChatService.sendMessage(
         text,
         sessionId: sessionId,
-        userId: 'guest',
+        userId: (await _authSessionService.currentSession())?.userId,
         tripId: tripId,
         context: {
           'entry': 'home_companion',

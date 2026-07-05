@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../auth/data/auth_session_service.dart';
 
 class TripPlanRequestDraft {
   const TripPlanRequestDraft({
@@ -77,15 +78,38 @@ class TripPlanResult {
 }
 
 class TripPlanService {
-  TripPlanService({Dio? dio}) : _dio = dio ?? buildApiClient();
+  TripPlanService({Dio? dio, AuthSessionService? authSession})
+    : _authSession = authSession ?? AuthSessionService(),
+      _dio = dio ?? buildApiClient(authSession: authSession ?? AuthSessionService());
 
   final Dio _dio;
+  final AuthSessionService _authSession;
 
   Future<TripPlanResult> createPlan(TripPlanRequestDraft draft) async {
+    final resolvedUserId =
+        draft.userId == 'guest'
+            ? (await _authSession.currentSession())?.userId ?? draft.userId
+            : draft.userId;
     try {
       final response = await _dio.post<dynamic>(
         '/api/trip/plan',
-        data: draft.toJson(),
+        data: TripPlanRequestDraft(
+          userId: resolvedUserId,
+          tripId: draft.tripId,
+          message: draft.message,
+          destination: draft.destination,
+          originCoordinate: draft.originCoordinate,
+          destinationCoordinate: draft.destinationCoordinate,
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          budget: draft.budget,
+          companions: draft.companions,
+          preferences: draft.preferences,
+          transportMode: draft.transportMode,
+          tripStyle: draft.tripStyle,
+          replanReason: draft.replanReason,
+          groupCoordination: draft.groupCoordination,
+        ).toJson(),
       );
       final data = response.data;
       if (data is Map<String, dynamic>) {

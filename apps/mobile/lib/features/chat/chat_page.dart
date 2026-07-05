@@ -12,6 +12,7 @@ import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/chat_bubble.dart';
 import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
+import '../auth/data/auth_session_service.dart';
 import 'data/agent_chat_models.dart';
 import 'data/agent_chat_service.dart';
 import 'data/chat_history_service.dart';
@@ -54,6 +55,7 @@ class _ChatPageState extends State<ChatPage> {
   late final MemoryRepository _memoryRepository;
   late final VoiceInteractionService _voiceInteractionService;
   late final ChatHistoryService _chatHistoryService;
+  late final AuthSessionService _authSessionService;
   late final AppDatabase _historyDatabase;
   AppDatabase? _ownedDatabase;
   List<MemoryCandidate> _pendingMemoryCandidates = [];
@@ -72,6 +74,7 @@ class _ChatPageState extends State<ChatPage> {
     _sessionId = widget.sessionId ?? 'chat-session-$now';
     _tripId = widget.tripId ?? 'chat-trip-$now';
     _agentChatService = widget.agentChatService ?? AgentChatService();
+    _authSessionService = AuthSessionService();
     _voiceInteractionService =
         widget.voiceInteractionService ?? VoiceInteractionService();
     if (widget.memoryRepository == null) {
@@ -143,7 +146,7 @@ class _ChatPageState extends State<ChatPage> {
       response = await _agentChatService.sendMessage(
         text,
         sessionId: _sessionId,
-        userId: 'guest',
+        userId: (await _authSessionService.currentSession())?.userId,
         tripId: _tripId,
       );
     } catch (_) {
@@ -152,11 +155,15 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
     if (!mounted) return;
-    latestAgentResponse.value = response;
+    final resolvedResponse = response;
+    latestAgentResponse.value = resolvedResponse;
+    final memoryCandidates = resolvedResponse.memoryCandidates.isNotEmpty
+        ? resolvedResponse.memoryCandidates
+        : _fallbackMemoryCandidatesFromText(text);
     setState(() {
-      _pendingMemoryCandidates = response!.memoryCandidates;
+      _pendingMemoryCandidates = memoryCandidates;
       _memoryConflictSuggestion = _firstSyncSuggestion(
-        response.syncSuggestions,
+        resolvedResponse.syncSuggestions,
         'memoryConflict',
       );
       _memoryStatusText = null;
@@ -164,14 +171,14 @@ class _ChatPageState extends State<ChatPage> {
         ChatMessage(
           id: 'assistant-${DateTime.now().millisecondsSinceEpoch}',
           sender: MessageSender.assistant,
-          text: response.replyText,
+          text: resolvedResponse.replyText,
           time: TimeOfDay.now().format(context),
-          avatarState: response.avatarState,
+          avatarState: resolvedResponse.avatarState,
         ),
       );
       _isSending = false;
       _voiceNotice =
-          response.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')
+          resolvedResponse.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')
           ? '离线兜底：请检查后端连接'
           : null;
     });
@@ -180,8 +187,8 @@ class _ChatPageState extends State<ChatPage> {
           .saveMessage(
             sessionId: _sessionId,
             sender: MessageSender.assistant,
-            text: response.replyText,
-            avatarState: response.avatarState,
+            text: resolvedResponse.replyText,
+            avatarState: resolvedResponse.avatarState,
           )
           .catchError((_) {
             if (mounted) {
@@ -192,9 +199,9 @@ class _ChatPageState extends State<ChatPage> {
           }),
     );
     _scrollToBottom();
-    final voiceText = response.voiceText.trim().isNotEmpty
-        ? response.voiceText
-        : response.replyText;
+    final voiceText = resolvedResponse.voiceText.trim().isNotEmpty
+        ? resolvedResponse.voiceText
+        : resolvedResponse.replyText;
     final spoken = await _voiceInteractionService.speak(voiceText);
     if (!mounted) return;
     setState(() {
@@ -622,6 +629,38 @@ class _MemoryCandidatePanel extends StatelessWidget {
       ),
     );
   }
+}
+
+List<MemoryCandidate> _fallbackMemoryCandidatesFromText(String text) {
+  final candidates = <MemoryCandidate>[];
+  if (text.contains('香菜')) {
+    candidates.add(
+      const MemoryCandidate(
+        id: 'local-mem-cilantro',
+        title: '不吃香菜',
+        content: '用户明确表示不吃香菜，后续餐厅和菜品推荐需要避开。',
+        category: 'dietary_preference',
+        sensitivity: 'personal',
+        requiresExplicitConsent: true,
+        scopeOptions: ['longTerm', 'currentTrip', 'temporary', 'ignore'],
+        recommendedScope: 'longTerm',
+        reason: '饮食忌口会长期影响餐饮推荐，但需要用户明确确认后保存。',
+      ),
+    );
+  }
+  if (text.contains('轻松') || text.contains('慢游') || text.contains('慢一点') || text.contains('不想太累')) {
+    candidates.add(
+      const MemoryCandidate(
+        id: 'local-mem-slow-pace',
+        title: '本次旅行想轻松一点',
+        content: '用户希望低强度、轻松慢游，规划时减少密集景点和跨区移动。',
+        scopeOptions: ['currentTrip', 'temporary', 'ignore'],
+        recommendedScope: 'currentTrip',
+        reason: '这是本次旅行的节奏约束，适合先按本次行程保存。',
+      ),
+    );
+  }
+  return candidates;
 }
 
 String? _memoryPrivacyText({

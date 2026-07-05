@@ -1,12 +1,16 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../auth/data/auth_session_service.dart';
 import 'agent_chat_models.dart';
 
 class AgentChatService {
-  AgentChatService({Dio? dio}) : _dio = dio ?? buildApiClient();
+  AgentChatService({Dio? dio, AuthSessionService? authSession})
+    : _authSession = authSession ?? AuthSessionService(),
+      _dio = dio ?? buildApiClient(authSession: authSession ?? AuthSessionService());
 
   final Dio _dio;
+  final AuthSessionService _authSession;
 
   Future<AgentChatResponse> sendMessage(
     String message, {
@@ -16,6 +20,8 @@ class AgentChatService {
     Map<String, dynamic>? context,
     CancelToken? cancelToken,
   }) async {
+    final resolvedUserId =
+        userId ?? (await _authSession.currentSession())?.userId ?? 'guest';
     try {
       final response = await _dio.post<dynamic>(
         '/api/agent/chat',
@@ -23,7 +29,7 @@ class AgentChatService {
         data: {
           'message': message,
           if (sessionId != null) 'sessionId': sessionId,
-          if (userId != null) 'userId': userId,
+          'userId': resolvedUserId,
           if (tripId != null) 'tripId': tripId,
           if (context != null) 'context': context,
         },

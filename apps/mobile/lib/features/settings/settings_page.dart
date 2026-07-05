@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/router/navigation_helpers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/agent_response_cache.dart';
 import '../../data/local/app_database.dart' as local_db;
 import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/glass_box.dart';
+import '../auth/data/auth_session_service.dart';
 import '../profile/data/profile_service.dart';
 import 'data/settings_data_service.dart';
 import 'data/sync_retry_service.dart';
@@ -34,6 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late final SyncRetryService _syncRetryService;
   local_db.AppDatabase? _ownedDatabase;
   ProfilePayload? _profile;
+  AuthSession? _accountSession;
   PrivacySummaryPayload? _privacySummary;
   List<PendingSyncOperation> _syncHistory = const [];
   String? _dataActionMessage;
@@ -77,6 +79,7 @@ class _SettingsPageState extends State<SettingsPage> {
       dataService: _dataService,
     );
     _loadProfile();
+    _loadAccountSession();
     _loadPrivacySummary();
     _loadSyncHistory();
   }
@@ -93,6 +96,12 @@ class _SettingsPageState extends State<SettingsPage> {
       _profile = profile;
       _loading = false;
     });
+  }
+
+  Future<void> _loadAccountSession() async {
+    final session = await _dataService.readCurrentSession();
+    if (!mounted) return;
+    setState(() => _accountSession = session);
   }
 
   Future<void> _loadPrivacySummary() async {
@@ -339,101 +348,20 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showAccountSheet() {
-    final profile = _currentProfile();
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: const Color(0xFF06224E).withOpacity(0.28),
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: GlassBox(
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.account_circle_rounded,
-                    color: AppTheme.primary,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      '账户登录',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                    color: AppTheme.textSecondary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppTheme.spacingMd),
-              Text(
-                '当前使用游客账户：${profile.userId}',
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacingSm),
-              const Text(
-                '本机数据已经绑定到当前游客账户。正式上线前可在这里接入手机号、短信或 OAuth 登录；现阶段先保留账户设置入口，避免影响真机验收主链路。',
-                style: TextStyle(
-                  color: AppTheme.textMuted,
-                  fontSize: 12,
-                  height: 1.42,
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacingLg),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        Navigator.of(sheetContext).pop();
-                        context.push('/profile');
-                      },
-                      icon: const Icon(Icons.person_rounded),
-                      label: const Text('账户设置'),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.spacingSm),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(sheetContext).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('手机号/短信登录待负责人确认账号体系后接入'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.login_rounded),
-                      label: const Text('升级登录'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+  Future<void> _openAccountSettingsPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AccountSettingsPage(
+          dataService: _dataService,
+          initialSession: _accountSession,
+          onSessionChanged: (_) {
+            latestAgentResponse.value = null;
+          },
         ),
       ),
     );
+    await _loadAccountSession();
+    await _loadProfile();
   }
 
   @override
@@ -506,9 +434,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: metrics.listPadding(top: AppTheme.spacingSm),
                   children: [
                     _AccountSettingsCard(
-                      profile: profile,
-                      onTap: _showAccountSheet,
-                      onProfileTap: () => context.push('/profile'),
+                      accountLabel: _accountStatusLabel(_accountSession, profile),
+                      onOpen: _openAccountSettingsPage,
                     ),
                     SizedBox(height: metrics.sectionGap),
                     _ProfileSettingsSummary(
@@ -735,16 +662,30 @@ class _SettingsSection extends StatelessWidget {
   }
 }
 
+String _accountStatusLabel(AuthSession? session, ProfilePayload profile) {
+  if (session != null && session.accessToken.isNotEmpty && !session.isGuest) {
+    return '已登录账户 · ${_preferredAccountName(session)}';
+  }
+  if (session != null && session.accessToken.isNotEmpty && session.isGuest) {
+    return '游客账户 · ${_preferredAccountName(session)}';
+  }
+  return '游客账户 · ${profile.userId}';
+}
+
+String _preferredAccountName(AuthSession session) {
+  final displayName = session.displayName.trim();
+  if (displayName.isNotEmpty) return displayName;
+  return session.userId;
+}
+
 class _AccountSettingsCard extends StatelessWidget {
   const _AccountSettingsCard({
-    required this.profile,
-    required this.onTap,
-    required this.onProfileTap,
+    required this.accountLabel,
+    required this.onOpen,
   });
 
-  final ProfilePayload profile;
-  final VoidCallback onTap;
-  final VoidCallback onProfileTap;
+  final String accountLabel;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -781,7 +722,7 @@ class _AccountSettingsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      '登录账户',
+                      '账户与登录',
                       style: TextStyle(
                         color: AppTheme.textPrimary,
                         fontSize: 16,
@@ -790,7 +731,7 @@ class _AccountSettingsCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '当前：游客账户 · ${profile.userId}',
+                      accountLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -803,32 +744,19 @@ class _AccountSettingsCard extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: '账户登录',
-                onPressed: onTap,
-                icon: const Icon(Icons.login_rounded),
+                key: const ValueKey('open-account-settings-page'),
+                tooltip: '账号设置',
+                onPressed: onOpen,
+                icon: const Icon(Icons.chevron_right_rounded),
                 color: AppTheme.primary,
               ),
             ],
           ),
           const SizedBox(height: AppTheme.spacingSm),
-          Row(
-            children: [
-              Expanded(
-                child: _AccountActionButton(
-                  icon: Icons.account_circle_rounded,
-                  label: '账户设置',
-                  onTap: onProfileTap,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingSm),
-              Expanded(
-                child: _AccountActionButton(
-                  icon: Icons.lock_person_rounded,
-                  label: '升级登录',
-                  onTap: onTap,
-                ),
-              ),
-            ],
+          _AccountActionButton(
+            icon: Icons.manage_accounts_rounded,
+            label: '账号设置',
+            onTap: onOpen,
           ),
         ],
       ),
@@ -884,6 +812,293 @@ class _AccountActionButton extends StatelessWidget {
   }
 }
 
+typedef AccountRegisterCallback = Future<AccountActionResult> Function({
+  required String account,
+  required String password,
+  required String displayName,
+});
+
+typedef AccountLoginCallback = Future<AccountActionResult> Function({
+  required String account,
+  required String password,
+});
+
+class AccountSettingsPage extends StatefulWidget {
+  const AccountSettingsPage({
+    super.key,
+    required this.dataService,
+    this.initialSession,
+    this.onSessionChanged,
+  });
+
+  final SettingsDataService dataService;
+  final AuthSession? initialSession;
+  final ValueChanged<AuthSession>? onSessionChanged;
+
+  @override
+  State<AccountSettingsPage> createState() => _AccountSettingsPageState();
+}
+
+class _AccountSettingsPageState extends State<AccountSettingsPage> {
+  AuthSession? _session;
+
+  @override
+  void initState() {
+    super.initState();
+    _session = widget.initialSession;
+    _loadSession();
+  }
+
+  Future<void> _loadSession() async {
+    final session = await widget.dataService.readCurrentSession();
+    if (!mounted) return;
+    setState(() => _session = session);
+  }
+
+  void _handleSessionChanged(AuthSession session) {
+    setState(() => _session = session);
+    widget.onSessionChanged?.call(session);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = _session;
+    final status = session == null
+        ? '当前未读取到账号状态'
+        : session.isGuest
+            ? '当前为游客账户 · ${_preferredAccountName(session)}'
+            : '当前已登录 · ${_preferredAccountName(session)}';
+    return Scaffold(
+      appBar: AppBar(title: const Text('账号设置')),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppTheme.bgTop, AppTheme.bgMid, AppTheme.bgBottom],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              GlassBox(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      status,
+                      key: const ValueKey('account-settings-status'),
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingXs),
+                    Text(
+                      '账号 ID：${session?.userId ?? '未登录'}',
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingSm),
+                    const Text(
+                      '使用用户名和密码注册或登录。当前不接手机号验证码。',
+                      style: TextStyle(
+                        color: AppTheme.textMuted,
+                        fontSize: 12,
+                        height: 1.42,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingMd),
+              _AccountLoginPanel(
+                onRegister: widget.dataService.registerPasswordAccount,
+                onLogin: widget.dataService.loginPasswordAccount,
+                onSessionChanged: _handleSessionChanged,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountLoginPanel extends StatefulWidget {
+  const _AccountLoginPanel({
+    required this.onRegister,
+    required this.onLogin,
+    this.onSessionChanged,
+  });
+
+  final AccountRegisterCallback onRegister;
+  final AccountLoginCallback onLogin;
+  final ValueChanged<AuthSession>? onSessionChanged;
+
+  @override
+  State<_AccountLoginPanel> createState() => _AccountLoginPanelState();
+}
+
+class _AccountLoginPanelState extends State<_AccountLoginPanel> {
+  final _accountController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _displayNameController = TextEditingController(text: '蓝心用户');
+  bool _submitting = false;
+  String? _message;
+
+  @override
+  void dispose() {
+    _accountController.dispose();
+    _passwordController.dispose();
+    _displayNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit({required bool register}) async {
+    final account = _accountController.text.trim();
+    final password = _passwordController.text;
+    final displayName = _displayNameController.text.trim().isEmpty
+        ? '蓝心用户'
+        : _displayNameController.text.trim();
+    if (account.length < 3) {
+      setState(() => _message = '用户名至少 3 个字符');
+      return;
+    }
+    if (password.length < 6) {
+      setState(() => _message = '密码至少 6 位');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _message = register ? '正在注册账号...' : '正在登录账号...';
+    });
+    final result = register
+        ? await widget.onRegister(
+            account: account,
+            password: password,
+            displayName: displayName,
+          )
+        : await widget.onLogin(account: account, password: password);
+    if (!mounted) return;
+    final session = result.session;
+    setState(() {
+      _submitting = false;
+      _message = result.ok && session != null
+          ? '${register ? '注册成功' : '登录成功'}：${session.displayName}（${session.authMode}）'
+          : result.message ?? '账号操作失败，请稍后重试';
+    });
+    if (result.ok && session != null) {
+      widget.onSessionChanged?.call(session);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        border: Border.all(color: Colors.white.withOpacity(0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '注册或登录蓝心账号',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 14,
+              height: 1.35,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          TextField(
+            key: const ValueKey('account-username-field'),
+            controller: _accountController,
+            textInputAction: TextInputAction.next,
+            decoration: _revokeInputDecoration(
+              label: '用户名',
+              hint: '例如 lanxin_test',
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          TextField(
+            key: const ValueKey('account-password-field'),
+            controller: _passwordController,
+            obscureText: true,
+            textInputAction: TextInputAction.next,
+            decoration: _revokeInputDecoration(
+              label: '密码',
+              hint: '至少 6 位',
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          TextField(
+            key: const ValueKey('account-display-name-field'),
+            controller: _displayNameController,
+            textInputAction: TextInputAction.done,
+            textAlignVertical: TextAlignVertical.center,
+            decoration: _revokeInputDecoration(
+              label: '昵称',
+              hint: '注册时使用',
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('account-register-button'),
+                  onPressed: _submitting ? null : () => _submit(register: true),
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                  label: const Text('注册'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: Size.fromHeight(metrics.minTouchTarget),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingSm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const ValueKey('account-login-button'),
+                  onPressed: _submitting ? null : () => _submit(register: false),
+                  icon: const Icon(Icons.login_rounded, size: 18),
+                  label: const Text('登录'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: Size.fromHeight(metrics.minTouchTarget),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_message != null) ...[
+            const SizedBox(height: AppTheme.spacingSm),
+            Text(
+              key: const ValueKey('account-action-message'),
+              _message!,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ProfileSettingsSummary extends StatelessWidget {
   const _ProfileSettingsSummary({required this.profile, required this.loading});
 
@@ -902,8 +1117,8 @@ class _ProfileSettingsSummary extends StatelessWidget {
     final statusText = loading
         ? '正在读取真实设置'
         : profile.isFallback
-            ? '当前使用本机默认设置'
-            : '已连接个人设置';
+        ? '当前使用本机默认设置'
+        : '已连接个人设置';
     return GlassBox(
       opacity: 0.12,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -916,8 +1131,8 @@ class _ProfileSettingsSummary extends StatelessWidget {
                 loading
                     ? Icons.sync_rounded
                     : profile.isFallback
-                        ? Icons.cloud_off_rounded
-                        : Icons.verified_rounded,
+                    ? Icons.cloud_off_rounded
+                    : Icons.verified_rounded,
                 color: AppTheme.primary,
                 size: 20,
               ),
@@ -1689,6 +1904,7 @@ InputDecoration _revokeInputDecoration({
       borderRadius: BorderRadius.circular(AppTheme.radiusSm),
       borderSide: BorderSide(color: Colors.white.withOpacity(0.4)),
     ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
     isDense: true,
   );
 }

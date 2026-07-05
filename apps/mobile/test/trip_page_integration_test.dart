@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lanxin_travelmate/features/auth/data/auth_session_service.dart';
 import 'package:lanxin_travelmate/core/constants/avatar_states.dart';
 import 'package:lanxin_travelmate/data/agent_response_cache.dart';
 import 'package:lanxin_travelmate/features/chat/data/agent_chat_models.dart';
@@ -12,13 +13,16 @@ import 'package:lanxin_travelmate/features/trip/trip_page.dart';
 class StubTripDashboardService extends TripDashboardService {
   StubTripDashboardService() : super();
 
+  final List<String> requestedUserIds = [];
+
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
+    requestedUserIds.add(userId ?? 'guest');
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId ?? 'dashboard-trip',
       currentTrip: const {
         'tripId': 'dashboard-trip',
@@ -200,6 +204,48 @@ void main() {
     },
   );
 
+  testWidgets('TripPage hides generic alternative best-for filler text', (
+    tester,
+  ) async {
+    latestAgentResponse.value = const AgentChatResponse(
+      replyText: '规划完成',
+      voiceText: '规划完成',
+      avatarState: AvatarState.planning,
+      emotion: 'curious',
+      memoryCandidates: [],
+      toolTrace: [],
+      nextActions: [],
+      syncSuggestions: [],
+      errors: [],
+      cards: [
+        {
+          'type': 'tripPlan',
+          'payload': {
+            'title': '广州轻松两日线',
+            'destination': '广州',
+            'dateRange': '周末两天',
+            'profileMatches': [],
+            'days': [],
+            'risks': [],
+            'alternatives': [
+              {
+                'title': '雨天备选',
+                'summary': '把户外步行改成博物馆和茶馆。',
+                'bestFor': '',
+              },
+            ],
+          },
+        },
+      ],
+    );
+
+    await tester.pumpWidget(const MaterialApp(home: TripPage()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('雨天备选'), findsOneWidget);
+    expect(find.textContaining('适合：', skipOffstage: false), findsNothing);
+  });
+
   testWidgets('TripPage hides internal and meaningless planning text', (
     tester,
   ) async {
@@ -280,7 +326,7 @@ void main() {
     );
     expect(
       find.textContaining('天气变化或体力不足', skipOffstage: false),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -302,6 +348,65 @@ void main() {
       expect(find.textContaining('West Lake'), findsWidgets);
     },
   );
+
+  testWidgets('TripPage clears old agent plan and reloads for switched account', (
+    tester,
+  ) async {
+    final store = TestTripAuthSessionStore();
+    final auth = AuthSessionService(store: store);
+    await auth.debugSetSession(null);
+    final dashboardService = StubTripDashboardService();
+
+    latestAgentResponse.value = const AgentChatResponse(
+      replyText: '旧账号规划完成',
+      voiceText: '旧账号规划完成',
+      avatarState: AvatarState.planning,
+      emotion: 'curious',
+      memoryCandidates: [],
+      toolTrace: [],
+      nextActions: [],
+      syncSuggestions: [],
+      errors: [],
+      cards: [
+        {
+          'type': 'tripPlan',
+          'payload': {
+            'title': '旧账号北京行程',
+            'destination': '北京',
+            'dateRange': '周末',
+            'profileMatches': [],
+            'days': [],
+            'risks': [],
+          },
+        },
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TripPage(dashboardService: dashboardService),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('旧账号北京行程'), findsOneWidget);
+
+    await auth.debugSetSession(
+      const AuthSession(
+        userId: 'user-b',
+        displayName: '用户B',
+        authMode: 'password',
+        isGuest: false,
+        accessToken: 'token-b',
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('旧账号北京行程'), findsNothing);
+    expect(find.text('Hangzhou real dashboard plan'), findsOneWidget);
+    expect(dashboardService.requestedUserIds.last, 'user-b');
+  });
 
   testWidgets('TripPage creates a plan from user input', (tester) async {
     final planService = StubTripPlanService();
@@ -525,9 +630,24 @@ class EmptyTripDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
-    return TripDashboardPayload.fallback(userId: userId, tripId: tripId);
+    return TripDashboardPayload.fallback(userId: userId ?? 'guest', tripId: tripId);
+  }
+}
+
+class TestTripAuthSessionStore implements AuthSessionStore {
+  Map<String, dynamic>? value;
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<Map<String, dynamic>?> read() async => value;
+
+  @override
+  Future<void> write(Map<String, dynamic> json) async {
+    value = json;
   }
 }
