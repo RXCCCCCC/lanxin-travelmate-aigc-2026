@@ -35,6 +35,28 @@ def _planning_inputs(state: TravelMateState) -> dict[str, Any]:
     return planning_inputs if isinstance(planning_inputs, dict) else {}
 
 
+def _looks_like_date_fragment(text: str) -> bool:
+    candidate = text.strip()
+    if not candidate:
+        return False
+    if re.fullmatch(r"[0-9]{1,2}号", candidate):
+        return True
+    if re.fullmatch(r"[一二三四五六七八九十两]{1,3}号", candidate):
+        return True
+    if re.fullmatch(r"(?:[一二三四五六七八九十]|十[一二三四五六七八九]?|[0-9]{1,2})月", candidate):
+        return True
+    return False
+
+
+def _strip_planning_instruction_noise(text: str) -> str:
+    cleaned = text.strip()
+    cleaned = re.sub(r"^(?:帮我|请|麻烦你|给我|能不能|可以)?(?:规划|安排|定制|做|生成)", "", cleaned)
+    cleaned = re.sub(r"(?:行程|路线|旅游|旅行|游玩|攻略)$", "", cleaned)
+    cleaned = re.sub(r"(?:一|两|二|三|四|五|六|七|八|九|十|[0-9]{1,2})天.*$", "", cleaned)
+    cleaned = re.sub(r"(?:[一二三四五六七八九十两0-9]{1,3})号.*$", "", cleaned)
+    return cleaned.strip(" ，。,.!！？?：:")
+
+
 
 def _extract_destination_from_message(message: str) -> str | None:
     text = message.strip()
@@ -42,6 +64,7 @@ def _extract_destination_from_message(message: str) -> str | None:
         return None
 
     explicit_patterns = [
+        "^([\\u4e00-\\u9fffA-Za-z]{2,20})(?:行程|路线|旅行|旅游|攻略|周末游|轻松游|慢游|citywalk)",
         "\u76ee\u7684\u5730(?:\u662f|\u4e3a|:|\uff1a)?\\s*([\u4e00-\u9fffA-Za-z]{2,20})",
         "(?:\u89c4\u5212|\u5b89\u6392|\u5b9a\u5236)\\s*([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u884c\u7a0b|\u8def\u7ebf|\u65c5\u6e38|\u65c5\u884c|\u6e38\u73a9|\u653b\u7565|\u4e00\u5929|\u4e24\u5929|\u4e09\u5929|\u56db\u5929|\u4e94\u5929|\u5468\u672b|\uff0c|\u3002|,|\\.|!|\uff01|\\?|\uff1f|\\s|$)",
         "\u4e3a\\s*([\u4e00-\u9fffA-Za-z]{2,20}?)(?:\u89c4\u5212|\u5b89\u6392|\u5b9a\u5236)",
@@ -50,8 +73,8 @@ def _extract_destination_from_message(message: str) -> str | None:
     for pattern in explicit_patterns:
         match = re.search(pattern, text)
         if match:
-            destination = match.group(1).strip()
-            if len(destination) >= 2:
+            destination = _strip_planning_instruction_noise(match.group(1))
+            if len(destination) >= 2 and not _looks_like_date_fragment(destination):
                 return destination
 
     stop_tokens = [
@@ -83,8 +106,8 @@ def _extract_destination_from_message(message: str) -> str | None:
             token_index = candidate.find(token)
             if token_index >= 0:
                 end = min(end, token_index)
-        destination = candidate[:end].strip()
-        if len(destination) >= 2:
+        destination = _strip_planning_instruction_noise(candidate[:end])
+        if len(destination) >= 2 and not _looks_like_date_fragment(destination):
             return destination
     return None
 
@@ -527,6 +550,66 @@ def _validated_trip_plan(plan: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _tool_context_from_trace(tool_trace: list[dict[str, Any]]) -> dict[str, Any]:
+    context: dict[str, Any] = {"weather": None, "pois": [], "route": None}
+    for trace_item in tool_trace:
+        output = trace_item.get("output") if isinstance(trace_item, dict) else None
+        if not isinstance(output, dict):
+            continue
+        tool_name = trace_item.get("tool")
+        if tool_name == "weather_tool":
+            context["weather"] = {
+                "city": output.get("city"),
+                "condition": output.get("condition"),
+                "temperatureC": output.get("temperatureC"),
+                "warnings": output.get("warnings") or [],
+                "travelHint": output.get("travelHint"),
+                "sourceTime": output.get("sourceTime"),
+            }
+        elif tool_name == "poi_tool":
+            context["pois"] = [item for item in (output.get("items") or []) if isinstance(item, dict)]
+        elif tool_name == "route_tool":
+            context["route"] = {
+                "mode": output.get("mode"),
+                "durationMinutes": output.get("durationMinutes"),
+                "distanceMeters": output.get("distanceMeters"),
+                "transfers": output.get("transfers") or [],
+                "costEstimate": output.get("costEstimate") or {},
+                "congestionSegments": output.get("congestionSegments") or [],
+                "trafficLights": output.get("trafficLights"),
+            }
+    return context
+
+
+def _merge_trip_plan_tool_context(plan: dict[str, Any], state: TravelMateState) -> dict[str, Any]:
+    merged = dict(plan)
+    tool_context = _tool_context_from_trace(state.get("tool_trace", []))
+    merged["externalContext"] = tool_context
+
+    profile_matches = list(merged.get("profileMatches") or [])
+    pois = tool_context.get("pois") or []
+    if pois:
+        poi = pois[0]
+        opening_hours = poi.get("openingHours")
+        name = poi.get("name") or "POI"
+        if opening_hours and not any(str(opening_hours) in str(item) for item in profile_matches):
+            profile_matches.append(f"已参考 {name} 营业时间 {opening_hours}。")
+    merged["profileMatches"] = profile_matches
+
+    risks = list(merged.get("risks") or [])
+    weather = tool_context.get("weather") or {}
+    travel_hint = weather.get("travelHint")
+    if travel_hint and not any(str(travel_hint) in str(item) for item in risks):
+        risks.append(f"天气提示：{travel_hint}")
+    route = tool_context.get("route") or {}
+    duration_minutes = route.get("durationMinutes")
+    if duration_minutes and not any(str(duration_minutes) in str(item) for item in risks):
+        risks.append(f"当前路线预计 {duration_minutes} 分钟，出行中可按体力切换备选方案。")
+    merged["risks"] = risks
+
+    return merged
+
+
 def _enforce_requested_destination(plan: dict[str, Any], state: TravelMateState) -> dict[str, Any]:
     requested = str(state.get("trip_context", {}).get("destination") or _extract_trip_destination(state)).strip()
     if not requested or requested == "\u5f85\u786e\u8ba4\u76ee\u7684\u5730":
@@ -573,13 +656,19 @@ def trip_planner(state: TravelMateState) -> TravelMateState:
             })
             raise ModelProviderError("模型返回结构暂未映射为 TripPlan。")
         next_state["trip_plan"] = _enforce_requested_destination(
-            _validated_trip_plan(_normalize_trip_plan_payload(plan, next_state)),
+            _merge_trip_plan_tool_context(
+                _validated_trip_plan(_normalize_trip_plan_payload(plan, next_state)),
+                next_state,
+            ),
             next_state,
         )
         timer.finish(fallback=False)
     except ValidationError as exc:
         fallback_provider = MockModelProvider()
-        next_state["trip_plan"] = fallback_provider.plan_trip(next_state)
+        next_state["trip_plan"] = _enforce_requested_destination(
+            fallback_provider.plan_trip(next_state),
+            next_state,
+        )
         timer.finish(fallback=True, error=str(exc))
         next_state.setdefault("model_call_logs", []).extend(record.__dict__ for record in logger.records)
         next_state.setdefault("tool_trace", []).append({
@@ -593,7 +682,10 @@ def trip_planner(state: TravelMateState) -> TravelMateState:
         return next_state
     except ModelProviderError as exc:
         fallback_provider = MockModelProvider()
-        next_state["trip_plan"] = fallback_provider.plan_trip(next_state)
+        next_state["trip_plan"] = _enforce_requested_destination(
+            fallback_provider.plan_trip(next_state),
+            next_state,
+        )
         timer.finish(fallback=True, error=str(exc))
         next_state.setdefault("model_call_logs", []).extend(record.__dict__ for record in logger.records)
         next_state.setdefault("tool_trace", []).append({
@@ -889,8 +981,13 @@ def fast_chat_response(state: TravelMateState) -> TravelMateState:
     reply = "我在，刚刚这句已经收到。你可以直接告诉我目的地、时间、同行人或想避开的点，我会用更轻的链路先快速回应你。"
     if any(keyword in text for keyword in ("你好", "在吗", "蓝小心", "小心")):
         reply = "我在呢。刚才如果一直没回应，多半是旧版聊天链路太重；现在普通聊天会先走快速回复。"
+    elif text and next_state["memory_candidates"]:
+        reply = (
+            f"收到：{text}。这句话里有可以保存的旅行偏好，"
+            "你点下方“确认记忆胶囊”后，我才会真正记入画像。"
+        )
     elif text:
-        reply = f"收到：{text}。我先记下你的想法，需要我继续规划路线、调整节奏或整理复盘时，直接告诉我就行。"
+        reply = f"收到：{text}。需要我继续规划路线、调整节奏或整理复盘时，直接告诉我就行。"
     next_state["response"] = {
         "replyText": reply,
         "voiceText": reply,

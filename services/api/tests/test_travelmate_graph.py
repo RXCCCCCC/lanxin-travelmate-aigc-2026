@@ -89,6 +89,17 @@ def test_trip_context_builder_extracts_destination_from_plan_phrase():
     assert result["trip_context"]["destination"] == "\u5e7f\u5dde"
 
 
+def test_trip_context_builder_does_not_treat_date_phrase_as_destination():
+    state = create_initial_state(
+        message="广州行程，七月四号到八号，轻松游",
+    )
+    normalized = real_nodes.input_normalizer(state)
+
+    result = real_nodes.trip_context_builder(normalized)
+
+    assert result["trip_context"]["destination"] == "广州"
+
+
 def test_trip_planner_keeps_requested_destination_when_model_drifts(monkeypatch):
     class DriftProvider:
         def plan_trip(self, state):
@@ -103,6 +114,36 @@ def test_trip_planner_keeps_requested_destination_when_model_drifts(monkeypatch)
 
     monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: DriftProvider())
     state = create_initial_state(message="规划广州行程，不想太累")
+    normalized = real_nodes.input_normalizer(state)
+    with_context = real_nodes.trip_context_builder(normalized)
+
+    result = real_nodes.trip_planner(with_context)
+
+    assert result["trip_context"]["destination"] == "广州"
+    assert result["trip_plan"]["destination"] == "广州"
+    assert "北京" not in result["trip_plan"]["title"]
+    assert "北京" not in result["trip_plan"]["summary"]
+
+
+def test_trip_planner_keeps_requested_destination_when_fallback_provider_is_used(monkeypatch):
+    class ErrorPlanProvider:
+        def plan_trip(self, state):
+            raise real_nodes.ModelProviderError("upstream unavailable")
+
+    class DriftFallbackProvider:
+        def plan_trip(self, state):
+            return {
+                "title": "北京两天轻松行程",
+                "destination": "北京",
+                "summary": "围绕北京生成的降级行程。",
+                "profileMatches": [],
+                "risks": [],
+                "alternatives": [],
+            }
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: ErrorPlanProvider())
+    monkeypatch.setattr(real_nodes, "MockModelProvider", DriftFallbackProvider)
+    state = create_initial_state(message="帮我规划广州两天行程")
     normalized = real_nodes.input_normalizer(state)
     with_context = real_nodes.trip_context_builder(normalized)
 

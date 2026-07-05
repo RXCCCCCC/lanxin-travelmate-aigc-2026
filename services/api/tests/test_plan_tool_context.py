@@ -75,3 +75,19 @@ def test_trip_plan_includes_real_tool_context(monkeypatch):
     assert route_payload["mode"] == "transit"
     assert any("10:00-23:00" in item for item in plan["profileMatches"])
     assert any("35" in item for item in plan["risks"])
+
+
+def test_trip_plan_tools_keep_city_when_message_contains_date_range(monkeypatch):
+    registry = FakeRegistry()
+    monkeypatch.setattr(real_nodes, "build_tool_registry", lambda: registry)
+    state = create_initial_state(
+        message="广州行程，七月四号到八号，轻松游",
+        session_id="tool-date-city-session",
+    )
+
+    TravelMateGraph().invoke(state)
+
+    weather_payload = next(payload for name, payload in registry.calls if name == "weather_tool")
+    poi_payload = next(payload for name, payload in registry.calls if name == "poi_tool")
+    assert weather_payload["city"] == "广州"
+    assert poi_payload["city"] == "广州"

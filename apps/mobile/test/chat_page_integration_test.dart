@@ -100,6 +100,33 @@ class ThrowingAgentChatService extends AgentChatService {
   }
 }
 
+class EmptyMemoryAgentChatService extends AgentChatService {
+  EmptyMemoryAgentChatService() : super(dio: Dio());
+
+  @override
+  Future<AgentChatResponse> sendMessage(
+    String message, {
+    String? sessionId,
+    String? userId,
+    String? tripId,
+    Map<String, dynamic>? context,
+    CancelToken? cancelToken,
+  }) async {
+    return const AgentChatResponse(
+      replyText: '收到，我先记下你的想法。',
+      voiceText: '收到，我先记下你的想法。',
+      avatarState: AvatarState.hello,
+      emotion: 'warm',
+      cards: [],
+      memoryCandidates: [],
+      toolTrace: [],
+      nextActions: [],
+      syncSuggestions: [],
+      errors: [],
+    );
+  }
+}
+
 void main() {
   late AppDatabase database;
   late MemoryRepository memoryRepository;
@@ -137,6 +164,33 @@ void main() {
     expect(find.text('周末想去重庆两天，不吃香菜'), findsOneWidget);
     expect(find.textContaining('洪崖洞夜景', skipOffstage: false), findsOneWidget);
     expect(find.text('发现 1 条记忆候选', skipOffstage: false), findsOneWidget);
+  });
+
+  testWidgets('ChatPage shows local memory confirmation for obvious preference', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          agentChatService: EmptyMemoryAgentChatService(),
+          memoryRepository: memoryRepository,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '我不吃香菜');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('发现 1 条记忆候选', skipOffstage: false), findsOneWidget);
+    expect(find.text('确认记忆胶囊', skipOffstage: false), findsOneWidget);
+
+    await tester.tap(find.text('确认记忆胶囊'));
+    await tester.pumpAndSettle();
+
+    final memories = await memoryRepository.listMemories();
+    expect(memories.single.title, '不吃香菜');
+    expect(find.text('已保存 1 条记忆胶囊', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('ChatPage displays memory conflict suggestion', (tester) async {

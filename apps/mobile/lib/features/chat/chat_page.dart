@@ -12,7 +12,6 @@ import '../../data/repositories/memory_repository.dart';
 import '../../shared/widgets/chat_bubble.dart';
 import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
-import '../auth/data/auth_session_service.dart';
 import 'data/agent_chat_models.dart';
 import 'data/agent_chat_service.dart';
 import 'data/chat_history_service.dart';
@@ -55,7 +54,6 @@ class _ChatPageState extends State<ChatPage> {
   late final MemoryRepository _memoryRepository;
   late final VoiceInteractionService _voiceInteractionService;
   late final ChatHistoryService _chatHistoryService;
-  late final AuthSessionService _authSessionService;
   late final AppDatabase _historyDatabase;
   AppDatabase? _ownedDatabase;
   List<MemoryCandidate> _pendingMemoryCandidates = [];
@@ -74,7 +72,6 @@ class _ChatPageState extends State<ChatPage> {
     _sessionId = widget.sessionId ?? 'chat-session-$now';
     _tripId = widget.tripId ?? 'chat-trip-$now';
     _agentChatService = widget.agentChatService ?? AgentChatService();
-    _authSessionService = AuthSessionService();
     _voiceInteractionService =
         widget.voiceInteractionService ?? VoiceInteractionService();
     if (widget.memoryRepository == null) {
@@ -146,7 +143,6 @@ class _ChatPageState extends State<ChatPage> {
       response = await _agentChatService.sendMessage(
         text,
         sessionId: _sessionId,
-        userId: (await _authSessionService.currentSession())?.userId,
         tripId: _tripId,
       );
     } catch (_) {

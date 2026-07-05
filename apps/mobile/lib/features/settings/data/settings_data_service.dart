@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../auth/data/auth_session_service.dart';
 
 class PrivacyPermissionInfo {
   const PrivacyPermissionInfo({
@@ -170,10 +171,41 @@ class SyncPushResult {
   factory SyncPushResult.offline() => const SyncPushResult(status: 'offline');
 }
 
-class SettingsDataService {
-  SettingsDataService({Dio? dio}) : _dio = dio ?? buildApiClient();
+class AccountActionResult {
+  const AccountActionResult({
+    required this.status,
+    this.session,
+    this.message,
+  });
 
-  final Dio _dio;
+  final String status;
+  final AuthSession? session;
+  final String? message;
+
+  bool get ok => status == 'ok' && session != null;
+
+  factory AccountActionResult.offline() {
+    return const AccountActionResult(
+      status: 'offline',
+      message: '账号服务暂时不可用，请确认后端连接后重试',
+    );
+  }
+
+  factory AccountActionResult.failed(String message) {
+    return AccountActionResult(status: 'failed', message: message);
+  }
+}
+
+class SettingsDataService {
+  SettingsDataService({Dio? dio, AuthSessionService? authSession})
+      : _authSession = authSession ?? AuthSessionService() {
+    _dio = dio ?? buildApiClient(authSession: _authSession);
+  }
+
+  late final Dio _dio;
+  final AuthSessionService _authSession;
+
+  Future<AuthSession?> readCurrentSession() => _authSession.currentSession();
 
   Future<PrivacySummaryPayload> fetchPrivacySummary() async {
     try {
@@ -266,6 +298,60 @@ class SettingsDataService {
     return SyncPushResult.offline();
   }
 
+  Future<AccountActionResult> upgradeGuestAccount({
+    required String account,
+    required String password,
+    required String displayName,
+  }) async {
+    try {
+      final session = await _authSession.upgradeGuest(
+        _dio,
+        account: account,
+        password: password,
+        displayName: displayName,
+      );
+      return AccountActionResult(status: 'ok', session: session);
+    } on DioException catch (error) {
+      return AccountActionResult.failed(_authErrorMessage(error));
+    }
+  }
+
+  Future<AccountActionResult> registerPasswordAccount({
+    required String account,
+    required String password,
+    required String displayName,
+  }) async {
+    try {
+      final session = await _authSession.register(
+        _dio,
+        account: account,
+        password: password,
+        displayName: displayName,
+      );
+      return AccountActionResult(status: 'ok', session: session);
+    } on DioException catch (error) {
+      return AccountActionResult.failed(_authErrorMessage(error));
+    }
+  }
+
+  Future<AccountActionResult> loginPasswordAccount({
+    required String account,
+    required String password,
+  }) async {
+    try {
+      final session = await _authSession.login(
+        _dio,
+        account: account,
+        password: password,
+      );
+      return AccountActionResult(status: 'ok', session: session);
+    } on DioException catch (error) {
+      return AccountActionResult.failed(_authErrorMessage(error));
+    }
+  }
+
+  Future<void> logout() => _authSession.logout();
+
   Future<DataActionResult> _deleteCount(
     String path, {
     required String userId,
@@ -284,6 +370,14 @@ class SettingsDataService {
       return const DataActionResult(status: 'offline');
     }
   }
+}
+
+String _authErrorMessage(DioException error) {
+  final status = error.response?.statusCode;
+  if (status == 401) return '账号或密码不正确';
+  if (status == 409) return '账号已存在，请直接登录或换一个用户名';
+  if (status == null) return '账号服务暂时不可用，请确认后端连接后重试';
+  return '账号操作失败（$status），请稍后重试';
 }
 
 List<String> _stringList(Object? value) {

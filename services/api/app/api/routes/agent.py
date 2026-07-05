@@ -11,6 +11,7 @@ from app.db.models import CloudUserProfile
 from app.db.session import get_session
 from app.schemas.agent import AgentChatRequest, AgentChatResponse
 from app.services.model_audit import persist_model_call_logs
+from app.services.trip_plan_formatter import sanitize_trip_plan_for_client
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -86,15 +87,15 @@ def _build_plan_chat_reply(plan: dict[str, object]) -> str:
             "适合在天气变化、排队拥挤或体力不足时切换。",
         )
 
-    parts = [f"我先为{destination}整理了一版行程。"]
+    parts = [f"蓝小心先替你把{destination}这趟行程捋顺了。"]
     if title:
-        parts.append(f"主线是{title}。")
+        parts.append(f"主线我先定成{title}。")
     if summary:
         parts.append(summary)
     if alternative_title or alternative_summary:
         alternative = "：".join(part for part in (alternative_title, alternative_summary) if part)
-        parts.append(f"备选方案我也准备了，{alternative}")
-    parts.append("你可以继续告诉我预算、节奏、同行人或不想去的点，我会直接在这版上改。")
+        parts.append(f"我还顺手备了一条可切换方案，{alternative}")
+    parts.append("你继续告诉我预算、节奏、同行人，或者哪类地方坚决不去，我就直接贴着你的偏好往下改。")
     return "".join(parts)
 
 
@@ -120,7 +121,11 @@ def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict
     if any(keyword in normalized_message for keyword in ("plan", "route", "itinerary", "destination", "weekend")):
         result = graph.invoke_plan_only(state)
         memory_candidates = build_rule_memory_candidates(message)
-        trip_plan = result.get("trip_plan", {})
+        trip_plan = sanitize_trip_plan_for_client(
+            result.get("trip_plan", {}) if isinstance(result.get("trip_plan"), dict) else {},
+            requested_destination=str(result.get("trip_context", {}).get("destination") or ""),
+            message=message,
+        )
         reply = _build_plan_chat_reply(trip_plan if isinstance(trip_plan, dict) else {})
         result["response"] = {
             "replyText": reply,
@@ -140,7 +145,11 @@ def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict
     ):
         result = graph.invoke_plan_only(state)
         memory_candidates = build_rule_memory_candidates(message)
-        trip_plan = result.get("trip_plan", {})
+        trip_plan = sanitize_trip_plan_for_client(
+            result.get("trip_plan", {}) if isinstance(result.get("trip_plan"), dict) else {},
+            requested_destination=str(result.get("trip_context", {}).get("destination") or ""),
+            message=message,
+        )
         reply = _build_plan_chat_reply(trip_plan if isinstance(trip_plan, dict) else {})
         result["response"] = {
             "replyText": reply,
