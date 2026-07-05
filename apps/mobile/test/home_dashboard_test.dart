@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lanxin_travelmate/features/auth/data/auth_session_service.dart';
+import 'package:lanxin_travelmate/features/chat/data/voice_interaction_service.dart';
 import 'package:lanxin_travelmate/features/home/home_page.dart';
 import 'package:lanxin_travelmate/features/trip/data/trip_dashboard_service.dart';
 
@@ -64,11 +65,36 @@ class TestAuthSessionStore implements AuthSessionStore {
   }
 }
 
+class StubVoiceInteractionService extends VoiceInteractionService {
+  StubVoiceInteractionService(this.text);
+
+  final String? text;
+  int startCalls = 0;
+  int stopCalls = 0;
+  bool _isListening = false;
+
+  @override
+  Future<bool> startListening() async {
+    startCalls += 1;
+    _isListening = true;
+    return true;
+  }
+
+  @override
+  Future<String?> stopListening() async {
+    stopCalls += 1;
+    if (!_isListening) return null;
+    _isListening = false;
+    return text;
+  }
+}
+
 void main() {
   Widget buildRoutedHome({
     required Widget chatPage,
     TripDashboardService? dashboardService,
     AuthSessionService? authSessionService,
+    VoiceInteractionService? voiceInteractionService,
   }) {
     final router = GoRouter(
       routes: [
@@ -78,6 +104,7 @@ void main() {
               HomePage(
                 dashboardService: dashboardService ?? StubHomeDashboardService(),
                 authSessionService: authSessionService,
+                voiceInteractionService: voiceInteractionService,
               ),
         ),
         GoRoute(path: '/chat', builder: (_, __) => chatPage),
@@ -189,5 +216,45 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1000));
 
     expect(dashboardService.requestedUserIds.last, 'user-a');
+  });
+
+  testWidgets('HomePage microphone fills recognized speech into input', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final voiceService = StubVoiceInteractionService('帮我规划广州三天');
+
+    await tester.pumpWidget(
+      buildRoutedHome(
+        chatPage: const Text('蓝小心纯净模式'),
+        voiceInteractionService: voiceService,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // First tap: start recording
+    await tester.tap(find.byTooltip('语音输入'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(voiceService.startCalls, 1);
+    expect(find.text('正在听你说话，点击麦克风结束'), findsOneWidget);
+
+    // Second tap: stop recording and fill text
+    await tester.tap(find.byTooltip('语音输入'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(voiceService.stopCalls, 1);
+    expect(find.text('帮我规划广州三天'), findsOneWidget);
+    expect(find.text('已填入语音识别文本，可编辑后发送'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
   });
 }

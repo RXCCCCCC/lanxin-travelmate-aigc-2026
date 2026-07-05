@@ -210,13 +210,34 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _listenAndFillInput() async {
-    if (_isListening || _isSending) return;
+    if (_isSending) return;
+
+    if (_isListening) {
+      await _stopAndFillInput();
+      return;
+    }
+
+    final ok = await _voiceInteractionService.startListening();
+    if (!mounted) return;
+    if (!ok) {
+      setState(() {
+        _voiceNotice = _voiceInteractionService.lastFailureMessage ??
+            '无法启动麦克风，请确认权限';
+      });
+      return;
+    }
     setState(() {
       _isListening = true;
-      _voiceNotice = null;
+      _voiceNotice = '正在听你说话，点击麦克风结束';
     });
-    final text = await _voiceInteractionService.listenOnce();
+  }
+
+  Future<void> _stopAndFillInput() async {
+    setState(() => _voiceNotice = '正在识别中...');
+
+    final text = await _voiceInteractionService.stopListening();
     if (!mounted) return;
+
     setState(() {
       _isListening = false;
       if (text == null || text.isEmpty) {

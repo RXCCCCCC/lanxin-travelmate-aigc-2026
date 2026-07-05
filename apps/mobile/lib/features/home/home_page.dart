@@ -11,6 +11,7 @@ import '../../shared/models/travelmate_models.dart';
 import '../../shared/widgets/glass_box.dart';
 import '../auth/data/auth_session_service.dart';
 import '../chat/data/chat_history_service.dart';
+import '../chat/data/voice_interaction_service.dart';
 import '../chat/widgets/trip_chat_history_sheet.dart';
 import 'data/home_chat_controller.dart';
 import 'data/home_weather_service.dart';
@@ -24,10 +25,12 @@ class HomePage extends StatefulWidget {
     super.key,
     this.dashboardService,
     this.authSessionService,
+    this.voiceInteractionService,
   });
 
   final TripDashboardService? dashboardService;
   final AuthSessionService? authSessionService;
+  final VoiceInteractionService? voiceInteractionService;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -45,6 +48,7 @@ class _HomePageState extends State<HomePage>
   late final HomeWeatherService _weatherService;
   late final AuthSessionService _authSessionService;
   late final HomeChatController _homeChatController;
+  late final VoiceInteractionService _voiceInteractionService;
   final _chatController = TextEditingController();
   final _chatFocusNode = FocusNode();
   final _panelScrollController = ScrollController();
@@ -54,6 +58,8 @@ class _HomePageState extends State<HomePage>
   bool _showHeroAvatar = false;
   bool _isPureMode = false;
   bool _statusExpanded = false;
+  bool _isListening = false;
+  String? _voiceNotice;
   double _panelHeightRatio = 0.30;
   int _dashboardRequestToken = 0;
 
@@ -65,6 +71,8 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(milliseconds: 3400),
     )..repeat(reverse: true);
     _authSessionService = widget.authSessionService ?? AuthSessionService();
+    _voiceInteractionService =
+        widget.voiceInteractionService ?? VoiceInteractionService();
     _homeChatController = HomeChatController(
       authSessionService: _authSessionService,
       chatHistoryService: _homeHistoryService,
@@ -158,6 +166,49 @@ class _HomePageState extends State<HomePage>
     _chatController.clear();
     await _homeChatController.send(text);
     _scrollPanelToBottom();
+  }
+
+  Future<void> _listenAndFillHomeInput() async {
+    if (_homeChatController.isSending) return;
+
+    if (_isListening) {
+      await _stopAndProcessVoice();
+      return;
+    }
+
+    final ok = await _voiceInteractionService.startListening();
+    if (!mounted) return;
+    if (!ok) {
+      setState(() {
+        _voiceNotice = _voiceInteractionService.lastFailureMessage ??
+            '无法启动麦克风，请确认权限';
+      });
+      return;
+    }
+    setState(() {
+      _isListening = true;
+      _voiceNotice = '正在听你说话，点击麦克风结束';
+    });
+  }
+
+  Future<void> _stopAndProcessVoice() async {
+    setState(() => _voiceNotice = '正在识别中...');
+
+    final text = await _voiceInteractionService.stopListening();
+    if (!mounted) return;
+
+    setState(() {
+      _isListening = false;
+      if (text == null || text.isEmpty) {
+        _voiceNotice =
+            _voiceInteractionService.lastFailureMessage ??
+            '未识别到语音内容，请确认麦克风权限或使用文字输入';
+        return;
+      }
+      _chatController.text = text;
+      _chatController.selection = TextSelection.collapsed(offset: text.length);
+      _voiceNotice = '已填入语音识别文本，可编辑后发送';
+    });
   }
 
   Future<void> _showChatHistorySheet() async {
@@ -443,9 +494,12 @@ class _HomePageState extends State<HomePage>
                     queuedMessage: _homeChatController.queuedMessage,
                     memoryCandidateCount:
                         _homeChatController.memoryCandidateCount,
+                    isListening: _isListening,
+                    voiceNotice: _voiceNotice,
                     onSend: _sendHomeMessage,
                     onStop: () => _homeChatController.stop(),
                     onFocusInput: () => _chatFocusNode.requestFocus(),
+                    onVoiceInput: _listenAndFillHomeInput,
                     onResize: (delta) => _resizeChatPanel(delta, h),
                     onOpenTrip: () => context.go('/trip'),
                     onOpenMemory: () => context.go('/memory'),
@@ -1083,9 +1137,12 @@ class _ChatGlassPanel extends StatelessWidget {
     required this.isSending,
     required this.queuedMessage,
     required this.memoryCandidateCount,
+    required this.isListening,
+    required this.voiceNotice,
     required this.onSend,
     required this.onStop,
     required this.onFocusInput,
+    required this.onVoiceInput,
     required this.onResize,
     required this.onOpenTrip,
     required this.onOpenMemory,
@@ -1099,9 +1156,12 @@ class _ChatGlassPanel extends StatelessWidget {
   final bool isSending;
   final String? queuedMessage;
   final int memoryCandidateCount;
+  final bool isListening;
+  final String? voiceNotice;
   final VoidCallback onSend;
   final VoidCallback onStop;
   final VoidCallback onFocusInput;
+  final VoidCallback onVoiceInput;
   final ValueChanged<double> onResize;
   final VoidCallback onOpenTrip;
   final VoidCallback onOpenMemory;
@@ -1179,63 +1239,102 @@ class _ChatGlassPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 3),
-          GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: onFocusInput,
-            child: GlassBox(
-              borderRadius: BorderRadius.circular(22),
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
-              opacity: 0.12,
-              blur: 16,
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.mic_rounded,
-                    color: Color(0xFF5F8FBF),
-                    size: 21,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      minLines: 1,
-                      maxLines: 2,
-                      textInputAction: TextInputAction.send,
-                      onTap: onFocusInput,
-                      onSubmitted: (_) => onSend(),
-                      style: const TextStyle(
-                        color: Color(0xFF06224E),
-                        fontSize: 14,
-                        height: 1.25,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: isSending ? '可继续补充信息...' : '在首页直接告诉蓝小心...',
-                        hintStyle: const TextStyle(
-                          color: Color(0xFF7B98B8),
-                          fontSize: 13,
+          GlassBox(
+            borderRadius: BorderRadius.circular(22),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
+            opacity: 0.12,
+            blur: 16,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Tooltip(
+                        message: '语音输入',
+                        child: IconButton(
+                          onPressed: onVoiceInput,
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            isListening
+                                ? Icons.more_horiz_rounded
+                                : Icons.mic_rounded,
+                            color: const Color(0xFF5F8FBF),
+                            size: 21,
+                          ),
                         ),
-                        border: InputBorder.none,
-                        isDense: true,
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: IconButton(
-                      onPressed: onSend,
-                      tooltip: isSending ? '追加信息' : '发送',
-                      padding: EdgeInsets.zero,
-                      icon: Icon(
-                        isSending ? Icons.add_rounded : Icons.send_rounded,
-                        color: const Color(0xFF215ECA),
-                        size: 21,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        minLines: 1,
+                        maxLines: 2,
+                        textInputAction: TextInputAction.send,
+                        onTap: onFocusInput,
+                        onSubmitted: (_) => onSend(),
+                        style: const TextStyle(
+                          color: Color(0xFF06224E),
+                          fontSize: 14,
+                          height: 1.25,
+                        ),
+                        decoration: InputDecoration(
+                          hintText:
+                              isSending ? '可继续补充信息...' : '在首页直接告诉蓝小心...',
+                          hintStyle: const TextStyle(
+                            color: Color(0xFF7B98B8),
+                            fontSize: 13,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
                       ),
                     ),
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: IconButton(
+                        onPressed: onSend,
+                        tooltip: isSending ? '追加信息' : '发送',
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          isSending ? Icons.add_rounded : Icons.send_rounded,
+                          color: const Color(0xFF215ECA),
+                          size: 21,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (voiceNotice != null) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.volume_up_rounded,
+                        size: 14,
+                        color: Color(0xFF5F8FBF),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          voiceNotice!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF5F7EA8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
+              ],
             ),
           ),
           if (isSending) ...[

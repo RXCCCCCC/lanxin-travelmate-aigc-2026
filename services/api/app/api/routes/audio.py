@@ -1,12 +1,13 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import ToolCallLog, utc_now
 from app.db.session import get_session
+from app.services.asr_client import VivoAsrClient, VivoAsrError
 from app.tools.registry import build_mock_tool_registry
 
 
@@ -94,3 +95,61 @@ def synthesize_speech(
         "fallbackReason": "真实 TTS 尚未配置；当前仅返回待播报文本，端侧可用系统 TTS 或文字模式降级。",
         "toolTraceId": trace_id,
     }
+
+
+class PcmRecognizeRequest(BaseModel):
+    audio_base64: str = Field(min_length=1)
+    userId: str = "guest"
+
+
+@router.post("/asr/recognize")
+async def recognize_voice(
+    payload: PcmRecognizeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    import base64
+
+    effective_user_id = resolve_effective_user_id(payload.userId, current_user)
+
+    try:
+        pcm_bytes = base64.b64decode(payload.audio_base64)
+    except Exception:
+        return {
+            "userId": effective_user_id,
+            "text": "",
+            "provider": "fallback",
+            "fallback": True,
+            "fallbackReason": "音频数据解码失败",
+        }
+
+    if len(pcm_bytes) < 640:
+        return {
+            "userId": effective_user_id,
+            "text": "",
+            "provider": "fallback",
+            "fallback": True,
+            "fallbackReason": "音频数据过短，无法识别",
+        }
+
+    try:
+        client = VivoAsrClient()
+        text = await client.recognize(pcm_bytes)
+        trace_id = _log_tool_call(session, effective_user_id, "asr_tool", "vivo", False)
+        return {
+            "userId": effective_user_id,
+            "text": text,
+            "provider": "vivo",
+            "fallback": False,
+            "toolTraceId": trace_id,
+        }
+    except VivoAsrError as exc:
+        trace_id = _log_tool_call(session, effective_user_id, "asr_tool", "fallback", True)
+        return {
+            "userId": effective_user_id,
+            "text": "",
+            "provider": "fallback",
+            "fallback": True,
+            "fallbackReason": f"vivo ASR 错误: {exc}",
+            "toolTraceId": trace_id,
+        }

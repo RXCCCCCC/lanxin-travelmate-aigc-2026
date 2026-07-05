@@ -978,16 +978,44 @@ def fast_chat_response(state: TravelMateState) -> TravelMateState:
         {"type": "openTripPlan", "label": "需要时我可以继续帮你生成行程"},
         {"type": "openReview", "label": "旅行结束后我可以帮你复盘"},
     ]
-    reply = "我在，刚刚这句已经收到。你可以直接告诉我目的地、时间、同行人或想避开的点，我会用更轻的链路先快速回应你。"
-    if any(keyword in text for keyword in ("你好", "在吗", "蓝小心", "小心")):
-        reply = "我在呢。刚才如果一直没回应，多半是旧版聊天链路太重；现在普通聊天会先走快速回复。"
-    elif text and next_state["memory_candidates"]:
-        reply = (
-            f"收到：{text}。这句话里有可以保存的旅行偏好，"
-            "你点下方“确认记忆胶囊”后，我才会真正记入画像。"
-        )
+
+    is_greeting = any(keyword in text for keyword in ("你好", "在吗", "蓝小心", "小心"))
+    if is_greeting:
+        reply = "我在呢。告诉我目的地、时间和偏好，我就能帮你规划行程。"
     elif text:
-        reply = f"收到：{text}。需要我继续规划路线、调整节奏或整理复盘时，直接告诉我就行。"
+        try:
+            chat_result = _model_chat_response(next_state)
+            reply = chat_result.get("replyText") or f"收到：{text}。我来帮你看看。"
+            next_state["avatar_state"] = chat_result.get("avatarState", "hello")
+            next_state["emotion"] = chat_result.get("emotion", "warm")
+            next_state["memory_candidates"] = _merge_memory_candidates(
+                chat_result.get("memoryCandidates", []),
+                next_state.get("memory_candidates", []),
+            )
+            tool_trace = list(next_state.get("tool_trace", [])) + list(
+                chat_result.get("toolTrace") or []
+            )
+            tool_trace.append({"tool": "chat_with_llm", "fallback": False})
+            next_state["tool_trace"] = tool_trace
+            next_state["response"] = {
+                "replyText": reply,
+                "voiceText": reply,
+                "avatarState": next_state["avatar_state"],
+                "emotion": next_state["emotion"],
+                "cards": chat_result.get("cards") or [],
+                "memoryCandidates": next_state["memory_candidates"],
+                "toolTrace": next_state["tool_trace"],
+                "nextActions": chat_result.get("nextActions")
+                or next_state["next_actions"],
+                "syncSuggestions": chat_result.get("syncSuggestions")
+                or next_state.get("sync_suggestions", []),
+                "errors": chat_result.get("errors") or next_state.get("errors", []),
+            }
+            return next_state
+        except Exception:
+            reply = f"收到：{text}。我暂时连不上模型服务，稍后再试。"
+
+    reply = reply if text else "我在，告诉我目的地、时间和偏好吧。"
     next_state["response"] = {
         "replyText": reply,
         "voiceText": reply,
@@ -997,8 +1025,8 @@ def fast_chat_response(state: TravelMateState) -> TravelMateState:
         "memoryCandidates": next_state["memory_candidates"],
         "toolTrace": [{"tool": "chat_only", "fallback": False}],
         "nextActions": next_state["next_actions"],
-        "syncSuggestions": next_state["sync_suggestions"],
-        "errors": next_state["errors"],
+        "syncSuggestions": next_state.get("sync_suggestions", []),
+        "errors": next_state.get("errors", []),
     }
     return next_state
 

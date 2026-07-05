@@ -14,13 +14,18 @@ import android.graphics.BitmapFactory
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import android.util.Base64
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -48,6 +53,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private var pendingCameraPermissionResult: MethodChannel.Result? = null
     private var pendingLocationResult: MethodChannel.Result? = null
     private var pendingVoiceResult: MethodChannel.Result? = null
+    private var pendingVoiceIsPcm = false
     private var pendingNotificationResult: MethodChannel.Result? = null
     private var pendingNotificationPayload: Map<String, String>? = null
     private var pendingLocationListener: LocationListener? = null
@@ -55,6 +61,11 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var nextNotificationId = 5100
+    private var pcmRecorder: AudioRecord? = null
+    private var pcmRecordThread: HandlerThread? = null
+    private var pcmRecordHandler: Handler? = null
+    private var pcmBuffer = ByteArrayOutputStream()
+    private var isPcmRecording = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -76,6 +87,8 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, voiceChannelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startVoiceInput" -> startVoiceInput(result)
+                "startPcmRecording" -> startPcmRecording(result)
+                "stopPcmRecording" -> stopPcmRecording(result)
                 "speakText" -> speakText(call.argument<String>("text") ?: "", result)
                 else -> result.notImplemented()
             }
@@ -133,6 +146,94 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             pendingVoiceResult = null
             result.error("voice_unavailable", "No speech recognizer can handle voice input", null)
         }
+    }
+
+    private fun startPcmRecording(result: MethodChannel.Result) {
+        if (!hasRecordAudioPermission()) {
+            pendingVoiceResult = result
+            pendingVoiceIsPcm = true
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                recordAudioPermissionRequestCode,
+            )
+            return
+        }
+        launchPcmRecorder(result)
+    }
+
+    private fun launchPcmRecorder(result: MethodChannel.Result) {
+        if (isPcmRecording) {
+            result.error("voice_busy", "正在录音中", null)
+            return
+        }
+        val sampleRate = 16000
+        val bufferSize = AudioRecord.getMinBufferSize(
+            sampleRate,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+        )
+        if (bufferSize <= 0) {
+            result.error("voice_unavailable", "设备不支持 PCM 录音", null)
+            return
+        }
+        try {
+            pcmRecorder = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufferSize * 2,
+            )
+        } catch (_: Exception) {
+            result.error("voice_unavailable", "无法初始化麦克风", null)
+            return
+        }
+        pcmBuffer = ByteArrayOutputStream()
+        isPcmRecording = true
+        pcmRecordThread = HandlerThread("pcm-recorder").apply { start() }
+        pcmRecordHandler = Handler(pcmRecordThread!!.looper)
+        val recorder = pcmRecorder!!
+        recorder.startRecording()
+        val readBuf = ByteArray(bufferSize)
+        pcmRecordHandler!!.post(object : Runnable {
+            override fun run() {
+                val bytesRead = recorder.read(readBuf, 0, readBuf.size)
+                if (bytesRead > 0 && isPcmRecording) {
+                    synchronized(pcmBuffer) { pcmBuffer.write(readBuf, 0, bytesRead) }
+                    pcmRecordHandler?.post(this)
+                }
+            }
+        })
+        result.success(true)
+    }
+
+    private fun stopPcmRecording(result: MethodChannel.Result) {
+        if (!isPcmRecording) {
+            result.success(null)
+            return
+        }
+        isPcmRecording = false
+        pcmRecordHandler?.removeCallbacksAndMessages(null)
+        pcmRecordHandler = null
+        try {
+            pcmRecorder?.stop()
+        } catch (_: Exception) {}
+        pcmRecorder?.release()
+        pcmRecorder = null
+        pcmRecordThread?.quitSafely()
+        pcmRecordThread = null
+        val audioBytes: ByteArray
+        synchronized(pcmBuffer) {
+            audioBytes = pcmBuffer.toByteArray()
+            pcmBuffer = ByteArrayOutputStream()
+        }
+        if (audioBytes.isEmpty()) {
+            result.success(null)
+            return
+        }
+        val base64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+        result.success(base64)
     }
 
     private fun speakText(text: String, result: MethodChannel.Result) {
@@ -448,9 +549,11 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             }
             recordAudioPermissionRequestCode -> {
                 val result = pendingVoiceResult ?: return
+                val launchPcm = pendingVoiceIsPcm
                 pendingVoiceResult = null
+                pendingVoiceIsPcm = false
                 if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
-                    launchSpeechRecognizer(result)
+                    if (launchPcm) launchPcmRecorder(result) else launchSpeechRecognizer(result)
                 } else {
                     result.error("microphone_permission_denied", "Microphone permission was denied", null)
                 }
@@ -598,6 +701,13 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
+        isPcmRecording = false
+        pcmRecordHandler?.removeCallbacksAndMessages(null)
+        pcmRecorder?.stop()
+        pcmRecorder?.release()
+        pcmRecorder = null
+        pcmRecordThread?.quitSafely()
+        pcmRecordThread = null
         textToSpeech?.shutdown()
         textToSpeech = null
         super.onDestroy()
