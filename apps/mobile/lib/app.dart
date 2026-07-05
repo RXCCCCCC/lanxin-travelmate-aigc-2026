@@ -55,10 +55,15 @@ class _LanXinAppState extends State<LanXinApp> with WidgetsBindingObserver {
   }
 
   Future<void> _defaultRetryPendingSync() async {
-    await SyncRetryService(
-      repository: MemoryRepository(AppDatabase.shared()),
-      dataService: SettingsDataService(),
-    ).retryPendingOperations();
+    final database = AppDatabase();
+    try {
+      await SyncRetryService(
+        repository: MemoryRepository(database),
+        dataService: SettingsDataService(),
+      ).retryPendingOperations();
+    } finally {
+      await database.close();
+    }
   }
 
   @override

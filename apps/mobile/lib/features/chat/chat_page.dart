@@ -75,12 +75,12 @@ class _ChatPageState extends State<ChatPage> {
     _voiceInteractionService =
         widget.voiceInteractionService ?? VoiceInteractionService();
     if (widget.memoryRepository == null) {
-      _ownedDatabase = AppDatabase.shared();
+      _ownedDatabase = AppDatabase();
       _memoryRepository = MemoryRepository(_ownedDatabase!);
       _historyDatabase = _ownedDatabase!;
     } else {
       _memoryRepository = widget.memoryRepository!;
-      _historyDatabase = _memoryRepository.database;
+      _historyDatabase = AppDatabase();
     }
     _chatHistoryService = ChatHistoryService(_historyDatabase);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -92,6 +92,10 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _ownedDatabase?.close();
+    if (widget.memoryRepository != null) {
+      _historyDatabase.close();
+    }
     super.dispose();
   }
 

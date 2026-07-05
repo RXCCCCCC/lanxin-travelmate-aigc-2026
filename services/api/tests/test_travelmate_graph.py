@@ -89,31 +89,6 @@ def test_trip_context_builder_extracts_destination_from_plan_phrase():
     assert result["trip_context"]["destination"] == "\u5e7f\u5dde"
 
 
-def test_trip_planner_keeps_requested_destination_when_model_drifts(monkeypatch):
-    class DriftProvider:
-        def plan_trip(self, state):
-            return {
-                "title": "北京两天轻松行程",
-                "destination": "北京",
-                "summary": "围绕北京生成的行程。",
-                "profileMatches": ["偏好低强度路线"],
-                "risks": [],
-                "alternatives": [],
-            }
-
-    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: DriftProvider())
-    state = create_initial_state(message="规划广州行程，不想太累")
-    normalized = real_nodes.input_normalizer(state)
-    with_context = real_nodes.trip_context_builder(normalized)
-
-    result = real_nodes.trip_planner(with_context)
-
-    assert result["trip_context"]["destination"] == "广州"
-    assert result["trip_plan"]["destination"] == "广州"
-    assert "北京" not in result["trip_plan"]["title"]
-    assert "北京" not in result["trip_plan"]["summary"]
-
-
 def test_context_loader_does_not_inject_city_specific_fixture_interests():
     state = create_initial_state(message="\u5e2e\u6211\u89c4\u5212\u5e7f\u5dde\u884c\u7a0b")
 

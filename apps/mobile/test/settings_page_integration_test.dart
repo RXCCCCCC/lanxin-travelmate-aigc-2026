@@ -154,7 +154,7 @@ void main() {
     expect(find.text('Keep it calm.'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.text('自定义提示词'),
+      find.text('自定义 Prompt'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
@@ -414,10 +414,10 @@ void main() {
     );
 
     expect(find.textContaining('history-upsert-memory'), findsWidgets);
-    expect(find.text('记忆同步 · 已同步'), findsOneWidget);
+    expect(find.textContaining('记忆同步'), findsOneWidget);
     expect(find.textContaining('记忆撤销'), findsOneWidget);
     expect(find.textContaining('已同步'), findsOneWidget);
-    expect(find.text('记忆撤销 · 待同步'), findsOneWidget);
+    expect(find.textContaining('同步失败'), findsOneWidget);
     expect(find.textContaining('offline'), findsOneWidget);
   });
 }

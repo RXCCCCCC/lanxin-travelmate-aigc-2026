@@ -17,7 +17,6 @@ class ProfilePayload {
     this.voiceEnabled = true,
     this.textModePreferred = false,
     this.customPrompt,
-    this.isFallback = false,
   });
 
   final String userId;
@@ -33,7 +32,6 @@ class ProfilePayload {
   final bool voiceEnabled;
   final bool textModePreferred;
   final String? customPrompt;
-  final bool isFallback;
 
   factory ProfilePayload.fromJson(Map<String, dynamic> json) {
     return ProfilePayload(
@@ -61,7 +59,6 @@ class ProfilePayload {
       interestTags: const [],
       transportPreferences: const [],
       budgetPreference: 'medium',
-      isFallback: true,
     );
   }
 

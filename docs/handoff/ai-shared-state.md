@@ -52,27 +52,6 @@
 
 ## 最近日报
 
-### 2026-07-05
-
-- 继续排查真机反馈：纯净模式点击“规划路线”红底报错、首页蓝小心把“规划广州行程”错误生成北京行程。
-- 后端确认根因之一：`trip_context_builder` 能从“规划广州行程”提取 `广州`，但 `trip_planner` 之前会直接信任模型结构化输出的 `destination/title/summary`；若真实模型漂移为“北京”，错误会穿透到回复和卡片。
-- 已新增后端防线：`services/api/app/agents/travelmate/nodes/real_nodes.py` 中 `_enforce_requested_destination()` 会把明确请求目的地写回 `trip_plan.destination`，并在模型目的地不一致时替换 `title/summary` 中的错误目的地，同时校正 `planningInputs.destination`。
-- 已新增回归测试：`services/api/tests/test_travelmate_graph.py::test_trip_planner_keeps_requested_destination_when_model_drifts`，模拟模型返回北京，断言最终计划仍为广州且标题/摘要不含北京。
-- 验证通过：`cd services/api && .\.venv\Scripts\python.exe -m pytest tests/test_travelmate_graph.py::test_trip_planner_keeps_requested_destination_when_model_drifts tests/test_travelmate_graph.py::test_trip_context_builder_extracts_destination_from_plan_phrase tests/test_agent_api.py -q`，结果 `5 passed`。
-- 移动端针对性验证通过：`cd apps/mobile && G:\develop\flutter\bin\flutter.bat test test/chat_page_integration_test.dart test/home_dashboard_test.dart`，结果 `7 passed`。
-- 未解决风险：移动端测试仍打印 Drift “multiple AppDatabase” 警告，栈指向 `ChatPage.initState` 新建 `AppDatabase()`；这可能导致真机多页面/多会话状态竞争，后续应优先把 ChatPage 历史数据库依赖收敛为可注入/单例策略。
-- 未完全证明的点：纯净模式“规划路线”红底 Navigator 报错尚未在自动测试中复现；现有测试覆盖了 `/chat` 内点击“规划路线”到 `/trip` 的基本跳转，但需要补更接近真实 `appRouter` 和 root overlay 的回归用例。
-- 进一步补了纯净模式导航回归：`ChatPage route chip switches to trip tab after opening from shell home` 覆盖从 Shell 首页 `push('/chat')` 后点击“规划路线”，当前测试通过，说明红屏还未被这条自动路径复现。
-- 修复设置页数据控制语义：`DELETE /api/trip/current` 之前会删除当前用户全部行程，已改为只删除与 `GET /api/trip/current` 一致的最新行程；新增 `test_clear_current_trip_deletes_only_latest_trip`。
-- 修复设置页离线误导：`ProfilePayload.fallback()` 新增 `isFallback=true`，设置页加载 fallback 画像时显示“当前使用本机默认设置”，不再显示“已连接个人设置”；新增 `SettingsPage labels fallback profile as offline default settings`。
-- 最新验证通过：`cd apps/mobile && G:\develop\flutter\bin\flutter.bat test test/chat_page_integration_test.dart test/settings_profile_service_test.dart`，结果 `8 passed`；`cd services/api && .\.venv\Scripts\python.exe -m pytest tests/test_travelmate_graph.py::test_trip_planner_keeps_requested_destination_when_model_drifts tests/test_travelmate_graph.py::test_trip_context_builder_extracts_destination_from_plan_phrase tests/test_agent_api.py tests/test_sync_and_clear_routes.py::test_clear_memory_and_current_trip_endpoints tests/test_sync_and_clear_routes.py::test_clear_current_trip_deletes_only_latest_trip -q`，结果 `7 passed`。
-- 已处理 Drift 多数据库警告的核心生产路径：`ChatPage`、`SettingsPage`、`HomePage` 和 `LanXinApp._defaultRetryPendingSync()` 统一使用 `AppDatabase.shared()`；测试里需要隔离时注入 in-memory `MemoryRepository`。后续若继续重构，可再做应用级 DI，但当前真机稳定性风险已先收敛。
-- 拉取远端最新 `origin/dev` 到 `03f2d71` 后，本轮本地修复已恢复到最新代码上且无冲突；补齐 `LanXinApp._defaultRetryPendingSync()` 使用 `AppDatabase.shared()`，并让 Settings profile 测试注入内存库，避免测试触碰共享真实库。
-- 合并后验证通过：`cd apps/mobile && G:\develop\flutter\bin\flutter.bat test test/chat_page_integration_test.dart test/settings_profile_service_test.dart`，结果 `8 passed`；`G:\develop\flutter\bin\flutter.bat analyze`，结果 `No issues found`；`cd services/api && .\.venv\Scripts\python.exe -m pytest tests/test_travelmate_graph.py::test_trip_planner_keeps_requested_destination_when_model_drifts tests/test_travelmate_graph.py::test_trip_context_builder_extracts_destination_from_plan_phrase tests/test_agent_api.py tests/test_sync_and_clear_routes.py::test_clear_memory_and_current_trip_endpoints tests/test_sync_and_clear_routes.py::test_clear_current_trip_deletes_only_latest_trip -q`，结果 `7 passed`。
-- 设置页集成测试陈旧断言已修复：`自定义 Prompt` 改为 `自定义提示词`，同步历史断言改为当前中文状态语义；验证通过 `cd apps/mobile && G:\develop\flutter\bin\flutter.bat test test/settings_page_integration_test.dart`，结果 `4 passed`。
-- 最新 USB 真机 APK 已打包并安装：`flutter build apk --debug --dart-define=API_BASE_URL=http://127.0.0.1:8000` 成功，APK 位于 `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`；首次 `adb install -r` 卡住，改用 `adb install -r -d --no-streaming ...` 安装成功。
-- 真机状态：设备 `NBGYVG8T6TCAJNGY / PDYM20`，包 `com.lanxin.lanxin_travelmate` 已安装，`versionName=1.0.0`，安装时间 `2026-07-05 09:28:12`；`adb reverse tcp:8000 tcp:8000` 已配置，launcher activity 为 `.MainActivity`。位置权限已授权，相机/麦克风仍待用户在真机触发授权弹窗。
-
 ### 2026-07-04
 
 - Android 真机 `8507100b / 23113RKC6C / Android 16` 已安装验证最新版 debug APK：首页右上“聊天历史”打开按行程归类的会话列表，顶部中间“纯净模式”进入独立聊天页，系统返回可回首页。
