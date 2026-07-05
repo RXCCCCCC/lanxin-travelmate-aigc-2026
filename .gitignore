@@ -46,6 +46,7 @@ pnpm-debug.log*
 .trellis/
 .claude/
 .mcp.json
+.worktrees/
 
 比赛材料/
 
