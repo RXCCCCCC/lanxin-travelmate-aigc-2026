@@ -54,6 +54,9 @@
 
 ### 2026-07-05
 
+- 已按强压缩策略重写项目级 `CLAUDE.md`：保留稳定硬规则、运行命令、Android/vivo-only、真实数据/隐私边界、GitNexus 和交接入口；历史流水账改由本文件、`docs/todo.md` 与 handoff 文档承接。
+- 后续 AI 不应再把阶段性流水账追加到 `CLAUDE.md`，阶段结论继续写入本文件，剩余人工事项继续写入 `docs/todo.md`。
+- 本轮文档任务对应 Trellis 任务：`.trellis/tasks/07-05-claude-md/`，PRD 与 implement/check 上下文已补齐，任务已切到 `in_progress`。
 - 继续排查真机反馈：纯净模式点击“规划路线”红底报错、首页蓝小心把“规划广州行程”错误生成北京行程。
 - 后端确认根因之一：`trip_context_builder` 能从“规划广州行程”提取 `广州`，但 `trip_planner` 之前会直接信任模型结构化输出的 `destination/title/summary`；若真实模型漂移为“北京”，错误会穿透到回复和卡片。
 - 已新增后端防线：`services/api/app/agents/travelmate/nodes/real_nodes.py` 中 `_enforce_requested_destination()` 会把明确请求目的地写回 `trip_plan.destination`，并在模型目的地不一致时替换 `title/summary` 中的错误目的地，同时校正 `planningInputs.destination`。

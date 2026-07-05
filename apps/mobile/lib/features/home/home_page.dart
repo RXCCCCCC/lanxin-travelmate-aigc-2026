@@ -423,32 +423,33 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
-                // ── 顶部主操作：模式、消息、历史。放在最后，保证触控优先级最高。 ──
+                // ── 顶部主操作。放在最后，保证触控优先级最高。 ──
                 Positioned(
                   top: actionsTop,
                   left: controlsLeft,
+                  child: _PureModeButton(
+                    isPureMode: _isPureMode,
+                    onTap: _togglePureMode,
+                    compact: compact,
+                    width: controlWidth,
+                  ),
+                ),
+                Positioned(
+                  top: actionsTop,
+                  right: sidePadding + 60,
+                  child: _TopIconPill(
+                    icon: Icons.notifications_none_rounded,
+                    label: '消息',
+                    onTap: () => context.push('/reminder'),
+                  ),
+                ),
+                Positioned(
+                  top: actionsTop,
                   right: sidePadding,
-                  child: Row(
-                    children: [
-                      _PureModeButton(
-                        isPureMode: _isPureMode,
-                        onTap: _togglePureMode,
-                        compact: compact,
-                        width: controlWidth,
-                      ),
-                      const Spacer(),
-                      _TopIconPill(
-                        icon: Icons.notifications_none_rounded,
-                        label: '消息',
-                        onTap: () => context.push('/reminder'),
-                      ),
-                      const SizedBox(width: 8),
-                      _TopIconPill(
-                        icon: Icons.history_rounded,
-                        label: '聊天历史',
-                        onTap: _showChatHistorySheet,
-                      ),
-                    ],
+                  child: _TopIconPill(
+                    icon: Icons.history_rounded,
+                    label: '聊天历史',
+                    onTap: _showChatHistorySheet,
                   ),
                 ),
               ],
