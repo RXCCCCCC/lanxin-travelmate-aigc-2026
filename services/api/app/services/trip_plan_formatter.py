@@ -134,6 +134,61 @@ def _localize_risk_text(value: object, fallback: str, destination: str) -> str:
     return text
 
 
+def _has_displayable_days(value: object) -> bool:
+    if not isinstance(value, list):
+        return False
+    for day in value:
+        if not isinstance(day, dict):
+            continue
+        items = day.get("items")
+        if isinstance(items, list) and any(isinstance(item, dict) for item in items):
+            return True
+    return False
+
+
+def _digest_items_from_summary(summary: str, destination: str) -> list[dict[str, str]]:
+    fragments = [
+        fragment.strip(" ，。,.!！？?；;")
+        for fragment in re.split(r"[，。,.!！？?；;]+", summary)
+        if fragment.strip(" ，。,.!！？?；;")
+    ]
+    fallback_times = ["上午", "下午", "晚上", "机动"]
+    items: list[dict[str, str]] = []
+    for index, fragment in enumerate(fragments[:4]):
+        time_match = re.match(r"^(上午|中午|下午|傍晚|晚上|夜间|早上|清晨|午后|全天)", fragment)
+        time = time_match.group(1) if time_match else fallback_times[min(index, len(fallback_times) - 1)]
+        location = re.sub(
+            r"^(上午|中午|下午|傍晚|晚上|夜间|早上|清晨|午后|全天)?(?:逛|去|到|看|游览|打卡|体验|安排|前往)?",
+            "",
+            fragment,
+        ).strip(" ，。,.!！？?；;")
+        items.append(
+            {
+                "time": time,
+                "location": location or destination,
+                "activity": fragment,
+            }
+        )
+    return items
+
+
+def _add_digest_days_if_missing(plan: dict[str, Any], destination: str) -> None:
+    if _has_displayable_days(plan.get("days")):
+        return
+    summary = str(plan.get("summary") or "").strip()
+    if not summary:
+        return
+    items = _digest_items_from_summary(summary, destination)
+    if not items:
+        return
+    plan["days"] = [
+        {
+            "dayLabel": "核心安排",
+            "items": items,
+        }
+    ]
+
+
 def _resolve_destination(
     plan: dict[str, Any],
     planning_inputs: dict[str, Any] | None,
@@ -212,6 +267,7 @@ def sanitize_trip_plan_for_client(
             }
         )
     localized["alternatives"] = alternatives
+    _add_digest_days_if_missing(localized, destination)
     localized.pop("toolTrace", None)
     localized.pop("externalContext", None)
     return localized

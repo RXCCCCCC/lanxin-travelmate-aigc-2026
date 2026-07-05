@@ -514,6 +514,50 @@ def test_graph_accepts_unwrapped_model_memory_and_chat_outputs(monkeypatch):
     assert scenarios["companion_chat"]["fallback"] is False
 
 
+def test_chat_only_uses_model_reply_without_local_acknowledgement(monkeypatch):
+    class ChatOnlyProvider:
+        name = "chat-only-provider"
+
+        def plan_trip(self, state):
+            return MockModelProvider().plan_trip(state)
+
+        def generate_json(self, *, scenario, system_prompt, user_prompt, schema):
+            assert scenario == "companion_chat"
+            assert "不吃香菜" in user_prompt
+            return {
+                "chat": {
+                    "replyText": "广州可以从早茶、糖水和老城区小吃开始，我会按你的忌口避开香菜。",
+                    "voiceText": "广州可以从早茶、糖水和老城区小吃开始，我会按你的忌口避开香菜。",
+                    "avatarState": "planning",
+                    "emotion": "curious",
+                    "cards": [],
+                    "memoryCandidates": [],
+                    "toolTrace": [],
+                    "nextActions": [{"type": "suggestFoodRoute"}],
+                    "syncSuggestions": [],
+                    "errors": [],
+                }
+            }
+
+    monkeypatch.setattr(real_nodes, "build_model_provider", lambda settings: ChatOnlyProvider())
+    state = create_initial_state(message="广州有什么好吃的，我不吃香菜")
+
+    result = TravelMateGraph().invoke_chat_only(state)
+
+    reply = result["response"]["replyText"]
+    assert reply == "广州可以从早茶、糖水和老城区小吃开始，我会按你的忌口避开香菜。"
+    assert "收到" not in reply
+    assert "确认记忆胶囊" not in reply
+    assert any(item["title"] == "不吃香菜" for item in result["response"]["memoryCandidates"])
+    model_trace = [
+        item
+        for item in result["response"]["toolTrace"]
+        if item.get("scenario") == "companion_chat"
+    ]
+    assert model_trace[-1]["provider"] == "chat-only-provider"
+    assert model_trace[-1]["fallback"] is False
+
+
 def test_graph_normalizes_real_memory_candidate_shape(monkeypatch):
     class RealishMemoryProvider:
         name = "realish-memory-provider"

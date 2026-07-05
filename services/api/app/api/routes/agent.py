@@ -140,9 +140,25 @@ def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict
             "errors": result.get("errors", []),
         }
         return result
-    if any(keyword in message for keyword in ("规划", "路线", "行程", "周末", "两天", "目的地")) and not any(
-        keyword in message for keyword in ("你好", "在吗")
-    ):
+    if any(
+        keyword in message
+        for keyword in (
+            "规划",
+            "路线",
+            "行程",
+            "周末",
+            "两天",
+            "目的地",
+            "攻略",
+            "怎么玩",
+            "怎么逛",
+            "好玩",
+            "景点",
+            "去哪玩",
+            "哪里玩",
+            "推荐",
+        )
+    ) and not any(keyword in message for keyword in ("你好", "在吗")):
         result = graph.invoke_plan_only(state)
         memory_candidates = build_rule_memory_candidates(message)
         trip_plan = sanitize_trip_plan_for_client(

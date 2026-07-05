@@ -98,7 +98,7 @@ def test_agent_chat_plain_message_uses_chat_only_graph(monkeypatch):
     assert response.json()["toolTrace"] == [{"tool": "chat_only"}]
 
 
-def test_agent_chat_memory_preference_prompts_explicit_confirmation():
+def test_agent_chat_memory_preference_returns_candidates_without_ack_template():
     response = client.post(
         "/api/agent/chat",
         json={
@@ -111,8 +111,8 @@ def test_agent_chat_memory_preference_prompts_explicit_confirmation():
     assert response.status_code == 200
     payload = response.json()
     assert any(item["title"] == "不吃香菜" for item in payload["memoryCandidates"])
-    assert "确认记忆胶囊" in payload["replyText"]
-    assert "真正记入画像" in payload["replyText"]
+    assert "收到" not in payload["replyText"]
+    assert "确认记忆胶囊" not in payload["replyText"]
 
 
 def test_agent_chat_plan_reply_summarizes_plan_instead_of_only_redirecting(monkeypatch):
@@ -263,3 +263,116 @@ def test_agent_chat_plan_card_payload_is_sanitized_like_trip_plan(monkeypatch):
     assert "medium" not in plan_text
     assert "night view" not in plan_text
     assert "广州" in plan_text
+
+
+def test_agent_chat_natural_attraction_question_returns_trip_plan_card(monkeypatch):
+    from app.api.routes import agent
+
+    calls: list[str] = []
+
+    class NaturalQuestionPlanGraph:
+        def invoke_plan_only(self, state):
+            calls.append("plan")
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "广州轻松游玩建议",
+                    "destination": "广州",
+                    "summary": "上午逛沙面，下午去永庆坊，晚上看珠江夜景。",
+                    "days": [
+                        {
+                            "dayLabel": "第 1 天",
+                            "items": [
+                                {
+                                    "time": "上午",
+                                    "location": "沙面",
+                                    "activity": "看建筑和拍照",
+                                }
+                            ],
+                        }
+                    ],
+                    "risks": [],
+                    "alternatives": [],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+        def invoke_chat_only(self, state):
+            calls.append("chat")
+            return {
+                **state,
+                "model_call_logs": [],
+                "response": {
+                    "replyText": "普通聊天回复",
+                    "voiceText": "普通聊天回复",
+                    "avatarState": "hello",
+                    "emotion": "warm",
+                    "cards": [],
+                    "memoryCandidates": [],
+                    "toolTrace": [{"tool": "chat_only"}],
+                    "nextActions": [],
+                    "syncSuggestions": [],
+                    "errors": [],
+                },
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", NaturalQuestionPlanGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "广州有什么好玩的",
+            "sessionId": "natural-attraction-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert calls == ["plan"]
+    assert payload["avatarState"] == "planning"
+    assert any(card["type"] == "tripPlan" for card in payload["cards"])
+    assert "沙面" in payload["replyText"]
+
+
+def test_agent_chat_plan_card_adds_digest_days_when_model_omits_days(monkeypatch):
+    from app.api.routes import agent
+
+    class SummaryOnlyPlanGraph:
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "广州经典轻松游",
+                    "destination": "广州",
+                    "summary": "上午逛沙面，下午去永庆坊，晚上看珠江夜景。",
+                    "profileMatches": ["已按轻松节奏减少跨区移动。"],
+                    "risks": ["晚高峰过江可能拥堵。"],
+                    "alternatives": [],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", SummaryOnlyPlanGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "广州有什么好玩的",
+            "sessionId": "summary-only-plan-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    card = next(card for card in payload["cards"] if card["type"] == "tripPlan")
+    plan = card["payload"]
+    assert plan["days"]
+    first_item = plan["days"][0]["items"][0]
+    assert "沙面" in first_item["location"] or "沙面" in first_item["activity"]
+    assert "永庆坊" in json.dumps(plan["days"], ensure_ascii=False)

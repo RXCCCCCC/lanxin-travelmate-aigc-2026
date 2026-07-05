@@ -301,7 +301,24 @@ def context_loader(state: TravelMateState) -> TravelMateState:
 def intent_router(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "intent_router")
     text = next_state["normalized_input"]
-    if _contains_any(text, ["规划", "周末", "两天", "路线", "行程"]):
+    if _contains_any(
+        text,
+        [
+            "规划",
+            "周末",
+            "两天",
+            "路线",
+            "行程",
+            "攻略",
+            "怎么玩",
+            "怎么逛",
+            "好玩",
+            "景点",
+            "去哪玩",
+            "哪里玩",
+            "推荐",
+        ],
+    ):
         next_state["intent"] = "trip_planning"
     elif _contains_any(text, ["复盘", "总结"]):
         next_state["intent"] = "trip_review"
@@ -978,27 +995,46 @@ def fast_chat_response(state: TravelMateState) -> TravelMateState:
         {"type": "openTripPlan", "label": "需要时我可以继续帮你生成行程"},
         {"type": "openReview", "label": "旅行结束后我可以帮你复盘"},
     ]
-    reply = "我在，刚刚这句已经收到。你可以直接告诉我目的地、时间、同行人或想避开的点，我会用更轻的链路先快速回应你。"
-    if any(keyword in text for keyword in ("你好", "在吗", "蓝小心", "小心")):
-        reply = "我在呢。刚才如果一直没回应，多半是旧版聊天链路太重；现在普通聊天会先走快速回复。"
-    elif text and next_state["memory_candidates"]:
-        reply = (
-            f"收到：{text}。这句话里有可以保存的旅行偏好，"
-            "你点下方“确认记忆胶囊”后，我才会真正记入画像。"
-        )
-    elif text:
-        reply = f"收到：{text}。需要我继续规划路线、调整节奏或整理复盘时，直接告诉我就行。"
+    try:
+        next_state["response"] = _model_chat_response(next_state)
+        return next_state
+    except (AttributeError, ModelProviderError) as exc:
+        _append_chat_model_trace(next_state, {
+            "tool": "model_provider",
+            "provider": get_settings().model_provider,
+            "scenario": "companion_chat",
+            "fallback": True,
+            "errorType": "provider_error",
+            "error": str(exc),
+        })
+    except ValidationError as exc:
+        provider_name = get_settings().model_provider
+        try:
+            provider_name = build_model_provider(get_settings()).name
+        except ModelProviderError:
+            pass
+        _append_chat_model_trace(next_state, {
+            "tool": "model_provider",
+            "provider": provider_name,
+            "scenario": "companion_chat",
+            "fallback": True,
+            "errorType": "schema_validation",
+            "error": str(exc),
+        })
+    reply = "模型回复暂时没有返回，我先保留这轮上下文；你可以直接重试或继续补充目的地、预算和同行人。"
     next_state["response"] = {
         "replyText": reply,
         "voiceText": reply,
-        "avatarState": next_state["avatar_state"],
-        "emotion": next_state["emotion"],
+        "avatarState": "thinking",
+        "emotion": "fallback",
         "cards": [],
         "memoryCandidates": next_state["memory_candidates"],
-        "toolTrace": [{"tool": "chat_only", "fallback": False}],
+        "toolTrace": next_state.get("tool_trace", []),
         "nextActions": next_state["next_actions"],
         "syncSuggestions": next_state["sync_suggestions"],
-        "errors": next_state["errors"],
+        "errors": next_state["errors"] + [
+            {"code": "MODEL_CHAT_FALLBACK", "message": "模型聊天回复暂时不可用。"}
+        ],
     }
     return next_state
 
