@@ -71,11 +71,11 @@ class StubReminderDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId ?? 'reminder-trip',
       currentTrip: const {'status': 'planning', 'plan': <String, dynamic>{}},
       routePoints: const {'route': '', 'points': []},
@@ -119,7 +119,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('这张照片适合加入旅拍候选'), findsOneWidget);
-    expect(find.textContaining('behavior'), findsOneWidget);
+    expect(find.textContaining('\u884c\u4e3a'), findsOneWidget);
   });
 
   testWidgets(
@@ -136,8 +136,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Dashboard dinner reminder'), findsOneWidget);
-      expect(find.textContaining('time'), findsOneWidget);
+      expect(find.text('\u4e3b\u52a8\u63d0\u9192'), findsWidgets);
+      expect(find.textContaining('\u65f6\u95f4'), findsWidgets);
     },
   );
   testWidgets('ReminderPage evaluates reminders with profile context', (
@@ -156,9 +156,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('quiet'), findsOneWidget);
+    expect(find.textContaining('\u5b89\u9759'), findsOneWidget);
     expect(find.textContaining('夜景'), findsOneWidget);
-    expect(find.text('Low energy reminder'), findsOneWidget);
+    expect(find.text('\u4f53\u529b\u504f\u4f4e\u63d0\u9192'), findsOneWidget);
     expect(triggerService.capturedEvaluateDraft?.proactivityLevel, 'quiet');
     expect(triggerService.capturedEvaluateDraft?.status['travelPace'], 'light');
     expect(triggerService.capturedEvaluateDraft?.external['interestTags'], [

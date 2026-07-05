@@ -53,10 +53,13 @@ class _EmptyPhotoDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
-    return TripDashboardPayload.fallback(userId: userId, tripId: 'photo-trip');
+    return TripDashboardPayload.fallback(
+      userId: userId ?? 'guest',
+      tripId: 'photo-trip',
+    );
   }
 }
 
