@@ -54,6 +54,8 @@ class MemoryRepository {
 
   final AppDatabase _database;
 
+  AppDatabase get database => _database;
+
   Future<void> saveCandidate(
     MemoryCandidate candidate, {
     required String scope,

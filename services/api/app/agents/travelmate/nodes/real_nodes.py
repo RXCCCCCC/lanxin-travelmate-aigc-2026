@@ -527,6 +527,24 @@ def _validated_trip_plan(plan: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _enforce_requested_destination(plan: dict[str, Any], state: TravelMateState) -> dict[str, Any]:
+    requested = str(state.get("trip_context", {}).get("destination") or _extract_trip_destination(state)).strip()
+    if not requested or requested == "\u5f85\u786e\u8ba4\u76ee\u7684\u5730":
+        return plan
+    corrected = dict(plan)
+    model_destination = str(corrected.get("destination") or "").strip()
+    corrected["destination"] = requested
+    if model_destination and model_destination != requested:
+        for key in ("title", "summary"):
+            value = corrected.get(key)
+            if isinstance(value, str):
+                corrected[key] = value.replace(model_destination, requested)
+    planning_inputs = corrected.get("planningInputs")
+    if isinstance(planning_inputs, dict):
+        corrected["planningInputs"] = {**planning_inputs, "destination": requested}
+    return corrected
+
+
 def trip_planner(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "trip_planner")
     settings = get_settings()
@@ -554,7 +572,10 @@ def trip_planner(state: TravelMateState) -> TravelMateState:
                 "message": "真实模型已返回内容，但结构化规划解析仍待接入，当前使用降级规划。",
             })
             raise ModelProviderError("模型返回结构暂未映射为 TripPlan。")
-        next_state["trip_plan"] = _validated_trip_plan(_normalize_trip_plan_payload(plan, next_state))
+        next_state["trip_plan"] = _enforce_requested_destination(
+            _validated_trip_plan(_normalize_trip_plan_payload(plan, next_state)),
+            next_state,
+        )
         timer.finish(fallback=False)
     except ValidationError as exc:
         fallback_provider = MockModelProvider()

@@ -143,6 +143,12 @@ class LocalSyncOperations extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
+  static AppDatabase? _sharedInstance;
+
+  static AppDatabase shared() {
+    return _sharedInstance ??= AppDatabase();
+  }
+
   @override
   int get schemaVersion => 2;
 

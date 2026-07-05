@@ -542,9 +542,11 @@ def clear_current_trip(
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
     effective_user_id = resolve_effective_user_id(userId, current_user)
-    trips = session.exec(select(CloudTrip).where(CloudTrip.user_id == effective_user_id)).all()
-    count = len(trips)
-    for trip in trips:
+    trip = session.exec(
+        select(CloudTrip).where(CloudTrip.user_id == effective_user_id).order_by(CloudTrip.updated_at.desc())
+    ).first()
+    count = 1 if trip else 0
+    if trip:
         session.delete(trip)
     session.commit()
     return {"deleted": count, "userId": effective_user_id}

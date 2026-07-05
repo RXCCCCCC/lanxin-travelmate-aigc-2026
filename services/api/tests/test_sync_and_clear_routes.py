@@ -102,3 +102,34 @@ def test_clear_memory_and_current_trip_endpoints():
     assert cleared_trip.json()["deleted"] >= 1
     empty = client.get("/api/trip/current", headers=headers)
     assert empty.json()["status"] == "empty"
+
+
+def test_clear_current_trip_deletes_only_latest_trip():
+    user_id, headers = _guest_headers(f"clear-current-only-{uuid4().hex}")
+    older_trip_id = f"older-trip-{uuid4().hex}"
+    latest_trip_id = f"latest-trip-{uuid4().hex}"
+    for trip_id, destination in [
+        (older_trip_id, "广州"),
+        (latest_trip_id, "深圳"),
+    ]:
+        response = client.post(
+            "/api/trip/plan",
+            headers=headers,
+            json={
+                "userId": "guest",
+                "tripId": trip_id,
+                "destination": destination,
+                "message": f"规划{destination}行程",
+            },
+        )
+        assert response.status_code == 200
+
+    current = client.get("/api/trip/current", headers=headers)
+    assert current.json()["tripId"] == latest_trip_id
+
+    cleared_trip = client.delete("/api/trip/current", headers=headers)
+
+    assert cleared_trip.status_code == 200
+    assert cleared_trip.json()["deleted"] == 1
+    remaining = client.get("/api/trip/current", headers=headers)
+    assert remaining.json()["tripId"] == older_trip_id

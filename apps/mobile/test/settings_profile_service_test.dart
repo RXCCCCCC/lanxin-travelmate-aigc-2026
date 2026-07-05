@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lanxin_travelmate/data/local/app_database.dart';
+import 'package:lanxin_travelmate/data/repositories/memory_repository.dart';
 import 'package:lanxin_travelmate/features/profile/data/profile_service.dart';
 import 'package:lanxin_travelmate/features/settings/data/settings_data_service.dart';
 import 'package:lanxin_travelmate/features/settings/settings_page.dart';
@@ -58,6 +62,13 @@ class DelayedSettingsProfileService extends StubSettingsProfileService {
   }
 }
 
+class OfflineSettingsProfileService extends StubSettingsProfileService {
+  @override
+  Future<ProfilePayload> fetchProfile({String userId = 'guest'}) async {
+    return ProfilePayload.fallback(userId: userId);
+  }
+}
+
 class StubSettingsDataService extends SettingsDataService {
   StubSettingsDataService() : super(dio: Dio());
 
@@ -86,16 +97,74 @@ class StubSettingsDataService extends SettingsDataService {
   }
 }
 
+class _SettingsHarness extends StatefulWidget {
+  const _SettingsHarness({
+    required this.profileService,
+    required this.dataService,
+  });
+
+  final ProfileService profileService;
+  final SettingsDataService dataService;
+
+  @override
+  State<_SettingsHarness> createState() => _SettingsHarnessState();
+}
+
+class _SettingsHarnessState extends State<_SettingsHarness> {
+  late final AppDatabase database;
+  late final MemoryRepository repository;
+
+  @override
+  void initState() {
+    super.initState();
+    database = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    repository = MemoryRepository(database);
+  }
+
+  @override
+  void dispose() {
+    database.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsPage(
+      profileService: widget.profileService,
+      dataService: widget.dataService,
+      memoryRepository: repository,
+    );
+  }
+}
+
+Widget _settingsTestApp({
+  required ProfileService profileService,
+  required SettingsDataService dataService,
+}) {
+  return MaterialApp(
+    home: Scaffold(
+      body: _SettingsHarness(
+        profileService: profileService,
+        dataService: dataService,
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('SettingsPage reads and writes profile settings', (tester) async {
     final service = StubSettingsProfileService();
     final dataService = StubSettingsDataService();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SettingsPage(profileService: service, dataService: dataService),
-        ),
+      _settingsTestApp(
+        profileService: service,
+        dataService: dataService,
       ),
     );
     await tester.pump();
@@ -138,10 +207,9 @@ void main() {
     final dataService = StubSettingsDataService();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SettingsPage(profileService: service, dataService: dataService),
-        ),
+      _settingsTestApp(
+        profileService: service,
+        dataService: dataService,
       ),
     );
     await tester.pump();
@@ -166,5 +234,21 @@ void main() {
 
     expect(find.textContaining('保持标准频率'), findsOneWidget);
     expect(find.textContaining('更积极地发现'), findsNothing);
+  });
+
+  testWidgets('SettingsPage labels fallback profile as offline default settings', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _settingsTestApp(
+        profileService: OfflineSettingsProfileService(),
+        dataService: StubSettingsDataService(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('已连接个人设置'), findsNothing);
+    expect(find.text('当前使用本机默认设置'), findsOneWidget);
   });
 }

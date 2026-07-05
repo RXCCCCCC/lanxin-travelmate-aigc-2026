@@ -69,7 +69,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (widget.memoryRepository != null) {
       _memoryRepository = widget.memoryRepository!;
     } else {
-      _ownedDatabase = local_db.AppDatabase();
+      _ownedDatabase = local_db.AppDatabase.shared();
       _memoryRepository = MemoryRepository(_ownedDatabase!);
     }
     _syncRetryService = SyncRetryService(
@@ -83,7 +83,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
-    _ownedDatabase?.close();
     super.dispose();
   }
 
@@ -900,6 +899,11 @@ class _ProfileSettingsSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusText = loading
+        ? '正在读取真实设置'
+        : profile.isFallback
+            ? '当前使用本机默认设置'
+            : '已连接个人设置';
     return GlassBox(
       opacity: 0.12,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -909,14 +913,18 @@ class _ProfileSettingsSummary extends StatelessWidget {
           Row(
             children: [
               Icon(
-                loading ? Icons.sync_rounded : Icons.verified_rounded,
+                loading
+                    ? Icons.sync_rounded
+                    : profile.isFallback
+                        ? Icons.cloud_off_rounded
+                        : Icons.verified_rounded,
                 color: AppTheme.primary,
                 size: 20,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  loading ? '正在读取真实设置' : '已连接个人设置',
+                  statusText,
                   style: const TextStyle(
                     color: AppTheme.textPrimary,
                     fontSize: 15,
