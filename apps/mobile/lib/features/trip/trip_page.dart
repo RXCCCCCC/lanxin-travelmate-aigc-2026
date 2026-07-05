@@ -1242,6 +1242,89 @@ String _normalizeTransport(List<String> values) {
   return 'walking';
 }
 
+const Map<String, String> _planDisplayMap = {
+  'night view preference applied': '已保留夜景体验。',
+  'medium budget applied': '已按中等预算控制花费。',
+  'night view preference': '已保留夜景体验。',
+  'slow pace': '慢节奏',
+  'night views': '夜景',
+  'night view': '夜景',
+  'less walking': '少走路',
+  'medium budget': '中等预算',
+  'medium': '中等预算',
+  'low budget': '低预算',
+  'high budget': '高预算',
+  'transit': '公共交通',
+  'walking': '步行',
+  'driving': '自驾',
+  'route_tool': '路线服务',
+  'model_provider': '智能服务',
+};
+
+bool _looksInternalPlanText(String text) {
+  final normalized = text.toLowerCase();
+  return text.contains('真实模型') ||
+      text.contains('模型返回') ||
+      text.contains('路线规划工具') ||
+      text.contains('缺少坐标') ||
+      text.contains('坐标信息') ||
+      text.contains('手动规划') ||
+      normalized.contains('fallback model') ||
+      normalized.contains('mockmodelprovider') ||
+      normalized.contains('provider=') ||
+      normalized.contains('model fallback') ||
+      normalized.contains('route_tool');
+}
+
+String _replacePlanTerms(String text) {
+  var result = text.trim();
+  final entries = _planDisplayMap.entries.toList()
+    ..sort((a, b) => b.key.length.compareTo(a.key.length));
+  for (final entry in entries) {
+    result = result.replaceAll(entry.key, entry.value);
+  }
+  return result;
+}
+
+bool _hasChinese(String text) =>
+    text.runes.any((codePoint) => codePoint >= 0x4e00 && codePoint <= 0x9fff);
+
+String _planDisplayText(Object? value, String fallback) {
+  final raw = value?.toString().trim() ?? '';
+  if (raw.isEmpty || _looksInternalPlanText(raw)) return fallback;
+  final localized = _replacePlanTerms(raw);
+  if (!_hasChinese(localized)) return fallback;
+  return localized;
+}
+
+String _riskDisplayText(Object? value) {
+  final raw = value?.toString().trim() ?? '';
+  if (raw.isEmpty || _looksInternalPlanText(raw)) {
+    return '点位间的详细步行和换乘路线建议出发前在地图 App 再确认一次，避免现场绕路。';
+  }
+  return _planDisplayText(raw, '这段行程建议预留缓冲时间，现场根据天气和体力灵活调整。');
+}
+
+String _adjustmentDisplayText(Map<String, dynamic> adjustment) {
+  final trigger = _planDisplayText(adjustment['trigger'], '行程条件变化');
+  final suggestion = _planDisplayText(
+    adjustment['suggestion'],
+    '已准备更稳妥的路线调整，建议出发前结合天气、体力和地图路况确认。',
+  );
+  return '$trigger：$suggestion';
+}
+
+List<String> _displayTextList(
+  Object? values,
+  String fallback,
+  String Function(Object? value) mapper,
+) {
+  return (values as List<dynamic>? ?? const [])
+      .map(mapper)
+      .where((item) => item.trim().isNotEmpty)
+      .toList(growable: false);
+}
+
 class _AgentTripPlanView extends StatelessWidget {
   const _AgentTripPlanView({
     required this.plan,
@@ -1261,11 +1344,15 @@ class _AgentTripPlanView extends StatelessWidget {
     final days = (plan['days'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .toList();
-    final risks = (plan['risks'] as List<dynamic>? ?? const []).map(
-      (e) => e.toString(),
+    final risks = _displayTextList(
+      plan['risks'],
+      '这段行程建议预留缓冲时间，现场根据天气和体力灵活调整。',
+      _riskDisplayText,
     );
-    final matches = (plan['profileMatches'] as List<dynamic>? ?? const []).map(
-      (e) => e.toString(),
+    final matches = _displayTextList(
+      plan['profileMatches'],
+      '已根据你的旅行画像调整安排。',
+      (value) => _planDisplayText(value, '已根据你的旅行画像调整安排。'),
     );
     final alternatives = (plan['alternatives'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
@@ -1278,9 +1365,6 @@ class _AgentTripPlanView extends StatelessWidget {
     final externalContext =
         (plan['externalContext'] as Map<String, dynamic>?) ??
         const <String, dynamic>{};
-    final toolTrace = (plan['toolTrace'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .toList(growable: false);
 
     return ListView(
       padding: EdgeInsets.only(bottom: metrics.listBottomPadding),
@@ -1294,7 +1378,7 @@ class _AgentTripPlanView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Agent 实时规划',
+                '蓝小心实时规划',
                 style: TextStyle(
                   color: AppTheme.primary,
                   fontSize: 13,
@@ -1362,7 +1446,7 @@ class _AgentTripPlanView extends StatelessWidget {
         if (adjustment != null) ...[
           const _SectionHeader(icon: Icons.alt_route_rounded, title: '动态调整'),
           _SimpleInfoCard(
-            text: '${adjustment['trigger']}：${adjustment['suggestion']}',
+            text: _adjustmentDisplayText(adjustment),
             icon: Icons.sync_rounded,
           ),
         ],
@@ -1384,12 +1468,9 @@ class _AgentTripPlanView extends StatelessWidget {
           const _SectionHeader(icon: Icons.navigation_rounded, title: '地图导航'),
           ...navigationLinks.map((item) => _NavigationLinkCard(item: item)),
         ],
-        if (_hasExternalToolContext(externalContext, toolTrace)) ...[
-          const _SectionHeader(icon: Icons.hub_rounded, title: '外部数据状态'),
-          _ToolContextCard(
-            externalContext: externalContext,
-            toolTrace: toolTrace,
-          ),
+        if (_hasExternalToolContext(externalContext)) ...[
+          const _SectionHeader(icon: Icons.hub_rounded, title: '行程参考信息'),
+          _ToolContextCard(externalContext: externalContext),
         ],
         if (_hasRoutePoints(routePoints)) ...[
           const _SectionHeader(icon: Icons.timeline_rounded, title: '真实轨迹'),
@@ -1400,26 +1481,19 @@ class _AgentTripPlanView extends StatelessWidget {
   }
 }
 
-bool _hasExternalToolContext(
-  Map<String, dynamic> externalContext,
-  List<Map<String, dynamic>> toolTrace,
-) {
-  return externalContext.isNotEmpty || toolTrace.isNotEmpty;
+bool _hasExternalToolContext(Map<String, dynamic> externalContext) {
+  return externalContext.isNotEmpty;
 }
 
 class _ToolContextCard extends StatelessWidget {
-  const _ToolContextCard({
-    required this.externalContext,
-    required this.toolTrace,
-  });
+  const _ToolContextCard({required this.externalContext});
 
   final Map<String, dynamic> externalContext;
-  final List<Map<String, dynamic>> toolTrace;
 
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final rows = _toolContextRows(externalContext, toolTrace);
+    final rows = _toolContextRows(externalContext);
     return GlassBox(
       margin: EdgeInsets.symmetric(
         horizontal: metrics.horizontalPadding,
@@ -1482,10 +1556,7 @@ class _ToolContextRow {
   final IconData icon;
 }
 
-List<_ToolContextRow> _toolContextRows(
-  Map<String, dynamic> externalContext,
-  List<Map<String, dynamic>> toolTrace,
-) {
+List<_ToolContextRow> _toolContextRows(Map<String, dynamic> externalContext) {
   final rows = <_ToolContextRow>[];
   final weather = _asStringMap(externalContext['weather']);
   if (weather.isNotEmpty) {
@@ -1496,7 +1567,6 @@ List<_ToolContextRow> _toolContextRows(
           weather['condition'],
           weather['temperature'],
           weather['warning'],
-          weather['fallbackReason'],
         ]),
         Icons.wb_cloudy_rounded,
       ),
@@ -1506,7 +1576,7 @@ List<_ToolContextRow> _toolContextRows(
   final pois = _asList(externalContext['pois']);
   if (pois.isNotEmpty) {
     rows.add(
-      _ToolContextRow('POI', '已返回 ${pois.length} 个候选地点', Icons.place_rounded),
+      _ToolContextRow('地点参考', '已返回 ${pois.length} 个候选地点', Icons.place_rounded),
     );
   }
 
@@ -1516,26 +1586,15 @@ List<_ToolContextRow> _toolContextRows(
       _ToolContextRow(
         '路线',
         _compactJoin([
-          route['mode'],
+          _planDisplayText(route['mode'], ''),
           route['durationMinutes'] == null
               ? null
               : '${route['durationMinutes']} 分钟',
           route['distanceMeters'] == null
               ? null
               : '${route['distanceMeters']} 米',
-          route['fallbackReason'],
         ]),
         Icons.route_rounded,
-      ),
-    );
-  }
-
-  for (final trace in toolTrace.take(4)) {
-    rows.add(
-      _ToolContextRow(
-        _toolTraceLabel(trace),
-        _toolTraceSummary(trace),
-        Icons.manage_search_rounded,
       ),
     );
   }
@@ -1543,8 +1602,8 @@ List<_ToolContextRow> _toolContextRows(
   if (rows.isEmpty) {
     rows.add(
       const _ToolContextRow(
-        '工具状态',
-        '后端未返回外部数据或工具调用详情。',
+        '参考信息',
+        '暂无可展示的天气、地点或路线详情。',
         Icons.info_outline_rounded,
       ),
     );
@@ -1562,25 +1621,6 @@ Map<String, dynamic> _asStringMap(Object? value) {
 
 List<dynamic> _asList(Object? value) {
   return value is List ? value : const [];
-}
-
-String _toolTraceLabel(Map<String, dynamic> trace) {
-  return (trace['tool'] ?? trace['provider'] ?? trace['scenario'] ?? '工具调用')
-      .toString();
-}
-
-String _toolTraceSummary(Map<String, dynamic> trace) {
-  final parts = <String>[
-    if (trace['provider'] != null) 'provider=${trace['provider']}',
-    if (trace['fallback'] == true) '降级',
-    if (trace['cacheHit'] == true) '命中缓存',
-    if (trace['circuitOpen'] == true) '熔断开启',
-    if (trace['rateLimited'] == true) '限流',
-    if (trace['retryCount'] != null) '重试 ${trace['retryCount']} 次',
-    if (trace['errorType'] != null) '错误：${trace['errorType']}',
-    if (trace['fallbackReason'] != null) trace['fallbackReason'].toString(),
-  ];
-  return parts.isEmpty ? '已调用真实工具或模型。' : parts.join(' · ');
 }
 
 String _compactJoin(Iterable<Object?> values) {
@@ -1758,6 +1798,9 @@ class _AlternativePlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
+    final title = _planDisplayText(item['title'], '备选方案');
+    final summary = _planDisplayText(item['summary'], '这条备选适合在天气、拥挤度或体力变化时切换。');
+    final bestFor = _planDisplayText(item['bestFor'], '适合在原计划拥挤、天气变化或体力不足时切换。');
     return GlassBox(
       margin: EdgeInsets.symmetric(
         horizontal: metrics.horizontalPadding,
@@ -1771,7 +1814,7 @@ class _AlternativePlanCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            item['title']?.toString() ?? '备选方案',
+            title,
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontSize: 15,
@@ -1780,17 +1823,17 @@ class _AlternativePlanCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            item['summary']?.toString() ?? '',
+            summary,
             style: const TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 13,
               height: 1.4,
             ),
           ),
-          if (item['bestFor'] != null) ...[
+          if (bestFor.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              '适合：${item['bestFor']}',
+              '适合：$bestFor',
               style: const TextStyle(
                 color: AppTheme.accent,
                 fontSize: 12,

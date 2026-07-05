@@ -1218,7 +1218,7 @@ class _ChatGlassPanel extends StatelessWidget {
                 Expanded(
                   child: Text(
                     queuedMessage == null
-                        ? '正在调用真实 Agent，可停止或补充信息'
+                        ? '蓝小心正在生成回复，可停止或补充信息'
                         : '补充信息会进入下一轮思考',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

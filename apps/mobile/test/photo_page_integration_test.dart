@@ -380,7 +380,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(service.createdCandidate, isTrue);
-    expect(find.text('系统相册照片'), findsOneWidget);
+    expect(find.text('相册地点待确认'), findsOneWidget);
+    expect(find.textContaining('真实旅拍'), findsWidgets);
     expect(find.textContaining('已登记 manual-night.jpg'), findsOneWidget);
   });
   testWidgets('PhotoPage renders selected gallery photo preview on device', (

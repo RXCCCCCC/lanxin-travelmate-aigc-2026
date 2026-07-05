@@ -17,7 +17,7 @@ class StubProfileService extends ProfileService {
       dietaryPreferences: ['no cilantro'],
       interestTags: ['night views'],
       transportPreferences: ['transit'],
-      budgetPreference: 'medium budget',
+      budgetPreference: 'medium',
     );
   }
 
@@ -41,15 +41,16 @@ void main() {
 
     expect(find.text('traveler-a'), findsOneWidget);
     expect(find.text('no cilantro'), findsOneWidget);
-    expect(find.text('slow pace'), findsOneWidget);
-    expect(find.text('transit'), findsOneWidget);
-    expect(find.text('medium budget'), findsOneWidget);
+    expect(find.text('慢节奏'), findsOneWidget);
+    expect(find.text('公共交通'), findsOneWidget);
+    expect(find.text('中等预算'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('night views'),
+      find.text('夜景'),
       180,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('night views'), findsOneWidget);
+    expect(find.text('night views'), findsNothing);
+    expect(find.text('夜景'), findsOneWidget);
   });
 
   testWidgets('ProfilePage edits and saves profile data', (tester) async {

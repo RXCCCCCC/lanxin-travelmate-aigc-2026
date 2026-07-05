@@ -45,7 +45,7 @@ class _ChatPageState extends State<ChatPage> {
     const ChatMessage(
       id: 'welcome',
       sender: MessageSender.assistant,
-      text: '你好，我是蓝小心。告诉我你的目的地、时间和偏好，我会结合真实画像与后端 Agent 帮你规划。',
+      text: '你好，我是蓝小心。告诉我你的目的地、时间和偏好，我会结合你的旅行画像帮你规划。',
       time: '现在',
       avatarState: AvatarState.hello,
     ),
@@ -126,17 +126,19 @@ class _ChatPageState extends State<ChatPage> {
     AgentChatResponse? response;
     try {
       unawaited(
-        _chatHistoryService.saveMessage(
-          sessionId: _sessionId,
-          sender: MessageSender.user,
-          text: text,
-        ).catchError((_) {
-          if (mounted) {
-            setState(() {
-              _voiceNotice = '本地聊天记录暂存失败，但消息已继续发送';
-            });
-          }
-        }),
+        _chatHistoryService
+            .saveMessage(
+              sessionId: _sessionId,
+              sender: MessageSender.user,
+              text: text,
+            )
+            .catchError((_) {
+              if (mounted) {
+                setState(() {
+                  _voiceNotice = '本地聊天记录暂存失败，但消息已继续发送';
+                });
+              }
+            }),
       );
       response = await _agentChatService.sendMessage(
         text,
@@ -168,25 +170,26 @@ class _ChatPageState extends State<ChatPage> {
         ),
       );
       _isSending = false;
-      _voiceNotice = response.errors.any(
-        (error) => error['code'] == 'NETWORK_FALLBACK',
-      )
+      _voiceNotice =
+          response.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')
           ? '离线兜底：请检查后端连接'
           : null;
     });
     unawaited(
-      _chatHistoryService.saveMessage(
-        sessionId: _sessionId,
-        sender: MessageSender.assistant,
-        text: response.replyText,
-        avatarState: response.avatarState,
-      ).catchError((_) {
-        if (mounted) {
-          setState(() {
-            _voiceNotice = '回复已显示，本地聊天记录暂存失败';
-          });
-        }
-      }),
+      _chatHistoryService
+          .saveMessage(
+            sessionId: _sessionId,
+            sender: MessageSender.assistant,
+            text: response.replyText,
+            avatarState: response.avatarState,
+          )
+          .catchError((_) {
+            if (mounted) {
+              setState(() {
+                _voiceNotice = '回复已显示，本地聊天记录暂存失败';
+              });
+            }
+          }),
     );
     _scrollToBottom();
     final voiceText = response.voiceText.trim().isNotEmpty
