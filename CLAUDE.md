@@ -322,6 +322,11 @@ This project is indexed by GitNexus as **lanxin-travelmate-aigc-2026** (4424 sym
 - 共享状态面向人工和 AI 双重阅读，保持简短中文 bullet；不要写入密钥、Token、私人位置、未授权素材或用户敏感原文。
 - 详细规则见 `docs/handoff/ai-sync-protocol.md`。
 
+## 验收测试语料规则
+
+- 功能验收、模型效果验收和截图录屏默认使用中文与中国境内真实出行场景，例如广州、深圳、杭州、重庆、长沙等城市。
+- 如果 ADB 或真机输入法无法稳定注入中文，可以临时使用拼音或英文输入，但语义仍应对应中国本地用户和国内旅行场景。
+
 ## vivo AIGC 本地参考文档
 
 - vivo AIGC 在线文档已镜像到 `docs/reference/vivo-aigc/`。

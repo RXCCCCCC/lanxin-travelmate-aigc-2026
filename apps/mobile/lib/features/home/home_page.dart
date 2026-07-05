@@ -46,7 +46,7 @@ class _HomePageState extends State<HomePage>
   HomeWeatherSummary _weatherSummary = HomeWeatherSummary.idle;
   AvatarState _avatarState = AvatarState.hello;
   bool _showHeroAvatar = false;
-  final bool _isPureMode = false;
+  bool _isPureMode = false;
   bool _isChatExpanded = false;
   bool _statusExpanded = false;
   double _panelHeightRatio = 0.37;
@@ -199,11 +199,11 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _togglePureMode() async {
-    if (!mounted) return;
-    context.push(
-      '/chat?sessionId=${_homeChatController.sessionId}&tripId=${_homeChatController.tripId}',
-    );
-    await _ensureInitialSession();
+    setState(() => _isPureMode = !_isPureMode);
+    if (!_isPureMode) {
+      FocusScope.of(context).unfocus();
+    }
+    unawaited(_ensureInitialSession());
   }
 
   void _expandHomeChat() {
@@ -278,6 +278,7 @@ class _HomePageState extends State<HomePage>
                 : collapsedChatHeight;
             final avatarHeight = h * (compact ? 0.52 : 0.60);
             final avatarBottom = visibleChatHeight + (compact ? 18.0 : 24.0);
+            final purePanelTop = topSafe + (compact ? 166 : 174);
 
             final content = Stack(
               children: [
@@ -445,7 +446,7 @@ class _HomePageState extends State<HomePage>
                   curve: Curves.easeOutCubic,
                   left: sidePadding,
                   right: sidePadding,
-                  top: _isPureMode ? topSafe + 126 : null,
+                  top: _isPureMode ? purePanelTop : null,
                   bottom: 10 + keyboardInset,
                   height: _isPureMode ? null : visibleChatHeight,
                   child: _isChatExpanded || _isPureMode
@@ -508,49 +509,60 @@ class _PureModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        constraints: BoxConstraints(
-          minHeight: 44,
-          minWidth: compact ? 150 : 164,
-        ),
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 13 : 15,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.34),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withOpacity(0.78), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF215ECA).withOpacity(0.10),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(28),
+    );
+    return Material(
+      color: Colors.transparent,
+      shape: shape,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: shape,
+        child: Container(
+          constraints: BoxConstraints(
+            minHeight: 44,
+            minWidth: compact ? 150 : 164,
+          ),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 13 : 15,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.34),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.78),
+              width: 1.2,
             ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isPureMode
-                  ? Icons.fullscreen_exit_rounded
-                  : Icons.fullscreen_rounded,
-              color: const Color(0xFF215ECA),
-              size: 19,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              isPureMode ? '返回陪伴模式' : '进入纯净模式',
-              style: const TextStyle(
-                color: Color(0xFF174C9F),
-                fontWeight: FontWeight.w900,
-                fontSize: 12.8,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF215ECA).withOpacity(0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isPureMode
+                    ? Icons.auto_awesome_motion_rounded
+                    : Icons.chat_bubble_outline_rounded,
+                color: const Color(0xFF215ECA),
+                size: 19,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isPureMode ? '切换到陪伴模式' : '切换到纯净模式',
+                style: const TextStyle(
+                  color: Color(0xFF174C9F),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12.8,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
