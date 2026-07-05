@@ -124,7 +124,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final navHeight = _collapsed ? 28.0 : metrics.bottomNavHeight;
+    final navHeight = _collapsed ? 36.0 : metrics.bottomNavHeight;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -138,8 +138,8 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Colors.white.withOpacity(_collapsed ? 0.20 : 0.72),
-              const Color(0xFFDCEEFF).withOpacity(_collapsed ? 0.36 : 0.85),
+              Colors.white.withOpacity(0.72),
+              const Color(0xFFDCEEFF).withOpacity(0.85),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -245,18 +245,20 @@ class _CollapsedNavBar extends StatelessWidget {
     return Center(
       child: Container(
         width: double.infinity,
-        height: 22,
+        height: 34,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(0),
           gradient: LinearGradient(
             colors: [
-              Colors.white.withOpacity(0.24),
-              const Color(0xFFDCEEFF).withOpacity(0.34),
+              Colors.white.withOpacity(0.72),
+              const Color(0xFFDCEEFF).withOpacity(0.85),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
-          border: Border.all(color: Colors.white.withOpacity(0.35), width: 0.8),
+          border: Border(
+            top: BorderSide(color: Colors.white.withOpacity(0.45), width: 0.8),
+          ),
         ),
         child: Center(
           child: _NavChevronButton(

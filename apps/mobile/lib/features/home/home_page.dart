@@ -142,6 +142,7 @@ class _HomePageState extends State<HomePage>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xFF06224E).withOpacity(0.28),
@@ -208,7 +209,7 @@ class _HomePageState extends State<HomePage>
     setState(() {
       _panelHeightRatio = (_panelHeightRatio - delta / viewportHeight).clamp(
         0.16,
-        0.78,
+        0.72,
       );
     });
   }
@@ -251,10 +252,15 @@ class _HomePageState extends State<HomePage>
             final actionsTop = topSafe + 36;
             final tripTop = topSafe + 82;
             final purePanelTop = topSafe + 128;
+            final statusDrawerTop = tripTop + 18;
+            final companionPanelTopLimit = statusDrawerTop + 140;
             final minPanelHeight = compact ? 166.0 : 178.0;
             final maxPanelHeight = math.max(
               minPanelHeight,
-              h - purePanelTop - 10 - keyboardInset,
+              h -
+                  (_isPureMode ? purePanelTop : companionPanelTopLimit) -
+                  10 -
+                  keyboardInset,
             );
             final ratio = _panelHeightRatio;
             final panelHeight = (h * ratio)
@@ -263,8 +269,8 @@ class _HomePageState extends State<HomePage>
             final effectivePanelHeight = keyboardVisible
                 ? math.min(panelHeight, compact ? 230.0 : 240.0)
                 : panelHeight;
-            final avatarHeight = h * (compact ? 0.52 : 0.60);
-            final avatarBottom = effectivePanelHeight * (compact ? 0.40 : 0.46);
+            final avatarHeight = h * (compact ? 0.54 : 0.62);
+            final avatarBottom = compact ? 46.0 : 58.0;
 
             final content = Stack(
               children: [
@@ -296,39 +302,6 @@ class _HomePageState extends State<HomePage>
                       opacity: _isPureMode ? 0.10 : 0,
                       child: Container(color: Colors.white),
                     ),
-                  ),
-                ),
-
-                // ── 顶部主操作：模式、消息、历史 ──
-                Positioned(
-                  top: actionsTop,
-                  left: controlsLeft,
-                  right: sidePadding,
-                  child: Row(
-                    children: [
-                      _PureModeButton(
-                        isPureMode: _isPureMode,
-                        onTap: _togglePureMode,
-                        compact: compact,
-                        width: controlWidth,
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => context.push('/reminder'),
-                        child: const _TopIconPill(
-                          icon: Icons.notifications_none_rounded,
-                          label: '消息',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _showChatHistorySheet,
-                        child: const _TopIconPill(
-                          icon: Icons.history_rounded,
-                          label: '聊天历史',
-                        ),
-                      ),
-                    ],
                   ),
                 ),
 
@@ -409,7 +382,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 右侧蓝小心状态抽屉 ──
                 Positioned(
-                  top: tripTop + 18,
+                  top: statusDrawerTop,
                   right: 0,
                   child: _ModeExitBubble(
                     hidden: _isPureMode,
@@ -447,6 +420,35 @@ class _HomePageState extends State<HomePage>
                     onOpenTrip: () => context.go('/trip'),
                     onOpenMemory: () => context.go('/memory'),
                     onOpenReview: () => context.go('/review'),
+                  ),
+                ),
+
+                // ── 顶部主操作：模式、消息、历史。放在最后，保证触控优先级最高。 ──
+                Positioned(
+                  top: actionsTop,
+                  left: controlsLeft,
+                  right: sidePadding,
+                  child: Row(
+                    children: [
+                      _PureModeButton(
+                        isPureMode: _isPureMode,
+                        onTap: _togglePureMode,
+                        compact: compact,
+                        width: controlWidth,
+                      ),
+                      const Spacer(),
+                      _TopIconPill(
+                        icon: Icons.notifications_none_rounded,
+                        label: '消息',
+                        onTap: () => context.push('/reminder'),
+                      ),
+                      const SizedBox(width: 8),
+                      _TopIconPill(
+                        icon: Icons.history_rounded,
+                        label: '聊天历史',
+                        onTap: _showChatHistorySheet,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -530,10 +532,15 @@ class _PureModeButton extends StatelessWidget {
 }
 
 class _TopIconPill extends StatelessWidget {
-  const _TopIconPill({required this.icon, required this.label});
+  const _TopIconPill({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -542,11 +549,21 @@ class _TopIconPill extends StatelessWidget {
       child: Semantics(
         button: true,
         label: label,
-        child: GlassBox(
-          width: 44,
-          borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          child: Icon(icon, color: Colors.white, size: 20),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            width: 52,
+            height: 52,
+            child: Center(
+              child: GlassBox(
+                width: 44,
+                borderRadius: BorderRadius.circular(22),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -784,20 +801,26 @@ class _StatusDrawer extends StatelessWidget {
       return GestureDetector(
         onTap: onToggle,
         behavior: HitTestBehavior.opaque,
-        child: GlassBox(
-          width: 20,
-          height: 54,
-          borderRadius: const BorderRadius.horizontal(
-            left: Radius.circular(16),
-          ),
-          opacity: 0.22,
-          borderColor: Colors.white.withOpacity(0.70),
-          padding: EdgeInsets.zero,
-          child: const Center(
-            child: Icon(
-              Icons.keyboard_arrow_left_rounded,
-              color: Color(0xFF215ECA),
-              size: 18,
+        child: SizedBox(
+          width: 124,
+          child: GlassBox(
+            height: 54,
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(24),
+            ),
+            opacity: 0.22,
+            borderColor: Colors.white.withOpacity(0.70),
+            padding: EdgeInsets.zero,
+            child: const Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: EdgeInsets.only(left: 3),
+                child: Icon(
+                  Icons.keyboard_arrow_left_rounded,
+                  color: Color(0xFF215ECA),
+                  size: 19,
+                ),
+              ),
             ),
           ),
         ),
