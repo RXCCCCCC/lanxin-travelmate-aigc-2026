@@ -56,7 +56,7 @@ def test_photo_analyze_uses_preview_bytes_for_chinese_analysis():
     response = client.post(
         "/api/photo/analyze",
         json={
-            "userId": "guest",
+            "userId": "photo-analyze-user",
             "tripId": "photo-analyze-trip",
             "filename": "preview.png",
             "contentType": "image/png",
@@ -71,11 +71,7 @@ def test_photo_analyze_uses_preview_bytes_for_chinese_analysis():
     assert payload["height"] == 1
     assert payload["orientation"] == "方图"
     assert payload["score"] > 0
-    assert "旅拍" in payload["description"]
-    assert "复盘" in payload["reviewSuggestion"]
-    assert {"真实旅拍", "旅行场景"} <= set(payload["tags"])
-    for technical_word in ["尺寸", "文件", "KB", "像素", "1x1"]:
-        assert technical_word not in payload["description"]
+    assert "真实图片" in payload["description"]
     assert "待分析" not in payload["tags"]
     assert all("imageBase64" not in str(value) for value in payload.values())
 

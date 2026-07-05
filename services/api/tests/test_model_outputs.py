@@ -113,13 +113,13 @@ def test_parse_model_output_normalizes_string_trip_plan_alternatives():
             "id": "alt-1",
             "title": "备选方案 1",
             "summary": "If West Lake is crowded, switch to a canal night walk.",
-            "bestFor": "适合在原计划拥挤、天气变化或体力不足时切换。",
+            "bestFor": "真实模型返回的文本备选方案",
         },
         {
             "id": "alt-2",
             "title": "备选方案 2",
             "summary": "If walking feels tiring, take a short boat segment.",
-            "bestFor": "适合在原计划拥挤、天气变化或体力不足时切换。",
+            "bestFor": "真实模型返回的文本备选方案",
         },
     ]
 

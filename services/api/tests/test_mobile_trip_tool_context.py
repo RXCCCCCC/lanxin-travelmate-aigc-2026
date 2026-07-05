@@ -7,18 +7,17 @@ TRIP_PAGE = (
 )
 
 
-def test_trip_page_surfaces_external_context_without_debug_metadata():
+def test_trip_page_surfaces_external_context_and_tool_trace_metadata():
     source = TRIP_PAGE.read_text(encoding="utf-8")
     plan_view_source = source.split("class _AgentTripPlanView", 1)[1].split(
         "class _SectionHeader", 1
     )[0]
 
     assert "externalContext" in plan_view_source
+    assert "toolTrace" in plan_view_source
     assert "_ToolContextCard" in plan_view_source
-    assert "行程参考信息" in plan_view_source
-    assert "toolTrace" not in plan_view_source
-    assert "fallbackReason" not in plan_view_source
-    assert "errorType" not in plan_view_source
-    assert "cacheHit" not in plan_view_source
-    assert "circuitOpen" not in plan_view_source
-    assert "rateLimited" not in plan_view_source
+    assert "fallbackReason" in plan_view_source
+    assert "errorType" in plan_view_source
+    assert "cacheHit" in plan_view_source
+    assert "circuitOpen" in plan_view_source
+    assert "rateLimited" in plan_view_source

@@ -118,10 +118,6 @@ class StubTripProfileService extends ProfileService {
 }
 
 void main() {
-  setUp(() {
-    latestAgentResponse.value = null;
-  });
-
   tearDown(() {
     latestAgentResponse.value = null;
   });
@@ -131,32 +127,9 @@ void main() {
     Finder finder,
     String text,
   ) async {
-    await tester.scrollUntilVisible(
-      finder,
-      180,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
+    await tester.ensureVisible(finder);
+    await tester.pump();
     await tester.enterText(finder, text);
-  }
-
-  Future<void> tapWhenVisible(
-    WidgetTester tester,
-    Finder finder, {
-    double delta = 180,
-  }) async {
-    final scrollable = find.byType(Scrollable).first;
-    await tester.scrollUntilVisible(finder, delta, scrollable: scrollable);
-    await tester.pumpAndSettle();
-    final rect = tester.getRect(finder);
-    if (rect.bottom > 580) {
-      await tester.drag(scrollable, Offset(0, -(rect.bottom - 560)));
-      await tester.pumpAndSettle();
-    } else if (rect.top < 20) {
-      await tester.drag(scrollable, Offset(0, 40 - rect.top));
-      await tester.pumpAndSettle();
-    }
-    await tester.tap(finder);
   }
 
   testWidgets(
@@ -200,90 +173,6 @@ void main() {
     },
   );
 
-  testWidgets('TripPage hides internal and meaningless planning text', (
-    tester,
-  ) async {
-    latestAgentResponse.value = const AgentChatResponse(
-      replyText: '规划完成',
-      voiceText: '规划完成',
-      avatarState: AvatarState.planning,
-      emotion: 'curious',
-      memoryCandidates: [],
-      toolTrace: [],
-      nextActions: [],
-      syncSuggestions: [],
-      errors: [],
-      cards: [
-        {
-          'type': 'tripPlan',
-          'payload': {
-            'title': '广州轻松两日线',
-            'destination': '广州',
-            'dateRange': '周末两天',
-            'profileMatches': [
-              'medium budget applied',
-              'night view preference',
-            ],
-            'days': [],
-            'dynamicAdjustment': {
-              'trigger': 'model fallback',
-              'suggestion': 'route_tool 缺少坐标，需手动规划',
-            },
-            'risks': ['路线规划工具因为缺少坐标信息无法生成详细步行路线，需手动规划点位间交通'],
-            'alternatives': [
-              {
-                'title': '备选方案 1',
-                'summary': 'fallback model text',
-                'bestFor': '真实模型返回的文本备选方案',
-              },
-            ],
-            'externalContext': {
-              'route': {
-                'mode': 'transit',
-                'fallbackReason':
-                    '路线接口需要 originLocation 与 destinationLocation 坐标。',
-              },
-            },
-            'toolTrace': [
-              {
-                'tool': 'model_provider',
-                'provider': 'mock',
-                'fallbackReason': '当前使用 MockModelProvider',
-              },
-            ],
-          },
-        },
-      ],
-    );
-
-    await tester.pumpWidget(const MaterialApp(home: TripPage()));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('真实模型', skipOffstage: false), findsNothing);
-    expect(find.textContaining('model', skipOffstage: false), findsNothing);
-    expect(
-      find.textContaining('route_tool', skipOffstage: false),
-      findsNothing,
-    );
-    expect(find.textContaining('路线规划工具', skipOffstage: false), findsNothing);
-    expect(find.textContaining('缺少坐标', skipOffstage: false), findsNothing);
-    expect(find.textContaining('provider=', skipOffstage: false), findsNothing);
-    expect(
-      find.textContaining('MockModelProvider', skipOffstage: false),
-      findsNothing,
-    );
-    expect(find.textContaining('中等预算', skipOffstage: false), findsOneWidget);
-    expect(find.textContaining('夜景', skipOffstage: false), findsOneWidget);
-    expect(
-      find.textContaining('出发前在地图 App 再确认一次', skipOffstage: false),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('天气变化或体力不足', skipOffstage: false),
-      findsOneWidget,
-    );
-  });
-
   testWidgets(
     'TripPage loads current plan from dashboard when agent plan is empty',
     (tester) async {
@@ -296,7 +185,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hangzhou real dashboard plan'), findsOneWidget);
-      expect(find.textContaining('夜景'), findsOneWidget);
+      expect(
+        find.textContaining('night view preference applied'),
+        findsOneWidget,
+      );
       expect(find.text('真实轨迹'), findsOneWidget);
       expect(find.textContaining('Hotel -> West Lake'), findsOneWidget);
       expect(find.textContaining('West Lake'), findsWidgets);
@@ -315,37 +207,51 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await enterTextWhenVisible(
-      tester,
+    await tester.enterText(
       find.byKey(const ValueKey('trip-destination-input')),
       'Hangzhou',
     );
-    await enterTextWhenVisible(
-      tester,
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-origin-coordinate-input')),
+      '30.245,120.165',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-destination-coordinate-input')),
+      '30.259,120.130',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-start-date-input')),
+      '2026-07-01',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('trip-end-date-input')),
+      '2026-07-03',
+    );
+    await tester.enterText(
       find.byKey(const ValueKey('trip-companions-input')),
       'mother, child',
     );
-    await enterTextWhenVisible(
-      tester,
+    await tester.enterText(
       find.byKey(const ValueKey('trip-preferences-input')),
       'night view, less walking',
     );
-    await tapWhenVisible(
-      tester,
-      find.byKey(const ValueKey('trip-budget-medium')),
-    );
-    await tapWhenVisible(
-      tester,
-      find.byKey(const ValueKey('trip-transport-transit')),
-    );
-    final createButton = find.byKey(const ValueKey('trip-create-plan-button'));
-    await tapWhenVisible(tester, createButton);
+    await tester.tap(find.byKey(const ValueKey('trip-budget-medium')));
+    await tester.tap(find.byKey(const ValueKey('trip-transport-transit')));
+    await tester.tap(find.byKey(const ValueKey('trip-create-plan-button')));
     await tester.pumpAndSettle();
 
     expect(planService.capturedDraft?.destination, 'Hangzhou');
-    expect(planService.capturedDraft?.originCoordinate, isNull);
-    expect(planService.capturedDraft?.destinationCoordinate, isNull);
-    expect(planService.capturedDraft?.startDate, isNull);
+    expect(planService.capturedDraft?.originCoordinate?['latitude'], 30.245);
+    expect(planService.capturedDraft?.originCoordinate?['longitude'], 120.165);
+    expect(
+      planService.capturedDraft?.destinationCoordinate?['latitude'],
+      30.259,
+    );
+    expect(
+      planService.capturedDraft?.destinationCoordinate?['longitude'],
+      120.130,
+    );
+    expect(planService.capturedDraft?.startDate, '2026-07-01');
     expect(planService.capturedDraft?.companions, ['mother', 'child']);
     expect(planService.capturedDraft?.preferences, [
       'night view',
@@ -371,13 +277,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await enterTextWhenVisible(
-      tester,
+    await tester.enterText(
       find.byKey(const ValueKey('trip-destination-input')),
       'Hangzhou',
     );
-    final createButton = find.byKey(const ValueKey('trip-create-plan-button'));
-    await tapWhenVisible(tester, createButton);
+    await tester.tap(find.byKey(const ValueKey('trip-create-plan-button')));
     await tester.pumpAndSettle();
 
     expect(planService.capturedDraft?.budget, 'medium');
@@ -399,17 +303,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await enterTextWhenVisible(
-      tester,
+    await tester.enterText(
       find.byKey(const ValueKey('trip-destination-input')),
       'Hangzhou',
     );
-    final createButton = find.byKey(const ValueKey('trip-create-plan-button'));
-    await tapWhenVisible(tester, createButton);
+    await tester.tap(find.byKey(const ValueKey('trip-create-plan-button')));
     await tester.pumpAndSettle();
 
-    final replanButton = find.byKey(const ValueKey('trip-replan-weather-risk'));
-    await tapWhenVisible(tester, replanButton);
+    await tester.tap(find.byKey(const ValueKey('trip-replan-weather-risk')));
     await tester.pumpAndSettle();
 
     expect(planService.requests, hasLength(2));
@@ -450,11 +351,15 @@ void main() {
     final coordinateButton = find.byKey(
       const ValueKey('trip-coordinate-group-button'),
     );
-    await tapWhenVisible(tester, coordinateButton);
+    await tester.ensureVisible(coordinateButton);
+    await tester.pumpAndSettle();
+    await tester.tap(coordinateButton);
     await tester.pumpAndSettle();
 
     final createButton = find.byKey(const ValueKey('trip-create-plan-button'));
-    await tapWhenVisible(tester, createButton, delta: -180);
+    await tester.ensureVisible(createButton);
+    await tester.pumpAndSettle();
+    await tester.tap(createButton);
     await tester.pumpAndSettle();
 
     final coordination = planService.capturedDraft?.groupCoordination;
@@ -504,7 +409,9 @@ void main() {
     final coordinateButton = find.byKey(
       const ValueKey('trip-coordinate-group-button'),
     );
-    await tapWhenVisible(tester, coordinateButton);
+    await tester.ensureVisible(coordinateButton);
+    await tester.pumpAndSettle();
+    await tester.tap(coordinateButton);
     await tester.pumpAndSettle();
 
     expect(groupService.capturedDraft?.destination, '重庆');

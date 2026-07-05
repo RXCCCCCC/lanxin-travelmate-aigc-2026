@@ -31,3 +31,7 @@ flutter:
   assets:
     - assets/avatars/
 
+hooks:
+  user_defines:
+    sqlite3:
+      source: system

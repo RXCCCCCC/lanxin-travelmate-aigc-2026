@@ -38,66 +38,6 @@ def _load_user_settings(session: Session, user_id: str | None) -> dict[str, obje
     }
 
 
-def _compact_text(value: object, fallback: str = "") -> str:
-    text = str(value or "").strip()
-    return text or fallback
-
-
-def _safe_plan_reply_text(value: object, fallback: str = "") -> str:
-    text = _compact_text(value)
-    if not text:
-        return fallback
-    normalized = text.lower()
-    if (
-        "真实模型" in text
-        or "模型返回" in text
-        or "路线规划工具" in text
-        or "缺少坐标" in text
-        or "手动规划" in text
-        or "route_tool" in normalized
-        or "model_provider" in normalized
-        or "model fallback" in normalized
-        or "fallback model" in normalized
-        or "provider=" in normalized
-    ):
-        return fallback
-    english_letters = sum(1 for char in text if "a" <= char.lower() <= "z")
-    chinese_chars = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
-    if english_letters and not chinese_chars:
-        return fallback
-    return text
-
-
-def _build_plan_chat_reply(plan: dict[str, object]) -> str:
-    destination = _safe_plan_reply_text(plan.get("destination"), "这次旅行")
-    title = _safe_plan_reply_text(plan.get("title"))
-    summary = _safe_plan_reply_text(
-        plan.get("summary"),
-        "我会把路线安排成更稳妥的版本，并提醒你出发前结合天气、体力和地图 App 再确认。",
-    )
-    alternatives = plan.get("alternatives")
-    first_alternative = alternatives[0] if isinstance(alternatives, list) and alternatives else {}
-    alternative_title = ""
-    alternative_summary = ""
-    if isinstance(first_alternative, dict):
-        alternative_title = _safe_plan_reply_text(first_alternative.get("title"))
-        alternative_summary = _safe_plan_reply_text(
-            first_alternative.get("summary"),
-            "适合在天气变化、排队拥挤或体力不足时切换。",
-        )
-
-    parts = [f"我先为{destination}整理了一版行程。"]
-    if title:
-        parts.append(f"主线是{title}。")
-    if summary:
-        parts.append(summary)
-    if alternative_title or alternative_summary:
-        alternative = "：".join(part for part in (alternative_title, alternative_summary) if part)
-        parts.append(f"备选方案我也准备了，{alternative}")
-    parts.append("你可以继续告诉我预算、节奏、同行人或不想去的点，我会直接在这版上改。")
-    return "".join(parts)
-
-
 def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict[str, object]:
     message = str(state.get("message") or "")
     normalized_message = message.lower()
@@ -120,17 +60,20 @@ def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict
     if any(keyword in normalized_message for keyword in ("plan", "route", "itinerary", "destination", "weekend")):
         result = graph.invoke_plan_only(state)
         memory_candidates = build_rule_memory_candidates(message)
-        trip_plan = result.get("trip_plan", {})
-        reply = _build_plan_chat_reply(trip_plan if isinstance(trip_plan, dict) else {})
+        destination = result.get("trip_plan", {}).get("destination", "this trip")
+        reply = (
+            f"I have prepared a travel plan for {destination}. "
+            "You can keep adjusting budget, transport, or companions."
+        )
         result["response"] = {
             "replyText": reply,
             "voiceText": reply,
             "avatarState": "planning",
             "emotion": "curious",
-            "cards": [{"type": "tripPlan", "payload": trip_plan}],
+            "cards": [{"type": "tripPlan", "payload": result.get("trip_plan", {})}],
             "memoryCandidates": memory_candidates,
             "toolTrace": result.get("tool_trace", []),
-            "nextActions": [{"type": "openTripPlan", "label": "查看行程详情"}],
+            "nextActions": [{"type": "openTripPlan", "label": "View trip plan"}],
             "syncSuggestions": [],
             "errors": result.get("errors", []),
         }
@@ -140,14 +83,14 @@ def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict
     ):
         result = graph.invoke_plan_only(state)
         memory_candidates = build_rule_memory_candidates(message)
-        trip_plan = result.get("trip_plan", {})
-        reply = _build_plan_chat_reply(trip_plan if isinstance(trip_plan, dict) else {})
+        destination = result.get("trip_plan", {}).get("destination", "这次旅行")
+        reply = f"我已经按轻松节奏生成{destination}行程，你可以继续让我调整预算、交通或同行人安排。"
         result["response"] = {
             "replyText": reply,
             "voiceText": reply,
             "avatarState": "planning",
             "emotion": "curious",
-            "cards": [{"type": "tripPlan", "payload": trip_plan}],
+            "cards": [{"type": "tripPlan", "payload": result.get("trip_plan", {})}],
             "memoryCandidates": memory_candidates,
             "toolTrace": result.get("tool_trace", []),
             "nextActions": [{"type": "openTripPlan", "label": "查看行程"}],

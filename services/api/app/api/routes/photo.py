@@ -120,42 +120,6 @@ def _orientation(width: int, height: int) -> str:
     return "方图"
 
 
-def _travel_composition_hint(orientation: str) -> tuple[str, str, str]:
-    if orientation == "横图":
-        return (
-            "环境叙事",
-            "适合交代城市街景、自然风光或路途中经过的开阔场面",
-            "横向构图适合作为复盘里的路线高光或风景开场",
-        )
-    if orientation == "竖图":
-        return (
-            "打卡记录",
-            "适合记录地标、人像、店铺门面或近距离旅行细节",
-            "竖向构图适合作为社媒封面或当天最有记忆点的打卡图",
-        )
-    if orientation == "方图":
-        return (
-            "日记切片",
-            "适合保留当下氛围、餐食、街角或旅途中的小发现",
-            "方形构图适合进入旅行日记和复盘精选瞬间",
-        )
-    return (
-        "旅行线索",
-        "适合先作为旅拍候选保存，等补充地点后再生成更准确的文案",
-        "可在复盘时补充地点、同行人和当时心情",
-    )
-
-
-def _preview_quality_label(byte_size: int, megapixels: float, width: int, height: int) -> str:
-    if width <= 0 or height <= 0:
-        return "待确认画面"
-    if megapixels >= 2 or byte_size > 150_000:
-        return "画面信息较完整"
-    if byte_size > 20_000:
-        return "预览信息可用"
-    return "轻量预览"
-
-
 def _analyze_image_bytes(payload: PhotoAnalyzeRequest) -> dict[str, object]:
     try:
         data = base64.b64decode(payload.imageBase64, validate=True)
@@ -165,16 +129,17 @@ def _analyze_image_bytes(payload: PhotoAnalyzeRequest) -> dict[str, object]:
     orientation = _orientation(width, height)
     megapixels = (width * height / 1_000_000) if width and height else 0
     byte_size = len(data)
-    scene_label, scene_description, review_hint = _travel_composition_hint(orientation)
-    quality_label = _preview_quality_label(byte_size, megapixels, width, height)
-    source_label = "相机现场拍摄" if payload.source == "camera" else "相册导入"
-    tags = ["真实旅拍", "旅行场景", scene_label, source_label]
+    tags = ["真实图片分析", orientation]
     if payload.source == "camera":
-        location = "拍摄地点待标注"
+        tags.append("相机拍摄")
     else:
-        location = "相册地点待确认"
-    if quality_label != "待确认画面":
-        tags.append(quality_label)
+        tags.append("相册导入")
+    if byte_size > 150_000:
+        tags.append("细节较丰富")
+    elif byte_size > 20_000:
+        tags.append("预览清晰")
+    else:
+        tags.append("轻量预览")
     if megapixels >= 8:
         score = 9.1
     elif megapixels >= 2:
@@ -183,15 +148,16 @@ def _analyze_image_bytes(payload: PhotoAnalyzeRequest) -> dict[str, object]:
         score = 7.8
     else:
         score = 6.8
+    dimension_text = f"{width}x{height}" if width and height else "尺寸未识别"
     return {
         "width": width,
         "height": height,
         "orientation": orientation,
-        "location": location,
+        "location": "相机拍摄照片" if payload.source == "camera" else "系统相册照片",
         "score": score,
         "tags": tags,
-        "description": f"这张照片已作为真实旅拍候选收录，{scene_description}。建议补充具体地点后生成更贴近行程的分享文案。",
-        "reviewSuggestion": f"{review_hint}；如果这是当天重要地点，建议加入复盘并补一句当时的心情或同行故事。",
+        "description": f"已基于真实图片预览完成分析：{dimension_text}，{orientation}，文件约 {byte_size // 1024}KB。适合作为旅拍候选继续生成文案。",
+        "reviewSuggestion": "建议加入旅行复盘的照片高光区，用于记录当天真实画面。",
         "canAddToReview": True,
         "provider": "local_image_features",
         "fallback": False,

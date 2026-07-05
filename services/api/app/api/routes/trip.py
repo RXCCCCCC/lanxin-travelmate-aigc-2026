@@ -57,40 +57,6 @@ def _localize_text(value: object, fallback: str) -> str:
     return text
 
 
-def _localize_risk_text(value: object, fallback: str) -> str:
-    text = _localize_text(value, fallback)
-    normalized = text.lower()
-    if (
-        "路线规划工具" in text
-        or "缺少坐标" in text
-        or "坐标信息" in text
-        or "手动规划" in text
-        or "虚手动" in text
-        or ("tool" in normalized and ("route" in normalized or "planning" in normalized))
-    ):
-        return "点位间的详细步行和换乘路线建议出发前在地图 App 再确认一次，避免现场绕路。"
-    return text
-
-
-def _localize_product_text(value: object, fallback: str) -> str:
-    text = _localize_text(value, fallback)
-    normalized = text.lower()
-    if (
-        "真实模型" in text
-        or "模型返回" in text
-        or "路线规划工具" in text
-        or "缺少坐标" in text
-        or "手动规划" in text
-        or "fallback model" in normalized
-        or "model fallback" in normalized
-        or "route_tool" in normalized
-        or "model_provider" in normalized
-        or "provider=" in normalized
-    ):
-        return fallback
-    return text
-
-
 def _localize_list(values: object, fallback: str) -> list[str]:
     result = []
     for index, item in enumerate(values or []):
@@ -98,16 +64,9 @@ def _localize_list(values: object, fallback: str) -> list[str]:
     return result
 
 
-def _localize_risk_list(values: object, fallback: str) -> list[str]:
-    result = []
-    for index, item in enumerate(values or []):
-        result.append(_localize_risk_text(item, f"{fallback}{index + 1}。"))
-    return result
-
-
 def _localize_trip_plan_text(plan: dict[str, object]) -> None:
     plan["profileMatches"] = _localize_list(plan.get("profileMatches"), "已根据你的旅行画像调整安排")
-    plan["risks"] = _localize_risk_list(plan.get("risks"), "已识别一项需要留意的行程风险")
+    plan["risks"] = _localize_list(plan.get("risks"), "已识别一项需要留意的行程风险")
     alternatives = []
     for item in plan.get("alternatives") or []:
         if not isinstance(item, dict):
@@ -115,20 +74,9 @@ def _localize_trip_plan_text(plan: dict[str, object]) -> None:
             continue
         localized = dict(item)
         if "summary" in localized:
-            localized["summary"] = _localize_product_text(
-                localized.get("summary"),
-                "这条备选适合在天气、拥挤度或体力变化时切换。",
-            )
+            localized["summary"] = _localize_text(localized.get("summary"), "备选方案已按中文整理。")
         if "reason" in localized:
-            localized["reason"] = _localize_product_text(
-                localized.get("reason"),
-                "这条备选用于应对节奏、天气或交通变化。",
-            )
-        if "bestFor" in localized:
-            localized["bestFor"] = _localize_product_text(
-                localized.get("bestFor"),
-                "适合在原计划拥挤、天气变化或体力不足时切换。",
-            )
+            localized["reason"] = _localize_text(localized.get("reason"), "这条备选用于应对节奏、天气或交通变化。")
         alternatives.append(localized)
     plan["alternatives"] = alternatives
 

@@ -62,7 +62,7 @@ class TripPlanningOutput(BaseModel):
                         "id": f"alt-{index}",
                         "title": f"备选方案 {index}",
                         "summary": item,
-                        "bestFor": "适合在原计划拥挤、天气变化或体力不足时切换。",
+                        "bestFor": "真实模型返回的文本备选方案",
                     }
                 )
             else:

@@ -74,47 +74,43 @@ void main() {
       expect(tasks.single['type'], 'photo');
     },
   );
-  test(
-    'PhotoExperienceService sends preview bytes to analysis endpoint',
-    () async {
-      RequestOptions? captured;
-      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
-      dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            captured = options;
-            handler.resolve(
-              Response<dynamic>(
-                requestOptions: options,
-                statusCode: 200,
-                data: {
-                  'location': '相机拍摄照片',
-                  'score': 8.2,
-                  'description': '这张照片适合作为旅拍高光，记录现场氛围。',
-                  'tags': ['真实旅拍', '旅行场景', '横图'],
-                  'reviewSuggestion': '建议加入复盘，补充当天地点和心情。',
-                },
-              ),
-            );
-          },
-        ),
-      );
+  test('PhotoExperienceService sends preview bytes to analysis endpoint', () async {
+    RequestOptions? captured;
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          captured = options;
+          handler.resolve(
+            Response<dynamic>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'location': '相机拍摄照片',
+                'score': 8.2,
+                'description': '已基于真实图片预览完成分析。',
+                'tags': ['真实图片分析', '横图'],
+                'reviewSuggestion': '建议加入复盘。',
+              },
+            ),
+          );
+        },
+      ),
+    );
 
-      final result = await PhotoExperienceService(dio: dio).analyzePhoto(
-        filename: 'preview.png',
-        contentType: 'image/png',
-        previewBytes: Uint8List.fromList([1, 2, 3, 4]),
-        source: 'camera',
-      );
+    final result = await PhotoExperienceService(dio: dio).analyzePhoto(
+      filename: 'preview.png',
+      contentType: 'image/png',
+      previewBytes: Uint8List.fromList([1, 2, 3, 4]),
+      source: 'camera',
+    );
 
-      expect(captured?.path, '/api/photo/analyze');
-      expect(captured?.data['imageBase64'], 'AQIDBA==');
-      expect(captured?.data, isNot(contains('localPath')));
-      expect(captured?.data, isNot(contains('localUri')));
-      expect(result['tags'], contains('真实旅拍'));
-      expect(result['description'], isNot(contains('KB')));
-    },
-  );
+    expect(captured?.path, '/api/photo/analyze');
+    expect(captured?.data['imageBase64'], 'AQIDBA==');
+    expect(captured?.data, isNot(contains('localPath')));
+    expect(captured?.data, isNot(contains('localUri')));
+    expect(result['tags'], contains('真实图片分析'));
+  });
 
   test(
     'PhotoExperienceService creates photo candidates and upload metadata',
