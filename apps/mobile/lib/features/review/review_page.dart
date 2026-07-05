@@ -336,7 +336,7 @@ class _AgentReviewView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Agent 旅行复盘',
+                '蓝小心旅行复盘',
                 style: TextStyle(
                   color: AppTheme.primary,
                   fontSize: 13,

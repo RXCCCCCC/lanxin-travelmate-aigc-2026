@@ -160,7 +160,7 @@ def test_trip_plan_input_explanations_are_chinese():
     response = client.post(
         "/api/trip/plan",
         json={
-            "userId": f"plan-cn-user-{uuid4().hex}",
+            "userId": "guest",
             "tripId": f"plan-cn-trip-{uuid4().hex}",
             "message": "请规划杭州两天轻松路线",
             "destination": "杭州",
@@ -185,3 +185,45 @@ def test_trip_plan_input_explanations_are_chinese():
     assert "Replan reason applied" not in text
     assert "Group coordination" not in text
     assert "已参考预算偏好：中等预算。" in text
+
+
+def test_trip_plan_risks_do_not_expose_route_tool_failures(monkeypatch):
+    from app.api.routes import trip
+
+    class PlanOnlyGraph:
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "trip_plan": {
+                    "title": "广州一日路线",
+                    "destination": "广州",
+                    "summary": "按轻松节奏安排广州城市游。",
+                    "profileMatches": [],
+                    "risks": [
+                        "路线规划工具因为缺少坐标信息无法生成详细步行路线，需手动规划点位间交通"
+                    ],
+                    "alternatives": [],
+                },
+                "model_call_logs": [],
+            }
+
+    monkeypatch.setattr(trip, "TravelMateGraph", PlanOnlyGraph)
+
+    response = client.post(
+        "/api/trip/plan",
+        json={
+            "userId": "guest",
+            "tripId": f"plan-risk-trip-{uuid4().hex}",
+            "message": "请规划广州一日路线",
+            "destination": "广州",
+        },
+    )
+
+    assert response.status_code == 200
+    text = "\n".join(response.json()["risks"])
+    assert "路线规划工具" not in text
+    assert "缺少坐标" not in text
+    assert "手动规划" not in text
+    assert "虚手动" not in text
+    assert "地图" in text
+    assert "步行" in text or "换乘" in text

@@ -116,12 +116,17 @@ class _ProfileViewModel {
     if (payload == null) return _ProfileViewModel.empty();
     return _ProfileViewModel(
       name: payload.userId,
-      dietaryPreferences: _fallbackList(payload.dietaryPreferences),
-      travelPace: payload.travelPace.isEmpty ? '未设置' : payload.travelPace,
-      transportPreferences: _fallbackList(payload.transportPreferences),
-      budgetPreference:
-          payload.budgetPreference.isEmpty ? '未设置' : payload.budgetPreference,
-      interestTags: _fallbackList(payload.interestTags),
+      dietaryPreferences: _fallbackList(
+        payload.dietaryPreferences.map(_displayProfileValue).toList(),
+      ),
+      travelPace: _displayProfileValue(payload.travelPace),
+      transportPreferences: _fallbackList(
+        payload.transportPreferences.map(_displayProfileValue).toList(),
+      ),
+      budgetPreference: _displayProfileValue(payload.budgetPreference),
+      interestTags: _fallbackList(
+        payload.interestTags.map(_displayProfileValue).toList(),
+      ),
     );
   }
 
@@ -137,8 +142,34 @@ class _ProfileViewModel {
   }
 
   static List<String> _fallbackList(List<String> values) {
-    return values.isEmpty ? const ['未设置'] : values;
+    final filtered = values.where((item) => item.trim().isNotEmpty).toList();
+    return filtered.isEmpty ? const ['未设置'] : filtered;
   }
+}
+
+String _displayProfileValue(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return '未设置';
+  const map = {
+    'light': '轻松',
+    'slow': '慢节奏',
+    'slow pace': '慢节奏',
+    'relaxed pace': '轻松节奏',
+    'medium': '中等预算',
+    'medium budget': '中等预算',
+    'low': '低预算',
+    'low budget': '低预算',
+    'high': '高预算',
+    'high budget': '高预算',
+    'transit': '公共交通',
+    'walking': '步行',
+    'taxi': '打车',
+    'self_drive': '自驾',
+    'night view': '夜景',
+    'night views': '夜景',
+    'less walking': '少走路',
+  };
+  return map[text.toLowerCase()] ?? text;
 }
 
 class _ProfileList extends StatelessWidget {
@@ -201,62 +232,57 @@ class _ProfileList extends StatelessWidget {
           icon: Icons.restaurant_rounded,
           title: '饮食偏好',
           values: profile.dietaryPreferences,
-          onEdit:
-              () => _openEditor(
-                context,
-                field: _ProfileField.dietary,
-                title: '饮食偏好',
-                initialValue: profile.dietaryPreferences.join(', '),
-              ),
+          onEdit: () => _openEditor(
+            context,
+            field: _ProfileField.dietary,
+            title: '饮食偏好',
+            initialValue: profile.dietaryPreferences.join(', '),
+          ),
         ),
         _ProfileCard(
           icon: Icons.directions_walk_rounded,
           title: '旅行节奏',
           values: [profile.travelPace],
-          onEdit:
-              () => _openEditor(
-                context,
-                field: _ProfileField.pace,
-                title: '旅行节奏',
-                initialValue: profile.travelPace,
-              ),
+          onEdit: () => _openEditor(
+            context,
+            field: _ProfileField.pace,
+            title: '旅行节奏',
+            initialValue: profile.travelPace,
+          ),
         ),
         _ProfileCard(
           icon: Icons.directions_bus_rounded,
           title: '交通偏好',
           values: profile.transportPreferences,
-          onEdit:
-              () => _openEditor(
-                context,
-                field: _ProfileField.transport,
-                title: '交通偏好',
-                initialValue: profile.transportPreferences.join(', '),
-              ),
+          onEdit: () => _openEditor(
+            context,
+            field: _ProfileField.transport,
+            title: '交通偏好',
+            initialValue: profile.transportPreferences.join(', '),
+          ),
         ),
         _ProfileCard(
           icon: Icons.account_balance_wallet_rounded,
           title: '预算水平',
           values: [profile.budgetPreference],
-          onEdit:
-              () => _openEditor(
-                context,
-                field: _ProfileField.budget,
-                title: '预算水平',
-                initialValue: profile.budgetPreference,
-              ),
+          onEdit: () => _openEditor(
+            context,
+            field: _ProfileField.budget,
+            title: '预算水平',
+            initialValue: profile.budgetPreference,
+          ),
         ),
         _ProfileCard(
           icon: Icons.local_offer_rounded,
           title: '兴趣标签',
           values: profile.interestTags,
           isTags: true,
-          onEdit:
-              () => _openEditor(
-                context,
-                field: _ProfileField.interests,
-                title: '兴趣标签',
-                initialValue: profile.interestTags.join(', '),
-              ),
+          onEdit: () => _openEditor(
+            context,
+            field: _ProfileField.interests,
+            title: '兴趣标签',
+            initialValue: profile.interestTags.join(', '),
+          ),
         ),
       ],
     );
@@ -271,12 +297,11 @@ class _ProfileList extends StatelessWidget {
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder:
-          (context) => _ProfileEditSheet(
-            title: title,
-            initialValue: initialValue,
-            multiValue: field.isList,
-          ),
+      builder: (context) => _ProfileEditSheet(
+        title: title,
+        initialValue: initialValue,
+        multiValue: field.isList,
+      ),
     );
     if (result == null) return;
     onSave(_updatedProfile(field, result));
@@ -287,22 +312,21 @@ class _ProfileList extends StatelessWidget {
     final listValue = _splitValues(rawValue);
     return ProfilePayload(
       userId: current.userId,
-      travelPace:
-          field == _ProfileField.pace ? rawValue.trim() : current.travelPace,
-      dietaryPreferences:
-          field == _ProfileField.dietary
-              ? listValue
-              : current.dietaryPreferences,
-      interestTags:
-          field == _ProfileField.interests ? listValue : current.interestTags,
-      transportPreferences:
-          field == _ProfileField.transport
-              ? listValue
-              : current.transportPreferences,
-      budgetPreference:
-          field == _ProfileField.budget
-              ? rawValue.trim()
-              : current.budgetPreference,
+      travelPace: field == _ProfileField.pace
+          ? rawValue.trim()
+          : current.travelPace,
+      dietaryPreferences: field == _ProfileField.dietary
+          ? listValue
+          : current.dietaryPreferences,
+      interestTags: field == _ProfileField.interests
+          ? listValue
+          : current.interestTags,
+      transportPreferences: field == _ProfileField.transport
+          ? listValue
+          : current.transportPreferences,
+      budgetPreference: field == _ProfileField.budget
+          ? rawValue.trim()
+          : current.budgetPreference,
       personality: current.personality,
       proactivityLevel: current.proactivityLevel,
       syncStrategy: current.syncStrategy,
@@ -401,16 +425,18 @@ class _ProfileCard extends StatelessWidget {
             const SizedBox(height: AppTheme.spacingMd),
             isTags
                 ? Wrap(
-                  spacing: AppTheme.spacingSm,
-                  runSpacing: AppTheme.spacingSm,
-                  children:
-                      values.map((value) => _TagChip(value: value)).toList(),
-                )
+                    spacing: AppTheme.spacingSm,
+                    runSpacing: AppTheme.spacingSm,
+                    children: values
+                        .map((value) => _TagChip(value: value))
+                        .toList(),
+                  )
                 : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children:
-                      values.map((value) => _ValueLine(value: value)).toList(),
-                ),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: values
+                        .map((value) => _ValueLine(value: value))
+                        .toList(),
+                  ),
           ],
         ),
       ),

@@ -221,13 +221,14 @@ class PhotoExperienceService {
   }
 
   Map<String, dynamic> _fallbackPhotoAnalysis({required String source}) {
+    final sourceLabel = source == 'camera' ? '相机现场拍摄' : '相册导入';
     return {
-      'location': source == 'camera' ? '相机拍摄照片' : '系统相册照片',
+      'location': source == 'camera' ? '拍摄地点待标注' : '相册地点待确认',
       'score': 7.2,
-      'description': '图片分析暂不可用，已保留真实预览，可稍后重试分析。',
-      'tags': [source == 'camera' ? '相机拍摄' : '相册导入', '分析失败，可重试'],
-      'reviewSuggestion': '分析失败时建议重试后再加入复盘高光。',
-      'canAddToReview': false,
+      'description': '已保留这张真实旅拍预览，可先作为旅行场景候选；补充地点后能生成更准确的分享文案和复盘高光。',
+      'tags': ['真实旅拍', '旅行场景', sourceLabel, '待补充地点'],
+      'reviewSuggestion': '建议补充地点、同行人或当时心情后加入复盘，避免只留下没有上下文的照片。',
+      'canAddToReview': true,
       'offline': true,
     };
   }
