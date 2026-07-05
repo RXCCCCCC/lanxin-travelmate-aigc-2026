@@ -54,6 +54,9 @@
 
 ### 2026-07-05
 
+- 提交准备：本地 `dev` 已合入远端 `origin/dev` 的新增历史；远端两个 `Revert ...` 提交已通过 local-wins merge 纳入历史，但最终文件树保留本地当前状态，尤其首页 UI 与首页交互逻辑。
+- 首页保留口径：`apps/mobile/lib/features/home/`、`apps/mobile/lib/core/router/app_router.dart` 以本地当前版本为准，未采用远端旧首页 UI/旧交互。
+- 推送前验证：`git diff --check` 通过；`cd apps/mobile && flutter analyze` 通过；移动端定向 `flutter test test/home_dashboard_test.dart test/chat_page_integration_test.dart test/photo_experience_service_test.dart test/photo_page_integration_test.dart test/profile_page_service_test.dart test/trip_page_integration_test.dart` 结果 `29 passed`；后端定向 `pytest tests/test_agent_api.py tests/test_mobile_trip_tool_context.py tests/test_model_outputs.py tests/test_p1_photo_content_tasks.py tests/test_trip_plan_inputs.py -q` 结果 `26 passed`。
 - 已按强压缩策略重写项目级 `CLAUDE.md`：保留稳定硬规则、运行命令、Android/vivo-only、真实数据/隐私边界、GitNexus 和交接入口；历史流水账改由本文件、`docs/todo.md` 与 handoff 文档承接。
 - 后续 AI 不应再把阶段性流水账追加到 `CLAUDE.md`，阶段结论继续写入本文件，剩余人工事项继续写入 `docs/todo.md`。
 - 本轮文档任务对应 Trellis 任务：`.trellis/tasks/07-05-claude-md/`，PRD 与 implement/check 上下文已补齐，任务已切到 `in_progress`。
