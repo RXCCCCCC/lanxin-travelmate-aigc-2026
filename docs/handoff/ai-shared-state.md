@@ -218,5 +218,5 @@
 - 底部导航默认展开，用户点击后完整收起为中间展开按钮，并通过 `path_provider` 写入应用支持目录持久保存；全局 Shell 支持左右滑动切换首页、行程、复盘、设置 Tab。
 - 真机 `8507100b` 已验证首页收起态、状态抽屉展开态和左右滑动进入行程页；截图位于 `E:\tmp\lanxin_swipe_home.png`、`E:\tmp\lanxin_swipe_trip.png`、`E:\tmp\lanxin_status_drawer.png`。
 - 用户拿走真机后已切回 Android 模拟器 `emulator-5554`，最新 debug APK 安装成功，`adb reverse tcp:8000 tcp:8000` 已配置；模拟器当前反复出现系统级 `Process system isn't responding` 弹窗，布局可从遮罩背后确认，但不作为 App 崩溃结论。
-- 已按用户要求拉取并合并远端最新 `origin/dev`，保留当前首页 UI：纯净模式仍在首页内切换，不采用远端提交里的跳转独立聊天页行为；其他远端变更正常保留。
+- 已按用户要求拉取并合并远端最新 `origin/dev`，并将 `apps/mobile/lib/features/home/home_page.dart` 整个文件恢复为拉取远端前本地 `03f2d71` 版本，避免远端首页 UI 样式改动混入；其他远端变更正常保留。
 - 后续真机/模拟器验收语料尽量使用中文和中国境内出行场景；若 ADB 无法稳定输入中文，可临时用拼音或英文表达同一国内场景，最终人工验收仍以中文体验为准。
