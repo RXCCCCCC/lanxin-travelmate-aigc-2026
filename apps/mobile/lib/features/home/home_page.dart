@@ -20,11 +20,7 @@ import '../trip/data/trip_dashboard_service.dart';
 /// 上方 65%：天空渐变背景 + 蓝小心立绘浮动 + 浮动状态卡 + 品牌/天气/旅行胶囊
 /// 下方 35%：磨砂玻璃聊天面板 + 输入栏 + 快捷指令
 class HomePage extends StatefulWidget {
-  const HomePage({
-    super.key,
-    this.dashboardService,
-    this.authSessionService,
-  });
+  const HomePage({super.key, this.dashboardService, this.authSessionService});
 
   final TripDashboardService? dashboardService;
   final AuthSessionService? authSessionService;
@@ -54,6 +50,7 @@ class _HomePageState extends State<HomePage>
   bool _showHeroAvatar = false;
   bool _isPureMode = false;
   bool _statusExpanded = false;
+  bool _hasDraftText = false;
   double _panelHeightRatio = 0.30;
   int _dashboardRequestToken = 0;
 
@@ -70,6 +67,7 @@ class _HomePageState extends State<HomePage>
       chatHistoryService: _homeHistoryService,
     );
     _avatarState = _homeChatController.avatarState;
+    _chatController.addListener(_handleDraftChanged);
     _dashboardService = widget.dashboardService ?? TripDashboardService();
     _weatherService = HomeWeatherService();
     _homeChatController.addListener(_handleHomeChatChanged);
@@ -145,6 +143,7 @@ class _HomePageState extends State<HomePage>
   void dispose() {
     _homeChatController.removeListener(_handleHomeChatChanged);
     _authSessionService.sessionListenable.removeListener(_handleSessionChanged);
+    _chatController.removeListener(_handleDraftChanged);
     _floatCtrl.dispose();
     _chatController.dispose();
     _chatFocusNode.dispose();
@@ -157,6 +156,27 @@ class _HomePageState extends State<HomePage>
     if (text.isEmpty) return;
     _chatController.clear();
     await _homeChatController.send(text);
+    _scrollPanelToBottom();
+  }
+
+  void _handleDraftChanged() {
+    final next = _chatController.text.trim().isNotEmpty;
+    if (next == _hasDraftText) return;
+    setState(() => _hasDraftText = next);
+  }
+
+  Future<void> _loadHistorySession(ChatSessionEntry session) async {
+    final loaded = await _homeHistoryService.loadMessages(session.sessionId);
+    if (!mounted) return;
+    _homeChatController.switchSession(
+      nextSessionId: session.sessionId,
+      nextTripId:
+          session.tripId ??
+          'home-trip-${DateTime.now().millisecondsSinceEpoch}',
+    );
+    _homeChatController.replaceMessages(
+      loaded.isEmpty ? [_welcomeMessage()] : loaded,
+    );
     _scrollPanelToBottom();
   }
 
@@ -191,26 +211,25 @@ class _HomePageState extends State<HomePage>
           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
         },
         onSelectSession: (session) async {
-          final loaded = await _homeHistoryService.loadMessages(
-            session.sessionId,
-          );
-          if (!mounted) return;
-          _homeChatController.switchSession(
-            nextSessionId: session.sessionId,
-            nextTripId:
-                session.tripId ??
-                'home-trip-${DateTime.now().millisecondsSinceEpoch}',
-          );
-          _homeChatController.replaceMessages(
-            loaded.isEmpty ? [_welcomeMessage()] : loaded,
-          );
+          await _loadHistorySession(session);
           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-          _scrollPanelToBottom();
         },
-        onOpenPureMode: (session) {
+        onDeleteSession: (session) async {
+          await _homeHistoryService.deleteSession(session.sessionId);
+          if (!mounted) return;
+          if (session.sessionId == _homeChatController.sessionId) {
+            final sessionId = await _homeHistoryService.createSession(
+              userId: 'guest',
+            );
+            _homeChatController.switchSession(
+              nextSessionId: sessionId,
+              nextTripId: 'home-trip-${DateTime.now().millisecondsSinceEpoch}',
+            );
+          }
           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-          final tripId = session.tripId ?? _homeChatController.tripId;
-          context.push('/chat?sessionId=${session.sessionId}&tripId=$tripId');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showChatHistorySheet();
+          });
         },
       ),
     );
@@ -283,7 +302,7 @@ class _HomePageState extends State<HomePage>
             final tripTop = topSafe + 82;
             final purePanelTop = topSafe + 128;
             final statusDrawerTop = tripTop + 18;
-            final companionPanelTopLimit = statusDrawerTop + 140;
+            final companionPanelTopLimit = statusDrawerTop + 134;
             final minPanelHeight = compact ? 166.0 : 178.0;
             final maxPanelHeight = math.max(
               minPanelHeight,
@@ -443,8 +462,10 @@ class _HomePageState extends State<HomePage>
                     queuedMessage: _homeChatController.queuedMessage,
                     memoryCandidateCount:
                         _homeChatController.memoryCandidateCount,
+                    hasDraftText: _hasDraftText,
                     onSend: _sendHomeMessage,
                     onStop: () => _homeChatController.stop(),
+                    onAddAttachment: () {},
                     onFocusInput: () => _chatFocusNode.requestFocus(),
                     onResize: (delta) => _resizeChatPanel(delta, h),
                     onOpenTrip: () => context.go('/trip'),
@@ -832,25 +853,22 @@ class _StatusDrawer extends StatelessWidget {
       return GestureDetector(
         onTap: onToggle,
         behavior: HitTestBehavior.opaque,
-        child: SizedBox(
-          width: 124,
+        child: Align(
+          alignment: Alignment.centerRight,
           child: GlassBox(
-            height: 54,
+            width: 22,
+            height: 96,
             borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(24),
+              left: Radius.circular(16),
             ),
-            opacity: 0.22,
-            borderColor: Colors.white.withOpacity(0.70),
+            opacity: 0.24,
+            borderColor: Colors.white.withOpacity(0.72),
             padding: EdgeInsets.zero,
-            child: const Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.only(left: 3),
-                child: Icon(
-                  Icons.keyboard_arrow_left_rounded,
-                  color: Color(0xFF215ECA),
-                  size: 19,
-                ),
+            child: const Center(
+              child: Icon(
+                Icons.keyboard_arrow_left_rounded,
+                color: Color(0xFF215ECA),
+                size: 20,
               ),
             ),
           ),
@@ -888,6 +906,7 @@ class _StatusDrawer extends StatelessWidget {
                 child: const Column(
                   key: ValueKey('status-panel'),
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _StatusMetric(
                       icon: Icons.favorite_rounded,
@@ -1083,8 +1102,10 @@ class _ChatGlassPanel extends StatelessWidget {
     required this.isSending,
     required this.queuedMessage,
     required this.memoryCandidateCount,
+    required this.hasDraftText,
     required this.onSend,
     required this.onStop,
+    required this.onAddAttachment,
     required this.onFocusInput,
     required this.onResize,
     required this.onOpenTrip,
@@ -1099,8 +1120,10 @@ class _ChatGlassPanel extends StatelessWidget {
   final bool isSending;
   final String? queuedMessage;
   final int memoryCandidateCount;
+  final bool hasDraftText;
   final VoidCallback onSend;
   final VoidCallback onStop;
+  final VoidCallback onAddAttachment;
   final VoidCallback onFocusInput;
   final ValueChanged<double> onResize;
   final VoidCallback onOpenTrip;
@@ -1221,15 +1244,35 @@ class _ChatGlassPanel extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 36,
-                    height: 36,
+                    width: 34,
+                    height: 34,
                     child: IconButton(
-                      onPressed: onSend,
-                      tooltip: isSending ? '追加信息' : '发送',
+                      onPressed: isSending && !hasDraftText ? onStop : onSend,
+                      tooltip: isSending
+                          ? (hasDraftText ? '追加信息' : '停止生成')
+                          : '发送',
                       padding: EdgeInsets.zero,
                       icon: Icon(
-                        isSending ? Icons.add_rounded : Icons.send_rounded,
+                        isSending
+                            ? (hasDraftText
+                                  ? Icons.alt_route_rounded
+                                  : Icons.stop_circle_rounded)
+                            : Icons.send_rounded,
                         color: const Color(0xFF215ECA),
+                        size: 21,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: IconButton(
+                      onPressed: onAddAttachment,
+                      tooltip: '添加内容',
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.add_rounded,
+                        color: Color(0xFF215ECA),
                         size: 21,
                       ),
                     ),
@@ -1238,50 +1281,11 @@ class _ChatGlassPanel extends StatelessWidget {
               ),
             ),
           ),
-          if (isSending) ...[
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    queuedMessage == null
-                        ? '正在调用真实 Agent，可停止或补充信息'
-                        : '补充信息会进入下一轮思考',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF5F7EA8),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: onStop,
-                  icon: const Icon(Icons.stop_circle_rounded, size: 16),
-                  label: const Text('停止'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF215ECA),
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                ),
-              ],
-            ),
-          ],
           const SizedBox(height: 3),
           SizedBox(
             height: 30,
             child: Row(
               children: [
-                Expanded(
-                  child: _QuickChip(
-                    icon: Icons.route_rounded,
-                    label: '规划路线',
-                    onTap: onOpenTrip,
-                  ),
-                ),
-                const SizedBox(width: 5),
                 Expanded(
                   child: _QuickChip(
                     icon: Icons.bubble_chart_rounded,

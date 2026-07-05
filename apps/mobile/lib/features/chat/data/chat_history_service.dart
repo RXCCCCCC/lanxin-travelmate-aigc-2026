@@ -288,6 +288,15 @@ class ChatHistoryService {
         .toList();
   }
 
+  Future<void> deleteSession(String sessionId) async {
+    await (_db.delete(
+      _db.chatMessages,
+    )..where((row) => row.sessionId.equals(sessionId))).go();
+    await (_db.delete(
+      _db.chatSummaries,
+    )..where((row) => row.sessionId.equals(sessionId))).go();
+  }
+
   Future<List<TripConversationGroup>> listGroupedSessions({
     required String userId,
     String? includeEmptySessionId,

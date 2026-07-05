@@ -10,14 +10,14 @@ class TripChatHistorySheet extends StatelessWidget {
     required this.currentSessionId,
     required this.onNewSession,
     required this.onSelectSession,
-    required this.onOpenPureMode,
+    required this.onDeleteSession,
   });
 
   final List<TripConversationGroup> groups;
   final String currentSessionId;
   final VoidCallback onNewSession;
   final ValueChanged<ChatSessionEntry> onSelectSession;
-  final ValueChanged<ChatSessionEntry> onOpenPureMode;
+  final ValueChanged<ChatSessionEntry> onDeleteSession;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +94,7 @@ class TripChatHistorySheet extends StatelessWidget {
                               group: group,
                               currentSessionId: currentSessionId,
                               onSelectSession: onSelectSession,
-                              onOpenPureMode: onOpenPureMode,
+                              onDeleteSession: onDeleteSession,
                             );
                           },
                         ),
@@ -113,13 +113,13 @@ class _HistoryGroup extends StatelessWidget {
     required this.group,
     required this.currentSessionId,
     required this.onSelectSession,
-    required this.onOpenPureMode,
+    required this.onDeleteSession,
   });
 
   final TripConversationGroup group;
   final String currentSessionId;
   final ValueChanged<ChatSessionEntry> onSelectSession;
-  final ValueChanged<ChatSessionEntry> onOpenPureMode;
+  final ValueChanged<ChatSessionEntry> onDeleteSession;
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +152,7 @@ class _HistoryGroup extends StatelessWidget {
               session: session,
               selected: session.sessionId == currentSessionId,
               onTap: () => onSelectSession(session),
-              onOpenPureMode: () => onOpenPureMode(session),
+              onDeleteSession: () => onDeleteSession(session),
             ),
           ),
         ),
@@ -166,13 +166,13 @@ class _SessionTile extends StatelessWidget {
     required this.session,
     required this.selected,
     required this.onTap,
-    required this.onOpenPureMode,
+    required this.onDeleteSession,
   });
 
   final ChatSessionEntry session;
   final bool selected;
   final VoidCallback onTap;
-  final VoidCallback onOpenPureMode;
+  final VoidCallback onDeleteSession;
 
   @override
   Widget build(BuildContext context) {
@@ -245,11 +245,20 @@ class _SessionTile extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: onOpenPureMode,
-                tooltip: '进入纯净模式',
+                onPressed: onTap,
+                tooltip: '载入到首页',
                 icon: const Icon(
-                  Icons.open_in_full_rounded,
+                  Icons.login_rounded,
                   color: Color(0xFF215ECA),
+                  size: 18,
+                ),
+              ),
+              IconButton(
+                onPressed: onDeleteSession,
+                tooltip: '删除对话',
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Color(0xFF8BA0BC),
                   size: 18,
                 ),
               ),
