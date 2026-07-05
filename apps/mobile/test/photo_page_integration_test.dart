@@ -137,10 +137,13 @@ class EmptyPhotoDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
-    return TripDashboardPayload.fallback(userId: userId, tripId: tripId);
+    return TripDashboardPayload.fallback(
+      userId: userId ?? 'guest',
+      tripId: tripId,
+    );
   }
 }
 
@@ -149,10 +152,13 @@ class EmptyTripPhotoDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
-    return TripDashboardPayload.fallback(userId: userId, tripId: 'photo-trip');
+    return TripDashboardPayload.fallback(
+      userId: userId ?? 'guest',
+      tripId: 'photo-trip',
+    );
   }
 }
 
@@ -246,11 +252,11 @@ class StubPhotoDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId ?? 'photo-trip',
       currentTrip: const {'status': 'planning', 'plan': <String, dynamic>{}},
       routePoints: const {'route': '', 'points': []},

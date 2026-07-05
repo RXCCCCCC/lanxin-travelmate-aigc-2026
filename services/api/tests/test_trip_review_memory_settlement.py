@@ -17,12 +17,14 @@ def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
 def test_trip_review_uses_persisted_memories_for_new_memories_and_promotions():
     user_id, headers = _guest_headers(f"review-memory-user-{uuid4().hex}")
     trip_id = "review-memory-trip-a"
+    current_memory_id = f"review-memory-current-{uuid4().hex}"
+    temporary_memory_id = f"review-memory-temp-{uuid4().hex}"
 
     current_trip_memory = client.post(
         "/api/memory/capsules",
         headers=headers,
         json={
-            "id": "review-memory-current-a",
+            "id": current_memory_id,
             "userId": user_id,
             "title": "本次喜欢江边夜景",
             "content": "用户在本次旅程中多次选择江边夜景点位。",
@@ -39,7 +41,7 @@ def test_trip_review_uses_persisted_memories_for_new_memories_and_promotions():
         "/api/memory/capsules",
         headers=headers,
         json={
-            "id": "review-memory-temp-a",
+            "id": temporary_memory_id,
             "userId": user_id,
             "title": "今天不想走太远",
             "content": "用户今天体力较低，偏好短距离路线。",
@@ -62,5 +64,5 @@ def test_trip_review_uses_persisted_memories_for_new_memories_and_promotions():
     payload = review.json()
     assert "本次喜欢江边夜景" in payload["newMemories"]
     promotions = payload["temporaryMemoryPromotions"]
-    assert any(item["id"] == "review-memory-temp-a" for item in promotions)
+    assert any(item["id"] == temporary_memory_id for item in promotions)
     assert any(item["suggestedScope"] == "longTerm" for item in promotions)

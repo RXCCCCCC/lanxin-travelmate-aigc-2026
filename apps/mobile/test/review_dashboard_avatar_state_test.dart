@@ -12,11 +12,11 @@ class StubAvatarDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId ?? 'trip-avatar',
       currentTrip: const {
         'tripId': 'trip-avatar',

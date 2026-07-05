@@ -136,11 +136,11 @@ class PhotoNewerThanReviewDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId ?? 'guangzhou-trip',
       currentTrip: const {'tripId': 'guangzhou-trip', 'status': 'planning'},
       routePoints: const {'route': '广州塔 → 永庆坊', 'points': []},
@@ -184,11 +184,11 @@ class MutablePhotoDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId ?? 'guangzhou-trip',
       currentTrip: const {'tripId': 'guangzhou-trip', 'status': 'planning'},
       routePoints: const {'route': '广州塔 → 永庆坊', 'points': []},

@@ -16,7 +16,7 @@ def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
 
 
 def test_trip_dashboard_aggregates_persisted_trip_context():
-    user_id = f'dashboard-user-{uuid4().hex}'
+    user_id, headers = _guest_headers(f'dashboard-user-{uuid4().hex}')
     trip_id = f'dashboard-trip-{uuid4().hex}'
 
     assert client.post('/api/trip/plan', json={
@@ -25,7 +25,7 @@ def test_trip_dashboard_aggregates_persisted_trip_context():
         'message': 'Plan a real weekend route.',
         'destination': 'Hangzhou',
         'preferences': ['night view'],
-    }).status_code == 200
+    }, headers=headers).status_code == 200
     assert client.post('/api/trip/route-points', json={
         'userId': user_id,
         'tripId': trip_id,
@@ -33,29 +33,37 @@ def test_trip_dashboard_aggregates_persisted_trip_context():
             {'label': 'Hotel', 'latitude': 30.25, 'longitude': 120.16},
             {'label': 'West Lake', 'latitude': 30.24, 'longitude': 120.15},
         ],
-    }).status_code == 200
+    }, headers=headers).status_code == 200
     assert client.post('/api/trip/reminders/trigger', json={
         'userId': user_id,
         'tripId': trip_id,
         'triggerType': 'location',
         'location': 'West Lake',
-    }).status_code == 200
+    }, headers=headers).status_code == 200
     assert client.post('/api/trip/blind-box/tasks/task-photo-night/status', json={
         'userId': user_id,
         'tripId': trip_id,
         'status': 'completed',
-    }).status_code == 200
+    }, headers=headers).status_code == 200
     assert client.post('/api/trip/avatar-state/events', json={
         'userId': user_id,
         'tripId': trip_id,
         'eventType': 'memory_confirmed',
         'title': 'Confirmed night-view memory',
         'deltas': {'rapport': 2},
-    }).status_code == 200
-    review = client.post('/api/trip/review', json={'userId': user_id, 'tripId': trip_id})
+    }, headers=headers).status_code == 200
+    review = client.post(
+        '/api/trip/review',
+        json={'userId': user_id, 'tripId': trip_id},
+        headers=headers,
+    )
     assert review.status_code == 200
 
-    dashboard = client.get('/api/trip/dashboard', params={'userId': user_id, 'tripId': trip_id})
+    dashboard = client.get(
+        '/api/trip/dashboard',
+        params={'userId': user_id, 'tripId': trip_id},
+        headers=headers,
+    )
 
     assert dashboard.status_code == 200
     payload = dashboard.json()
@@ -70,16 +78,20 @@ def test_trip_dashboard_aggregates_persisted_trip_context():
 
 def test_trip_dashboard_does_not_expose_other_users_trip():
     trip_id = f'dashboard-private-trip-{uuid4().hex}'
-    owner_id = f'dashboard-owner-{uuid4().hex}'
-    stranger_id = f'dashboard-stranger-{uuid4().hex}'
+    owner_id, owner_headers = _guest_headers(f'dashboard-owner-{uuid4().hex}')
+    stranger_id, stranger_headers = _guest_headers(f'dashboard-stranger-{uuid4().hex}')
     assert client.post('/api/trip/plan', json={
         'userId': owner_id,
         'tripId': trip_id,
         'message': 'Plan private trip.',
         'destination': 'Private Destination',
-    }).status_code == 200
+    }, headers=owner_headers).status_code == 200
 
-    dashboard = client.get('/api/trip/dashboard', params={'userId': stranger_id, 'tripId': trip_id})
+    dashboard = client.get(
+        '/api/trip/dashboard',
+        params={'userId': stranger_id, 'tripId': trip_id},
+        headers=stranger_headers,
+    )
 
     assert dashboard.status_code == 200
     payload = dashboard.json()

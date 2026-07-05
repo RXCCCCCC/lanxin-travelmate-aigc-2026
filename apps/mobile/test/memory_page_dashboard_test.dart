@@ -16,11 +16,11 @@ class StubMemoryDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId,
       currentTrip: const {},
       routePoints: const {},
@@ -47,11 +47,11 @@ class EmptyMemoryDashboardService extends TripDashboardService {
 
   @override
   Future<TripDashboardPayload> fetchDashboard({
-    String userId = 'guest',
+    String? userId,
     String? tripId,
   }) async {
     return TripDashboardPayload(
-      userId: userId,
+      userId: userId ?? 'guest',
       tripId: tripId,
       currentTrip: const {},
       routePoints: const {},
