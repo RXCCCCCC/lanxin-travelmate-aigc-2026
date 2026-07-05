@@ -195,12 +195,11 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _togglePureMode() async {
-    await _ensureInitialSession();
-    if (!mounted) return;
     setState(() => _isPureMode = !_isPureMode);
     if (!_isPureMode) {
       FocusScope.of(context).unfocus();
     }
+    unawaited(_ensureInitialSession());
   }
 
   void _resizeChatPanel(double delta, double viewportHeight) {
@@ -476,6 +475,7 @@ class _PureModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         constraints: BoxConstraints(
           minHeight: 44,
