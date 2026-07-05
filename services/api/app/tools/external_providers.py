@@ -1,6 +1,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import UTC, timedelta
 from time import time
 from typing import Any
 
@@ -14,6 +15,8 @@ from app.tools.mock_tools import navigation_link_tool
 
 
 _RATE_LIMIT_WINDOWS: dict[str, list[float]] = {}
+_WEATHER_CACHE_PATH = "/v3/weather/weatherInfo"
+_WEATHER_CACHE_TTL = timedelta(minutes=15)
 
 
 @dataclass
@@ -352,13 +355,15 @@ class AmapToolProvider:
         request_params["key"] = self._api_key
         cache_key = (path, tuple(sorted((key, str(value)) for key, value in request_params.items())))
         persistent_cache_key = _persistent_cache_key(path, request_params)
-        if cache_key in self._cache:
+        is_weather_request = path == _WEATHER_CACHE_PATH
+        if not is_weather_request and cache_key in self._cache:
             meta.cache_hit = True
             return dict(self._cache[cache_key])
-        cached = self._read_persistent_cache(persistent_cache_key)
+        cached = self._read_persistent_cache(persistent_cache_key, path)
         if cached is not None:
             meta.cache_hit = True
-            self._cache[cache_key] = dict(cached)
+            if not is_weather_request:
+                self._cache[cache_key] = dict(cached)
             return cached
 
         self._check_rate_limit(path, meta)
@@ -375,7 +380,8 @@ class AmapToolProvider:
                     meta.error_type = "provider_status_error"
                     raise ValueError(data.get("info") or "Amap API returned non-success status")
                 self._failure_counts[path] = 0
-                self._cache[cache_key] = dict(data)
+                if not is_weather_request:
+                    self._cache[cache_key] = dict(data)
                 self._write_persistent_cache(persistent_cache_key, path, data)
                 return data
             except httpx.HTTPError as exc:
@@ -409,12 +415,18 @@ class AmapToolProvider:
     def _record_failure(self, path: str) -> None:
         self._failure_counts[path] = self._failure_counts.get(path, 0) + 1
 
-    def _read_persistent_cache(self, cache_key: str) -> dict[str, Any] | None:
+    def _read_persistent_cache(self, cache_key: str, path: str) -> dict[str, Any] | None:
         SQLModel.metadata.create_all(engine)
         with Session(engine) as session:
             item = session.get(ToolCacheEntry, cache_key)
             if not item:
                 return None
+            if path == _WEATHER_CACHE_PATH:
+                updated_at = item.updated_at
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=UTC)
+                if utc_now() - updated_at > _WEATHER_CACHE_TTL:
+                    return None
             data = json.loads(item.response_json)
             return data if isinstance(data, dict) else None
 

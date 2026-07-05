@@ -53,6 +53,7 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
+    _avatarState = _homeChatController.avatarState;
     _floatCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3400),
@@ -245,9 +246,11 @@ class _HomePageState extends State<HomePage>
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
             final weatherTop = topSafe + 2;
-            final actionsTop = topSafe + 40;
-            final tripTop = topSafe + 92;
-            final purePanelTop = topSafe + 140;
+            final controlsLeft = 8.0;
+            final controlWidth = compact ? 154.0 : 162.0;
+            final actionsTop = topSafe + 36;
+            final tripTop = topSafe + 82;
+            final purePanelTop = topSafe + 128;
             final minPanelHeight = compact ? 166.0 : 178.0;
             final maxPanelHeight = math.max(
               minPanelHeight,
@@ -299,7 +302,7 @@ class _HomePageState extends State<HomePage>
                 // ── 顶部主操作：模式、消息、历史 ──
                 Positioned(
                   top: actionsTop,
-                  left: sidePadding,
+                  left: controlsLeft,
                   right: sidePadding,
                   child: Row(
                     children: [
@@ -307,6 +310,7 @@ class _HomePageState extends State<HomePage>
                         isPureMode: _isPureMode,
                         onTap: _togglePureMode,
                         compact: compact,
+                        width: controlWidth,
                       ),
                       const Spacer(),
                       GestureDetector(
@@ -385,9 +389,10 @@ class _HomePageState extends State<HomePage>
                 // ── 旅行胶囊 ──
                 Positioned(
                   top: tripTop,
-                  left: sidePadding,
+                  left: controlsLeft,
                   child: _TripPill(
                     label: _dashboardSummary.tripLabel,
+                    width: controlWidth,
                     onTap: () => context.go('/trip'),
                   ),
                 ),
@@ -421,10 +426,10 @@ class _HomePageState extends State<HomePage>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
-                  left: sidePadding,
-                  right: sidePadding,
+                  left: 0,
+                  right: 0,
                   top: _isPureMode ? purePanelTop : null,
-                  bottom: 4 + keyboardInset,
+                  bottom: keyboardInset,
                   height: _isPureMode ? null : effectivePanelHeight,
                   child: _ChatGlassPanel(
                     controller: _chatController,
@@ -466,11 +471,13 @@ class _PureModeButton extends StatelessWidget {
     required this.isPureMode,
     required this.onTap,
     required this.compact,
+    required this.width,
   });
 
   final bool isPureMode;
   final VoidCallback onTap;
   final bool compact;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -478,13 +485,11 @@ class _PureModeButton extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        constraints: BoxConstraints(
-          minHeight: 44,
-          minWidth: compact ? 150 : 164,
-        ),
+        width: width,
+        constraints: BoxConstraints(minHeight: 39),
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 13 : 15,
-          vertical: 10,
+          horizontal: compact ? 10 : 11,
+          vertical: 8,
         ),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.34),
@@ -506,15 +511,15 @@ class _PureModeButton extends StatelessWidget {
                   ? Icons.auto_awesome_motion_rounded
                   : Icons.chat_bubble_outline_rounded,
               color: const Color(0xFF215ECA),
-              size: 19,
+              size: 18,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Text(
               isPureMode ? '切换到陪伴模式' : '切换到纯净模式',
               style: const TextStyle(
                 color: Color(0xFF174C9F),
                 fontWeight: FontWeight.w900,
-                fontSize: 12.8,
+                fontSize: 12.1,
               ),
             ),
           ],
@@ -616,9 +621,14 @@ class _HomeDashboardSummary {
 }
 
 class _TripPill extends StatelessWidget {
-  const _TripPill({required this.label, required this.onTap});
+  const _TripPill({
+    required this.label,
+    required this.width,
+    required this.onTap,
+  });
 
   final String label;
+  final double width;
   final VoidCallback onTap;
 
   @override
@@ -630,30 +640,33 @@ class _TripPill extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: GlassBox(
+          width: width,
           borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
                 Icons.location_on_rounded,
                 color: Color(0xFF5F9BFF),
-                size: 19,
+                size: 18,
               ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF2B5BA9),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13.5,
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF2B5BA9),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.4,
+                  ),
                 ),
               ),
-              const SizedBox(width: 5),
               const Icon(
                 Icons.chevron_right_rounded,
                 color: Color(0xFF326BCA),
-                size: 19,
+                size: 18,
               ),
             ],
           ),
@@ -678,6 +691,7 @@ class _WeatherStrip extends StatelessWidget {
     final weather = (summary.condition == null || summary.condition!.isEmpty)
         ? (isLoading ? '定位中' : '天气')
         : summary.condition!;
+    final weatherIcon = _weatherIconFor(weather, summary.state);
     final temperature = summary.temperatureC == null
         ? '--°C'
         : '${summary.temperatureC}°C';
@@ -704,15 +718,26 @@ class _WeatherStrip extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Text(
-                weather,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF174C9F),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12.4,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(weatherIcon, color: Colors.white, size: 15),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        weather,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF174C9F),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -734,6 +759,17 @@ class _WeatherStrip extends StatelessWidget {
       ),
     );
   }
+
+  IconData _weatherIconFor(String condition, HomeWeatherState state) {
+    if (state == HomeWeatherState.loading) return Icons.my_location_rounded;
+    if (state == HomeWeatherState.failure) return Icons.cloud_off_rounded;
+    if (condition.contains('雨')) return Icons.water_drop_rounded;
+    if (condition.contains('雪')) return Icons.ac_unit_rounded;
+    if (condition.contains('晴')) return Icons.wb_sunny_rounded;
+    if (condition.contains('阴')) return Icons.cloud_rounded;
+    if (condition.contains('云')) return Icons.wb_cloudy_rounded;
+    return Icons.cloud_queue_rounded;
+  }
 }
 
 class _StatusDrawer extends StatelessWidget {
@@ -744,67 +780,83 @@ class _StatusDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!expanded) {
+      return GestureDetector(
+        onTap: onToggle,
+        behavior: HitTestBehavior.opaque,
+        child: GlassBox(
+          width: 20,
+          height: 54,
+          borderRadius: const BorderRadius.horizontal(
+            left: Radius.circular(16),
+          ),
+          opacity: 0.22,
+          borderColor: Colors.white.withOpacity(0.70),
+          padding: EdgeInsets.zero,
+          child: const Center(
+            child: Icon(
+              Icons.keyboard_arrow_left_rounded,
+              color: Color(0xFF215ECA),
+              size: 18,
+            ),
+          ),
+        ),
+      );
+    }
     return GestureDetector(
       onTap: onToggle,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        width: expanded ? 154 : 38,
+        width: 124,
         child: GlassBox(
           borderRadius: const BorderRadius.horizontal(
             left: Radius.circular(24),
           ),
           opacity: 0.27,
           borderColor: Colors.white.withOpacity(0.74),
-          padding: EdgeInsets.fromLTRB(expanded ? 27 : 9, 11, 12, 11),
+          padding: const EdgeInsets.fromLTRB(22, 9, 8, 9),
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.centerLeft,
             children: [
               Positioned(
-                left: expanded ? -24 : 0,
-                child: Icon(
-                  expanded
-                      ? Icons.keyboard_arrow_right_rounded
-                      : Icons.keyboard_arrow_left_rounded,
-                  color: const Color(0xFF215ECA),
-                  size: 21,
+                left: -20,
+                child: const Icon(
+                  Icons.keyboard_arrow_right_rounded,
+                  color: Color(0xFF215ECA),
+                  size: 19,
                 ),
               ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 180),
-                child: expanded
-                    ? const Column(
-                        key: ValueKey('status-panel'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _StatusMetric(
-                            icon: Icons.favorite_rounded,
-                            label: '默契',
-                            value: '12',
-                            color: Color(0xFFFF8CCF),
-                          ),
-                          SizedBox(height: 9),
-                          _StatusMetric(
-                            icon: Icons.mood_rounded,
-                            label: '心情',
-                            value: '开心',
-                            color: Color(0xFFFFDA7D),
-                          ),
-                          SizedBox(height: 9),
-                          _StatusMetric(
-                            icon: Icons.bolt_rounded,
-                            label: '精力',
-                            value: '90',
-                            color: Color(0xFFFFD953),
-                          ),
-                        ],
-                      )
-                    : const SizedBox(
-                        key: ValueKey('status-collapsed'),
-                        height: 72,
-                      ),
+                child: const Column(
+                  key: ValueKey('status-panel'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _StatusMetric(
+                      icon: Icons.favorite_rounded,
+                      label: '默契',
+                      value: '12',
+                      color: Color(0xFFFF8CCF),
+                    ),
+                    SizedBox(height: 9),
+                    _StatusMetric(
+                      icon: Icons.mood_rounded,
+                      label: '心情',
+                      value: '开心',
+                      color: Color(0xFFFFDA7D),
+                    ),
+                    SizedBox(height: 9),
+                    _StatusMetric(
+                      icon: Icons.bolt_rounded,
+                      label: '精力',
+                      value: '90',
+                      color: Color(0xFFFFD953),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -832,12 +884,12 @@ class _StatusMetric extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, color: color, size: 17),
-        const SizedBox(width: 7),
+        const SizedBox(width: 5),
         Text(
           label,
           style: const TextStyle(
             color: Color(0xFF42699E),
-            fontSize: 12,
+            fontSize: 11.2,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -846,7 +898,7 @@ class _StatusMetric extends StatelessWidget {
           value,
           style: const TextStyle(
             color: Color(0xFF175BC4),
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: FontWeight.w900,
           ),
         ),

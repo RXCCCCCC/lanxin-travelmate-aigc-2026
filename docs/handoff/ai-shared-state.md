@@ -220,3 +220,6 @@
 - 用户拿走真机后已切回 Android 模拟器 `emulator-5554`，最新 debug APK 安装成功，`adb reverse tcp:8000 tcp:8000` 已配置；模拟器当前反复出现系统级 `Process system isn't responding` 弹窗，布局可从遮罩背后确认，但不作为 App 崩溃结论。
 - 已按用户要求拉取并合并远端最新 `origin/dev`，并将 `apps/mobile/lib/features/home/home_page.dart` 整个文件恢复为拉取远端前本地 `03f2d71` 版本，避免远端首页 UI 样式改动混入；其他远端变更正常保留。
 - 后续真机/模拟器验收语料尽量使用中文和中国境内出行场景；若 ADB 无法稳定输入中文，可临时用拼音或英文表达同一国内场景，最终人工验收仍以中文体验为准。
+- 本轮继续按真机反馈微调首页：天气条恢复天气 icon，温度使用 15 分钟内高德实时缓存，左上模式/当前旅程气泡缩小且等宽对齐，右侧状态抽屉收得更窄，聊天面板和底部导航改为满宽显示。
+- 已修复首页大图头像状态初始化：`HomePage` 创建时读取共享 `HomeChatController.avatarState`，避免切 Tab 回首页时大图回到默认状态；真机切到行程再回首页后，会话内容仍保留在首页面板。
+- 真机 `8507100b` 最新验证：`adb reverse tcp:8000 tcp:8000` 正常，`/api/health` 正常；首页天气从旧缓存 `26°C` 更新为高德实时 `31°C`，切 Tab 短暂显示 `--°C` 后可恢复真实天气。截图位于 `E:\tmp\lanxin_home_refine_v3.png`、`E:\tmp\lanxin_after_tabs_real.png`、`E:\tmp\lanxin_after_weather_wait.png`。

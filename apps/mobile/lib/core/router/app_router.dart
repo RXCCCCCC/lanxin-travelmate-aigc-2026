@@ -125,7 +125,6 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   Widget build(BuildContext context) {
     final metrics = context.responsive;
     final navHeight = _collapsed ? 28.0 : metrics.bottomNavHeight;
-    final horizontalInset = _collapsed ? 4.0 : metrics.horizontalPadding / 2;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -134,26 +133,39 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
         onHorizontalDragEnd: _handleHorizontalSwipe,
         child: widget.child,
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: EdgeInsets.symmetric(horizontal: horizontalInset),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          height: navHeight,
-          child: SizedBox(
+      bottomNavigationBar: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(_collapsed ? 0.20 : 0.72),
+              const Color(0xFFDCEEFF).withOpacity(_collapsed ? 0.36 : 0.85),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: EdgeInsets.zero,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
             height: navHeight,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: _collapsed
-                  ? _CollapsedNavBar(
-                      key: const ValueKey('collapsed-nav'),
-                      onExpand: () => _setCollapsed(false),
-                    )
-                  : _ExpandedNavBar(
-                      key: const ValueKey('expanded-nav'),
-                      onCollapse: () => _setCollapsed(true),
-                    ),
+            child: SizedBox(
+              height: navHeight,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: _collapsed
+                    ? _CollapsedNavBar(
+                        key: const ValueKey('collapsed-nav'),
+                        onExpand: () => _setCollapsed(false),
+                      )
+                    : _ExpandedNavBar(
+                        key: const ValueKey('expanded-nav'),
+                        onCollapse: () => _setCollapsed(true),
+                      ),
+              ),
             ),
           ),
         ),
@@ -235,7 +247,7 @@ class _CollapsedNavBar extends StatelessWidget {
         width: double.infinity,
         height: 22,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(0),
           gradient: LinearGradient(
             colors: [
               Colors.white.withOpacity(0.24),
