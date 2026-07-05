@@ -1,7 +1,11 @@
 from uuid import uuid4
+from datetime import timedelta
 
 from app.core.config import get_settings
+from app.db.models import ToolCacheEntry, utc_now
+from app.db.session import engine
 from app.tools.registry import build_tool_registry
+from sqlmodel import Session, select
 
 
 def test_tool_registry_returns_explicit_fallback_without_api_key(monkeypatch):
@@ -342,6 +346,59 @@ def test_amap_provider_uses_persistent_cache_across_registry_instances(monkeypat
     assert second["cacheHit"] is True
     assert second["city"] == "Hangzhou"
     assert calls["count"] == 1
+
+    get_settings.cache_clear()
+
+
+def test_amap_provider_ignores_stale_persistent_weather_cache(monkeypatch):
+    monkeypatch.setenv("LANXIN_AMAP_API_KEY", "test-key")
+    get_settings.cache_clear()
+
+    class FakeResponse:
+        def __init__(self, temperature: str):
+            self._temperature = temperature
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "status": "1",
+                "lives": [{
+                    "city": "Panyu",
+                    "weather": "Cloudy",
+                    "temperature": self._temperature,
+                    "reporttime": "2026-07-05 13:00:00",
+                }],
+            }
+
+    import httpx
+
+    calls = {"count": 0}
+
+    def fake_get(self, url, params=None):
+        calls["count"] += 1
+        return FakeResponse("26" if calls["count"] == 1 else "31")
+
+    monkeypatch.setattr(httpx.Client, "get", fake_get)
+
+    city = f"StaleWeatherCity-{uuid4().hex}"
+    first = build_tool_registry().call("weather_tool", {"city": city})
+
+    with Session(engine) as session:
+        entry = session.exec(
+            select(ToolCacheEntry).where(ToolCacheEntry.path == "/v3/weather/weatherInfo")
+        ).all()[-1]
+        entry.updated_at = utc_now() - timedelta(minutes=16)
+        session.add(entry)
+        session.commit()
+
+    second = build_tool_registry().call("weather_tool", {"city": city})
+
+    assert first["temperatureC"] == 26
+    assert second["temperatureC"] == 31
+    assert second["cacheHit"] is False
+    assert calls["count"] == 2
 
     get_settings.cache_clear()
 

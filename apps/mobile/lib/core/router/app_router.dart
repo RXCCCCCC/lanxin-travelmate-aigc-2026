@@ -124,7 +124,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   @override
   Widget build(BuildContext context) {
     final metrics = context.responsive;
-    final navHeight = _collapsed ? 30.0 : metrics.bottomNavHeight;
+    final navHeight = _collapsed ? 36.0 : metrics.bottomNavHeight;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -133,43 +133,39 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
         onHorizontalDragEnd: _handleHorizontalSwipe,
         child: widget.child,
       ),
-      bottomNavigationBar: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
+      bottomNavigationBar: Container(
+        width: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Colors.white.withOpacity(_collapsed ? 0.18 : 0.72),
-              const Color(0xFFDCEEFF).withOpacity(_collapsed ? 0.18 : 0.85),
+              Colors.white.withOpacity(0.72),
+              const Color(0xFFDCEEFF).withOpacity(0.85),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
-          border: Border(
-            top: BorderSide(
-              color: Colors.white.withOpacity(_collapsed ? 0.0 : 0.45),
-              width: 0.8,
-            ),
-          ),
         ),
         child: SafeArea(
           top: false,
-          minimum: EdgeInsets.symmetric(
-            horizontal: metrics.horizontalPadding / 2,
-          ),
-          child: SizedBox(
+          minimum: EdgeInsets.zero,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
             height: navHeight,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: _collapsed
-                  ? _CollapsedNavBar(
-                      key: const ValueKey('collapsed-nav'),
-                      onExpand: () => _setCollapsed(false),
-                    )
-                  : _ExpandedNavBar(
-                      key: const ValueKey('expanded-nav'),
-                      onCollapse: () => _setCollapsed(true),
-                    ),
+            child: SizedBox(
+              height: navHeight,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: _collapsed
+                    ? _CollapsedNavBar(
+                        key: const ValueKey('collapsed-nav'),
+                        onExpand: () => _setCollapsed(false),
+                      )
+                    : _ExpandedNavBar(
+                        key: const ValueKey('expanded-nav'),
+                        onCollapse: () => _setCollapsed(true),
+                      ),
+              ),
             ),
           ),
         ),
@@ -185,27 +181,56 @@ class _ExpandedNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        const _NavItem(icon: Icons.home_rounded, label: '首页', path: '/'),
-        const _NavItem(icon: Icons.map_rounded, label: '行程', path: '/trip'),
-        const _NavItem(
-          icon: Icons.auto_stories_rounded,
-          label: '复盘',
-          path: '/review',
+    final metrics = context.responsive;
+    final topPadding = metrics.isLandscape ? 4.0 : 8.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.72),
+            const Color(0xFFDCEEFF).withOpacity(0.85),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
-        const _NavItem(
-          icon: Icons.settings_rounded,
-          label: '设置',
-          path: '/settings',
+        border: Border(
+          top: BorderSide(color: Colors.white.withOpacity(0.45), width: 0.8),
         ),
-        _NavToggleButton(
-          icon: Icons.keyboard_arrow_down_rounded,
-          tooltip: '收起底部导航',
-          onTap: onCollapse,
-        ),
-      ],
+      ),
+      child: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: topPadding),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _NavItem(icon: Icons.home_rounded, label: '首页', path: '/'),
+                _NavItem(icon: Icons.map_rounded, label: '行程', path: '/trip'),
+                _NavItem(
+                  icon: Icons.auto_stories_rounded,
+                  label: '复盘',
+                  path: '/review',
+                ),
+                _NavItem(
+                  icon: Icons.settings_rounded,
+                  label: '设置',
+                  path: '/settings',
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 0,
+            child: _NavChevronButton(
+              icon: Icons.keyboard_arrow_down_rounded,
+              tooltip: '收起底部导航',
+              onTap: onCollapse,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -218,10 +243,32 @@ class _CollapsedNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: _NavToggleButton(
-        icon: Icons.keyboard_arrow_up_rounded,
-        tooltip: '展开底部导航',
-        onTap: onExpand,
+      child: Container(
+        width: double.infinity,
+        height: 34,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(0),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.72),
+              const Color(0xFFDCEEFF).withOpacity(0.85),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          border: Border(
+            top: BorderSide(color: Colors.white.withOpacity(0.45), width: 0.8),
+          ),
+        ),
+        child: Center(
+          child: _NavChevronButton(
+            icon: Icons.keyboard_arrow_up_rounded,
+            tooltip: '展开底部导航',
+            onTap: onExpand,
+            height: 28,
+            width: 72,
+          ),
+        ),
       ),
     );
   }
@@ -274,33 +321,38 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _NavToggleButton extends StatelessWidget {
-  const _NavToggleButton({
+class _NavChevronButton extends StatelessWidget {
+  const _NavChevronButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.width = 56,
+    this.height = 28,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          width: 42,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.28),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.35)),
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Center(
+              child: Icon(icon, color: const Color(0xFF4D7FBD), size: 24),
+            ),
           ),
-          child: Icon(icon, color: const Color(0xFF4D7FBD), size: 24),
         ),
       ),
     );

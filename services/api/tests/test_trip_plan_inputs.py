@@ -8,14 +8,22 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
+    response = client.post("/api/auth/guest", json={"deviceId": device_id, "displayName": "Trip Test Guest"})
+    assert response.status_code == 200
+    payload = response.json()
+    return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
+
+
 def test_trip_plan_persists_real_inputs_and_replan_reason():
-    user_id = f"plan-user-{uuid4().hex}"
+    user_id, headers = _guest_headers(f"plan-user-{uuid4().hex}")
     trip_id = f"plan-trip-{uuid4().hex}"
 
     first = client.post(
         "/api/trip/plan",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "tripId": trip_id,
             "message": "Plan Hangzhou with my family, relaxed pace.",
             "destination": "Hangzhou",
@@ -52,8 +60,9 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
 
     second = client.post(
         "/api/trip/plan",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "tripId": trip_id,
             "message": "Replan: rain is coming, reduce outdoor walking.",
             "destination": "Hangzhou",
@@ -74,7 +83,7 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
     assert not any("weather_risk" in item for item in replanned["risks"])
     assert any("天气风险" in item for item in replanned["risks"])
 
-    current = client.get("/api/trip/current", params={"userId": user_id})
+    current = client.get("/api/trip/current", headers=headers, params={"userId": user_id})
     assert current.status_code == 200
     current_payload = current.json()
     assert current_payload["tripId"] == trip_id
@@ -88,13 +97,14 @@ def test_trip_plan_persists_real_inputs_and_replan_reason():
 
 
 def test_trip_plan_keeps_group_coordination_context_in_planning_inputs():
-    user_id = f"plan-group-user-{uuid4().hex}"
+    _user_id, headers = _guest_headers(f"plan-group-user-{uuid4().hex}")
     trip_id = f"plan-group-trip-{uuid4().hex}"
 
     response = client.post(
         "/api/trip/plan",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "tripId": trip_id,
             "message": "Plan a group trip with compromise context.",
             "destination": "Chongqing",
@@ -121,6 +131,7 @@ def test_trip_plan_keeps_group_coordination_context_in_planning_inputs():
 
 def test_direct_trip_plan_uses_plan_only_graph(monkeypatch):
     from app.api.routes import trip
+    _user_id, headers = _guest_headers(f"plan-only-user-{uuid4().hex}")
 
     class PlanOnlyGraph:
         def invoke(self, state):
@@ -144,8 +155,9 @@ def test_direct_trip_plan_uses_plan_only_graph(monkeypatch):
 
     response = client.post(
         "/api/trip/plan",
+        headers=headers,
         json={
-            "userId": f"plan-only-user-{uuid4().hex}",
+            "userId": "guest",
             "tripId": f"plan-only-trip-{uuid4().hex}",
             "message": "请规划杭州两天轻松路线",
             "destination": "杭州",
@@ -157,8 +169,10 @@ def test_direct_trip_plan_uses_plan_only_graph(monkeypatch):
 
 
 def test_trip_plan_input_explanations_are_chinese():
+    _user_id, headers = _guest_headers(f"plan-cn-user-{uuid4().hex}")
     response = client.post(
         "/api/trip/plan",
+        headers=headers,
         json={
             "userId": "guest",
             "tripId": f"plan-cn-trip-{uuid4().hex}",
@@ -189,6 +203,7 @@ def test_trip_plan_input_explanations_are_chinese():
 
 def test_trip_plan_risks_do_not_expose_route_tool_failures(monkeypatch):
     from app.api.routes import trip
+    _user_id, headers = _guest_headers(f"plan-risk-user-{uuid4().hex}")
 
     class PlanOnlyGraph:
         def invoke_plan_only(self, state):
@@ -211,6 +226,7 @@ def test_trip_plan_risks_do_not_expose_route_tool_failures(monkeypatch):
 
     response = client.post(
         "/api/trip/plan",
+        headers=headers,
         json={
             "userId": "guest",
             "tripId": f"plan-risk-trip-{uuid4().hex}",

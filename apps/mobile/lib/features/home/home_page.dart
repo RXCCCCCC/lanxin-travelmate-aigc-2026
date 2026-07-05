@@ -28,7 +28,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
-  static final AppDatabase _homeDatabase = AppDatabase.shared();
+  static final AppDatabase _homeDatabase = AppDatabase();
   static final ChatHistoryService _homeHistoryService = ChatHistoryService(
     _homeDatabase,
   );
@@ -46,14 +46,14 @@ class _HomePageState extends State<HomePage>
   HomeWeatherSummary _weatherSummary = HomeWeatherSummary.idle;
   AvatarState _avatarState = AvatarState.hello;
   bool _showHeroAvatar = false;
-  final bool _isPureMode = false;
-  bool _isChatExpanded = false;
+  bool _isPureMode = false;
   bool _statusExpanded = false;
-  double _panelHeightRatio = 0.37;
+  double _panelHeightRatio = 0.30;
 
   @override
   void initState() {
     super.initState();
+    _avatarState = _homeChatController.avatarState;
     _floatCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3400),
@@ -127,9 +127,6 @@ class _HomePageState extends State<HomePage>
   Future<void> _sendHomeMessage() async {
     final text = _chatController.text.trim();
     if (text.isEmpty) return;
-    if (!_isChatExpanded) {
-      setState(() => _isChatExpanded = true);
-    }
     _chatController.clear();
     await _homeChatController.send(text);
     _scrollPanelToBottom();
@@ -145,6 +142,7 @@ class _HomePageState extends State<HomePage>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xFF06224E).withOpacity(0.28),
@@ -199,32 +197,19 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _togglePureMode() async {
-    if (!mounted) return;
-    context.push(
-      '/chat?sessionId=${_homeChatController.sessionId}&tripId=${_homeChatController.tripId}',
-    );
-    await _ensureInitialSession();
-  }
-
-  void _expandHomeChat() {
-    if (_isChatExpanded) return;
-    setState(() => _isChatExpanded = true);
-  }
-
-  void _collapseHomeChat() {
-    if (!_isChatExpanded || _isPureMode) {
-      return;
+    setState(() => _isPureMode = !_isPureMode);
+    if (!_isPureMode) {
+      FocusScope.of(context).unfocus();
     }
-    FocusScope.of(context).unfocus();
-    setState(() => _isChatExpanded = false);
+    unawaited(_ensureInitialSession());
   }
 
   void _resizeChatPanel(double delta, double viewportHeight) {
     if (viewportHeight <= 0) return;
     setState(() {
       _panelHeightRatio = (_panelHeightRatio - delta / viewportHeight).clamp(
-        0.32,
-        0.62,
+        0.16,
+        0.72,
       );
     });
   }
@@ -261,23 +246,31 @@ class _HomePageState extends State<HomePage>
             final topSafe = metrics.safeInsets.top;
             final sidePadding = metrics.horizontalPadding;
             final compact = metrics.isCompactPhone || metrics.hasLargeText;
-            final baseRatio = math.max(
-              _panelHeightRatio,
-              compact ? 0.29 : 0.27,
+            final weatherTop = topSafe + 2;
+            final controlsLeft = 8.0;
+            final controlWidth = compact ? 154.0 : 162.0;
+            final actionsTop = topSafe + 36;
+            final tripTop = topSafe + 82;
+            final purePanelTop = topSafe + 128;
+            final statusDrawerTop = tripTop + 18;
+            final companionPanelTopLimit = statusDrawerTop + 140;
+            final minPanelHeight = compact ? 166.0 : 178.0;
+            final maxPanelHeight = math.max(
+              minPanelHeight,
+              h -
+                  (_isPureMode ? purePanelTop : companionPanelTopLimit) -
+                  10 -
+                  keyboardInset,
             );
-            final ratio = baseRatio;
+            final ratio = _panelHeightRatio;
             final panelHeight = (h * ratio)
-                .clamp(205.0, compact ? 340.0 : 390.0)
+                .clamp(minPanelHeight, maxPanelHeight)
                 .toDouble();
             final effectivePanelHeight = keyboardVisible
-                ? math.min(panelHeight, compact ? 250.0 : 250.0)
+                ? math.min(panelHeight, compact ? 230.0 : 240.0)
                 : panelHeight;
-            final collapsedChatHeight = compact ? 76.0 : 84.0;
-            final visibleChatHeight = _isChatExpanded || _isPureMode
-                ? effectivePanelHeight
-                : collapsedChatHeight;
-            final avatarHeight = h * (compact ? 0.52 : 0.60);
-            final avatarBottom = visibleChatHeight + (compact ? 18.0 : 24.0);
+            final avatarHeight = h * (compact ? 0.54 : 0.62);
+            final avatarBottom = compact ? 46.0 : 58.0;
 
             final content = Stack(
               children: [
@@ -312,50 +305,14 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
 
-                // ── 顶部主操作：模式、消息、历史 ──
-                Positioned(
-                  top: topSafe + 8,
-                  left: sidePadding,
-                  right: sidePadding,
-                  child: Row(
-                    children: [
-                      _PureModeButton(
-                        isPureMode: _isPureMode,
-                        onTap: _togglePureMode,
-                        compact: compact,
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => context.push('/reminder'),
-                        child: const _TopIconPill(
-                          icon: Icons.notifications_none_rounded,
-                          label: '消息',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _showChatHistorySheet,
-                        child: const _TopIconPill(
-                          icon: Icons.history_rounded,
-                          label: '聊天历史',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
                 // ── 顶部天气长条 ──
                 Positioned(
-                  top: topSafe + 62,
-                  left: sidePadding,
-                  right: sidePadding,
-                  child: _ModeExitBubble(
-                    hidden: _isPureMode,
-                    direction: AxisDirection.up,
-                    child: _WeatherStrip(
-                      summary: _weatherSummary,
-                      onTap: _loadCurrentWeather,
-                    ),
+                  top: weatherTop,
+                  left: 4,
+                  right: 4,
+                  child: _WeatherStrip(
+                    summary: _weatherSummary,
+                    onTap: _loadCurrentWeather,
                   ),
                 ),
 
@@ -404,10 +361,11 @@ class _HomePageState extends State<HomePage>
 
                 // ── 旅行胶囊 ──
                 Positioned(
-                  top: topSafe + 108,
-                  left: sidePadding,
+                  top: tripTop,
+                  left: controlsLeft,
                   child: _TripPill(
                     label: _dashboardSummary.tripLabel,
+                    width: controlWidth,
                     onTap: () => context.go('/trip'),
                   ),
                 ),
@@ -424,7 +382,7 @@ class _HomePageState extends State<HomePage>
 
                 // ── 右侧蓝小心状态抽屉 ──
                 Positioned(
-                  top: topSafe + 120,
+                  top: statusDrawerTop,
                   right: 0,
                   child: _ModeExitBubble(
                     hidden: _isPureMode,
@@ -439,44 +397,60 @@ class _HomePageState extends State<HomePage>
 
                 // ── 底部磨砂玻璃聊天面板（~37%）──
                 AnimatedPositioned(
-                  duration: _isChatExpanded || _isPureMode
-                      ? Duration.zero
-                      : const Duration(milliseconds: 180),
+                  duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
-                  left: sidePadding,
+                  left: 0,
+                  right: 0,
+                  top: _isPureMode ? purePanelTop : null,
+                  bottom: keyboardInset,
+                  height: _isPureMode ? null : effectivePanelHeight,
+                  child: _ChatGlassPanel(
+                    controller: _chatController,
+                    focusNode: _chatFocusNode,
+                    scrollController: _panelScrollController,
+                    messages: _homeChatController.messages,
+                    isSending: _homeChatController.isSending,
+                    queuedMessage: _homeChatController.queuedMessage,
+                    memoryCandidateCount:
+                        _homeChatController.memoryCandidateCount,
+                    onSend: _sendHomeMessage,
+                    onStop: () => _homeChatController.stop(),
+                    onFocusInput: () => _chatFocusNode.requestFocus(),
+                    onResize: (delta) => _resizeChatPanel(delta, h),
+                    onOpenTrip: () => context.go('/trip'),
+                    onOpenMemory: () => context.go('/memory'),
+                    onOpenReview: () => context.go('/review'),
+                  ),
+                ),
+
+                // ── 顶部主操作。放在最后，保证触控优先级最高。 ──
+                Positioned(
+                  top: actionsTop,
+                  left: controlsLeft,
+                  child: _PureModeButton(
+                    isPureMode: _isPureMode,
+                    onTap: _togglePureMode,
+                    compact: compact,
+                    width: controlWidth,
+                  ),
+                ),
+                Positioned(
+                  top: actionsTop,
+                  right: sidePadding + 60,
+                  child: _TopIconPill(
+                    icon: Icons.notifications_none_rounded,
+                    label: '消息',
+                    onTap: () => context.push('/reminder'),
+                  ),
+                ),
+                Positioned(
+                  top: actionsTop,
                   right: sidePadding,
-                  top: _isPureMode ? topSafe + 126 : null,
-                  bottom: 10 + keyboardInset,
-                  height: _isPureMode ? null : visibleChatHeight,
-                  child: _isChatExpanded || _isPureMode
-                      ? _ChatGlassPanel(
-                          controller: _chatController,
-                          focusNode: _chatFocusNode,
-                          scrollController: _panelScrollController,
-                          messages: _homeChatController.messages,
-                          isSending: _homeChatController.isSending,
-                          queuedMessage: _homeChatController.queuedMessage,
-                          memoryCandidateCount:
-                              _homeChatController.memoryCandidateCount,
-                          onSend: _sendHomeMessage,
-                          onStop: () => _homeChatController.stop(),
-                          onFocusInput: () {
-                            _expandHomeChat();
-                            _chatFocusNode.requestFocus();
-                          },
-                          onResize: (delta) => _resizeChatPanel(delta, h),
-                          onCollapse: _collapseHomeChat,
-                          onOpenTrip: () => context.go('/trip'),
-                          onOpenMemory: () => context.go('/memory'),
-                          onOpenReview: () => context.go('/review'),
-                        )
-                      : _CollapsedChatBar(
-                          controller: _chatController,
-                          focusNode: _chatFocusNode,
-                          isSending: _homeChatController.isSending,
-                          onExpand: _expandHomeChat,
-                          onSend: _sendHomeMessage,
-                        ),
+                  child: _TopIconPill(
+                    icon: Icons.history_rounded,
+                    label: '聊天历史',
+                    onTap: _showChatHistorySheet,
+                  ),
                 ),
               ],
             );
@@ -500,24 +474,25 @@ class _PureModeButton extends StatelessWidget {
     required this.isPureMode,
     required this.onTap,
     required this.compact,
+    required this.width,
   });
 
   final bool isPureMode;
   final VoidCallback onTap;
   final bool compact;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        constraints: BoxConstraints(
-          minHeight: 44,
-          minWidth: compact ? 150 : 164,
-        ),
+        width: width,
+        constraints: BoxConstraints(minHeight: 39),
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 13 : 15,
-          vertical: 10,
+          horizontal: compact ? 10 : 11,
+          vertical: 8,
         ),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.34),
@@ -536,18 +511,18 @@ class _PureModeButton extends StatelessWidget {
           children: [
             Icon(
               isPureMode
-                  ? Icons.fullscreen_exit_rounded
-                  : Icons.fullscreen_rounded,
+                  ? Icons.auto_awesome_motion_rounded
+                  : Icons.chat_bubble_outline_rounded,
               color: const Color(0xFF215ECA),
-              size: 19,
+              size: 18,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Text(
-              isPureMode ? '返回陪伴模式' : '进入纯净模式',
+              isPureMode ? '切换到陪伴模式' : '切换到纯净模式',
               style: const TextStyle(
                 color: Color(0xFF174C9F),
                 fontWeight: FontWeight.w900,
-                fontSize: 12.8,
+                fontSize: 12.1,
               ),
             ),
           ],
@@ -558,10 +533,15 @@ class _PureModeButton extends StatelessWidget {
 }
 
 class _TopIconPill extends StatelessWidget {
-  const _TopIconPill({required this.icon, required this.label});
+  const _TopIconPill({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -570,11 +550,21 @@ class _TopIconPill extends StatelessWidget {
       child: Semantics(
         button: true,
         label: label,
-        child: GlassBox(
-          width: 44,
-          borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          child: Icon(icon, color: Colors.white, size: 20),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            width: 52,
+            height: 52,
+            child: Center(
+              child: GlassBox(
+                width: 44,
+                borderRadius: BorderRadius.circular(22),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -649,9 +639,14 @@ class _HomeDashboardSummary {
 }
 
 class _TripPill extends StatelessWidget {
-  const _TripPill({required this.label, required this.onTap});
+  const _TripPill({
+    required this.label,
+    required this.width,
+    required this.onTap,
+  });
 
   final String label;
+  final double width;
   final VoidCallback onTap;
 
   @override
@@ -663,30 +658,33 @@ class _TripPill extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: GlassBox(
+          width: width,
           borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
                 Icons.location_on_rounded,
                 color: Color(0xFF5F9BFF),
-                size: 19,
+                size: 18,
               ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF2B5BA9),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13.5,
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF2B5BA9),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.4,
+                  ),
                 ),
               ),
-              const SizedBox(width: 5),
               const Icon(
                 Icons.chevron_right_rounded,
                 color: Color(0xFF326BCA),
-                size: 19,
+                size: 18,
               ),
             ],
           ),
@@ -705,53 +703,90 @@ class _WeatherStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLoading = summary.state == HomeWeatherState.loading;
-    final icon = switch (summary.state) {
-      HomeWeatherState.ready => Icons.wb_sunny_rounded,
-      HomeWeatherState.failure => Icons.refresh_rounded,
-      HomeWeatherState.loading => Icons.my_location_rounded,
-      HomeWeatherState.idle => Icons.cloud_sync_rounded,
-    };
     final location = (summary.city == null || summary.city!.isEmpty)
         ? summary.title
         : summary.city!;
     final weather = (summary.condition == null || summary.condition!.isEmpty)
         ? (isLoading ? '定位中' : '天气')
         : summary.condition!;
+    final weatherIcon = _weatherIconFor(weather, summary.state);
     final temperature = summary.temperatureC == null
         ? '--°C'
         : '${summary.temperatureC}°C';
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: GlassBox(
-        borderRadius: BorderRadius.circular(22),
-        opacity: 0.28,
+        height: 30,
+        borderRadius: BorderRadius.circular(15),
+        opacity: 0.20,
         borderColor: Colors.white.withOpacity(0.78),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '$location  $weather  $temperature',
+                location,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF174C9F),
                   fontWeight: FontWeight.w900,
-                  fontSize: 13.4,
+                  fontSize: 12.4,
                 ),
               ),
             ),
-            Icon(
-              isLoading ? Icons.more_horiz_rounded : Icons.refresh_rounded,
-              color: const Color(0xFF5F9BFF),
-              size: 16,
+            Expanded(
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(weatherIcon, color: Colors.white, size: 15),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        weather,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF174C9F),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                temperature,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF174C9F),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12.4,
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  IconData _weatherIconFor(String condition, HomeWeatherState state) {
+    if (state == HomeWeatherState.loading) return Icons.my_location_rounded;
+    if (state == HomeWeatherState.failure) return Icons.cloud_off_rounded;
+    if (condition.contains('雨')) return Icons.water_drop_rounded;
+    if (condition.contains('雪')) return Icons.ac_unit_rounded;
+    if (condition.contains('晴')) return Icons.wb_sunny_rounded;
+    if (condition.contains('阴')) return Icons.cloud_rounded;
+    if (condition.contains('云')) return Icons.wb_cloudy_rounded;
+    return Icons.cloud_queue_rounded;
   }
 }
 
@@ -763,82 +798,94 @@ class _StatusDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          child: expanded
-              ? GlassBox(
-                  key: const ValueKey('status-panel'),
-                  width: 136,
-                  opacity: 0.27,
-                  borderColor: Colors.white.withOpacity(0.74),
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _StatusMetric(
-                        icon: Icons.favorite_rounded,
-                        label: '默契',
-                        value: '12',
-                        color: Color(0xFFFF8CCF),
-                      ),
-                      SizedBox(height: 10),
-                      _StatusMetric(
-                        icon: Icons.mood_rounded,
-                        label: '心情',
-                        value: '开心',
-                        color: Color(0xFFFFDA7D),
-                      ),
-                      SizedBox(height: 10),
-                      _StatusMetric(
-                        icon: Icons.bolt_rounded,
-                        label: '精力',
-                        value: '90',
-                        color: Color(0xFFFFD953),
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox.shrink(key: ValueKey('status-empty')),
-        ),
-        const SizedBox(width: 6),
-        GestureDetector(
-          onTap: onToggle,
-          behavior: HitTestBehavior.opaque,
+    if (!expanded) {
+      return GestureDetector(
+        onTap: onToggle,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 124,
           child: GlassBox(
-            width: 34,
+            height: 54,
             borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(18),
+              left: Radius.circular(24),
             ),
-            opacity: 0.30,
-            borderColor: Colors.white.withOpacity(0.74),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  expanded
-                      ? Icons.keyboard_arrow_right_rounded
-                      : Icons.favorite_rounded,
-                  color: const Color(0xFF215ECA),
-                  size: 18,
+            opacity: 0.22,
+            borderColor: Colors.white.withOpacity(0.70),
+            padding: EdgeInsets.zero,
+            child: const Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: EdgeInsets.only(left: 3),
+                child: Icon(
+                  Icons.keyboard_arrow_left_rounded,
+                  color: Color(0xFF215ECA),
+                  size: 19,
                 ),
-                if (!expanded) ...[
-                  const SizedBox(height: 5),
-                  const Column(
-                    children: [
-                      Text('状', style: _statusTabTextStyle),
-                      Text('态', style: _statusTabTextStyle),
-                    ],
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
-      ],
+      );
+    }
+    return GestureDetector(
+      onTap: onToggle,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        width: 124,
+        child: GlassBox(
+          borderRadius: const BorderRadius.horizontal(
+            left: Radius.circular(24),
+          ),
+          opacity: 0.27,
+          borderColor: Colors.white.withOpacity(0.74),
+          padding: const EdgeInsets.fromLTRB(22, 9, 8, 9),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.centerLeft,
+            children: [
+              Positioned(
+                left: -20,
+                child: const Icon(
+                  Icons.keyboard_arrow_right_rounded,
+                  color: Color(0xFF215ECA),
+                  size: 19,
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: const Column(
+                  key: ValueKey('status-panel'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _StatusMetric(
+                      icon: Icons.favorite_rounded,
+                      label: '默契',
+                      value: '12',
+                      color: Color(0xFFFF8CCF),
+                    ),
+                    SizedBox(height: 9),
+                    _StatusMetric(
+                      icon: Icons.mood_rounded,
+                      label: '心情',
+                      value: '开心',
+                      color: Color(0xFFFFDA7D),
+                    ),
+                    SizedBox(height: 9),
+                    _StatusMetric(
+                      icon: Icons.bolt_rounded,
+                      label: '精力',
+                      value: '90',
+                      color: Color(0xFFFFD953),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -861,12 +908,12 @@ class _StatusMetric extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, color: color, size: 17),
-        const SizedBox(width: 7),
+        const SizedBox(width: 5),
         Text(
           label,
           style: const TextStyle(
             color: Color(0xFF42699E),
-            fontSize: 12,
+            fontSize: 11.2,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -875,7 +922,7 @@ class _StatusMetric extends StatelessWidget {
           value,
           style: const TextStyle(
             color: Color(0xFF175BC4),
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -883,12 +930,6 @@ class _StatusMetric extends StatelessWidget {
     );
   }
 }
-
-const _statusTabTextStyle = TextStyle(
-  color: Color(0xFF174C9F),
-  fontSize: 11,
-  fontWeight: FontWeight.w900,
-);
 
 class _MemoryFloatBadge extends StatelessWidget {
   const _MemoryFloatBadge({required this.count});
@@ -1016,7 +1057,6 @@ class _ChatGlassPanel extends StatelessWidget {
     required this.onStop,
     required this.onFocusInput,
     required this.onResize,
-    required this.onCollapse,
     required this.onOpenTrip,
     required this.onOpenMemory,
     required this.onOpenReview,
@@ -1033,7 +1073,6 @@ class _ChatGlassPanel extends StatelessWidget {
   final VoidCallback onStop;
   final VoidCallback onFocusInput;
   final ValueChanged<double> onResize;
-  final VoidCallback onCollapse;
   final VoidCallback onOpenTrip;
   final VoidCallback onOpenMemory;
   final VoidCallback onOpenReview;
@@ -1048,10 +1087,10 @@ class _ChatGlassPanel extends StatelessWidget {
     return GlassBox(
       borderRadius: BorderRadius.circular(30),
       padding: EdgeInsets.fromLTRB(
-        metrics.isCompactPhone ? 10 : 13,
-        8,
-        metrics.isCompactPhone ? 10 : 13,
-        8,
+        metrics.isCompactPhone ? 7 : 9,
+        6,
+        metrics.isCompactPhone ? 7 : 9,
+        5,
       ),
       opacity: 0.20,
       blur: 30.0,
@@ -1062,7 +1101,7 @@ class _ChatGlassPanel extends StatelessWidget {
             onPanUpdate: (details) => onResize(details.delta.dy),
             onVerticalDragUpdate: (details) => onResize(details.delta.dy),
             child: SizedBox(
-              height: 22,
+              height: 18,
               width: double.infinity,
               child: Center(
                 child: Container(
@@ -1082,54 +1121,12 @@ class _ChatGlassPanel extends StatelessWidget {
               ),
             ),
           ),
-          Row(
-            children: [
-              const Icon(
-                Icons.forum_rounded,
-                color: Color(0xFF215ECA),
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  '和蓝小心直接聊',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFF06224E),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (memoryCandidateCount > 0)
-                _TinySignal(label: '$memoryCandidateCount 条记忆'),
-              if (isSending) ...[
-                const SizedBox(width: 6),
-                _TinySignal(label: queuedMessage == null ? '思考中' : '已追加'),
-              ],
-              const SizedBox(width: 4),
-              Tooltip(
-                message: '收起聊天',
-                child: IconButton(
-                  onPressed: onCollapse,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF215ECA),
-                    size: 22,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           Expanded(
             child: ListView.separated(
               controller: scrollController,
               padding: EdgeInsets.zero,
               itemCount: itemCount,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
               itemBuilder: (_, index) {
                 if (index >= visibleMessages.length) {
                   return _ThinkingBubble(
@@ -1151,13 +1148,13 @@ class _ChatGlassPanel extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: onFocusInput,
             child: GlassBox(
               borderRadius: BorderRadius.circular(22),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
               opacity: 0.12,
               blur: 16,
               child: Row(
@@ -1212,13 +1209,13 @@ class _ChatGlassPanel extends StatelessWidget {
             ),
           ),
           if (isSending) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
             Row(
               children: [
                 Expanded(
                   child: Text(
                     queuedMessage == null
-                        ? '蓝小心正在生成回复，可停止或补充信息'
+                        ? '正在调用真实 Agent，可停止或补充信息'
                         : '补充信息会进入下一轮思考',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1242,9 +1239,9 @@ class _ChatGlassPanel extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           SizedBox(
-            height: 32,
+            height: 30,
             child: Row(
               children: [
                 Expanded(
@@ -1287,99 +1284,6 @@ class _ChatGlassPanel extends StatelessWidget {
   }
 }
 
-class _CollapsedChatBar extends StatelessWidget {
-  const _CollapsedChatBar({
-    required this.controller,
-    required this.focusNode,
-    required this.isSending,
-    required this.onExpand,
-    required this.onSend,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool isSending;
-  final VoidCallback onExpand;
-  final VoidCallback onSend;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      key: const ValueKey('home-chat-collapsed-bar'),
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        onExpand();
-        focusNode.requestFocus();
-      },
-      child: GlassBox(
-        borderRadius: BorderRadius.circular(28),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        opacity: 0.22,
-        blur: 26,
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.30),
-                border: Border.all(color: Colors.white.withOpacity(0.58)),
-              ),
-              child: const Icon(
-                Icons.forum_rounded,
-                color: Color(0xFF215ECA),
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                minLines: 1,
-                maxLines: 1,
-                textInputAction: TextInputAction.send,
-                onTap: onExpand,
-                onSubmitted: (_) => onSend(),
-                style: const TextStyle(
-                  color: Color(0xFF06224E),
-                  fontSize: 14,
-                  height: 1.25,
-                ),
-                decoration: InputDecoration(
-                  hintText: isSending ? '蓝小心思考中，可继续补充...' : '在首页告诉蓝小心...',
-                  hintStyle: const TextStyle(
-                    color: Color(0xFF6D8DAF),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 42,
-              height: 42,
-              child: IconButton(
-                onPressed: onSend,
-                tooltip: isSending ? '追加信息' : '发送',
-                padding: EdgeInsets.zero,
-                icon: Icon(
-                  isSending ? Icons.add_rounded : Icons.send_rounded,
-                  color: const Color(0xFF215ECA),
-                  size: 22,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ChatBubble extends StatelessWidget {
   const _ChatBubble({
     super.key,
@@ -1394,8 +1298,8 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxBubbleWidth = math.min(
-      252.0,
-      MediaQuery.sizeOf(context).width - 112,
+      330.0,
+      MediaQuery.sizeOf(context).width - 76,
     );
     if (isUser) {
       return Row(
@@ -1560,8 +1464,8 @@ class _ThinkingBubbleState extends State<_ThinkingBubble> {
   @override
   Widget build(BuildContext context) {
     final maxBubbleWidth = math.min(
-      252.0,
-      MediaQuery.sizeOf(context).width - 112,
+      330.0,
+      MediaQuery.sizeOf(context).width - 76,
     );
     final dots = List.filled(_dotCount, '.').join();
     final text = widget.queuedMessage == null
@@ -1645,8 +1549,8 @@ class _QuickChip extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -1674,32 +1578,6 @@ class _QuickChip extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TinySignal extends StatelessWidget {
-  const _TinySignal({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.22),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.32), width: 0.8),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF215ECA),
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
         ),
       ),
     );

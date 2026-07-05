@@ -54,6 +54,12 @@
 
 ### 2026-07-05
 
+- 提交准备：本地 `dev` 已合入远端 `origin/dev` 的新增历史；远端两个 `Revert ...` 提交已通过 local-wins merge 纳入历史，但最终文件树保留本地当前状态，尤其首页 UI 与首页交互逻辑。
+- 首页保留口径：`apps/mobile/lib/features/home/`、`apps/mobile/lib/core/router/app_router.dart` 以本地当前版本为准，未采用远端旧首页 UI/旧交互。
+- 推送前验证：`git diff --check` 通过；`cd apps/mobile && flutter analyze` 通过；移动端定向 `flutter test test/home_dashboard_test.dart test/chat_page_integration_test.dart test/photo_experience_service_test.dart test/photo_page_integration_test.dart test/profile_page_service_test.dart test/trip_page_integration_test.dart` 结果 `29 passed`；后端定向 `pytest tests/test_agent_api.py tests/test_mobile_trip_tool_context.py tests/test_model_outputs.py tests/test_p1_photo_content_tasks.py tests/test_trip_plan_inputs.py -q` 结果 `26 passed`。
+- 已按强压缩策略重写项目级 `CLAUDE.md`：保留稳定硬规则、运行命令、Android/vivo-only、真实数据/隐私边界、GitNexus 和交接入口；历史流水账改由本文件、`docs/todo.md` 与 handoff 文档承接。
+- 后续 AI 不应再把阶段性流水账追加到 `CLAUDE.md`，阶段结论继续写入本文件，剩余人工事项继续写入 `docs/todo.md`。
+- 本轮文档任务对应 Trellis 任务：`.trellis/tasks/07-05-claude-md/`，PRD 与 implement/check 上下文已补齐，任务已切到 `in_progress`。
 - 继续排查真机反馈：纯净模式点击“规划路线”红底报错、首页蓝小心把“规划广州行程”错误生成北京行程。
 - 后端确认根因之一：`trip_context_builder` 能从“规划广州行程”提取 `广州`，但 `trip_planner` 之前会直接信任模型结构化输出的 `destination/title/summary`；若真实模型漂移为“北京”，错误会穿透到回复和卡片。
 - 已新增后端防线：`services/api/app/agents/travelmate/nodes/real_nodes.py` 中 `_enforce_requested_destination()` 会把明确请求目的地写回 `trip_plan.destination`，并在模型目的地不一致时替换 `title/summary` 中的错误目的地，同时校正 `planningInputs.destination`。
@@ -218,3 +224,8 @@
 - 底部导航默认展开，用户点击后完整收起为中间展开按钮，并通过 `path_provider` 写入应用支持目录持久保存；全局 Shell 支持左右滑动切换首页、行程、复盘、设置 Tab。
 - 真机 `8507100b` 已验证首页收起态、状态抽屉展开态和左右滑动进入行程页；截图位于 `E:\tmp\lanxin_swipe_home.png`、`E:\tmp\lanxin_swipe_trip.png`、`E:\tmp\lanxin_status_drawer.png`。
 - 用户拿走真机后已切回 Android 模拟器 `emulator-5554`，最新 debug APK 安装成功，`adb reverse tcp:8000 tcp:8000` 已配置；模拟器当前反复出现系统级 `Process system isn't responding` 弹窗，布局可从遮罩背后确认，但不作为 App 崩溃结论。
+- 已按用户要求拉取并合并远端最新 `origin/dev`，并将 `apps/mobile/lib/features/home/home_page.dart` 整个文件恢复为拉取远端前本地 `03f2d71` 版本，避免远端首页 UI 样式改动混入；其他远端变更正常保留。
+- 后续真机/模拟器验收语料尽量使用中文和中国境内出行场景；若 ADB 无法稳定输入中文，可临时用拼音或英文表达同一国内场景，最终人工验收仍以中文体验为准。
+- 本轮继续按真机反馈微调首页：天气条恢复天气 icon，温度使用 15 分钟内高德实时缓存，左上模式/当前旅程气泡缩小且等宽对齐，右侧状态抽屉收得更窄，聊天面板和底部导航改为满宽显示。
+- 已修复首页大图头像状态初始化：`HomePage` 创建时读取共享 `HomeChatController.avatarState`，避免切 Tab 回首页时大图回到默认状态；真机切到行程再回首页后，会话内容仍保留在首页面板。
+- 真机 `8507100b` 最新验证：`adb reverse tcp:8000 tcp:8000` 正常，`/api/health` 正常；首页天气从旧缓存 `26°C` 更新为高德实时 `31°C`，切 Tab 短暂显示 `--°C` 后可恢复真实天气。截图位于 `E:\tmp\lanxin_home_refine_v3.png`、`E:\tmp\lanxin_after_tabs_real.png`、`E:\tmp\lanxin_after_weather_wait.png`。
