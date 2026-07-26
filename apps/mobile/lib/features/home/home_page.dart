@@ -463,6 +463,7 @@ class _HomePageState extends State<HomePage>
                     messages: _homeChatController.messages,
                     isSending: _homeChatController.isSending,
                     queuedMessage: _homeChatController.queuedMessage,
+                    sendingStageLabel: _homeChatController.sendingStageLabel,
                     memoryCandidateCount:
                         _homeChatController.memoryCandidateCount,
                     hasDraftText: _hasDraftText,
@@ -1104,6 +1105,7 @@ class _ChatGlassPanel extends StatelessWidget {
     required this.messages,
     required this.isSending,
     required this.queuedMessage,
+    this.sendingStageLabel,
     required this.memoryCandidateCount,
     required this.hasDraftText,
     required this.onSend,
@@ -1122,6 +1124,7 @@ class _ChatGlassPanel extends StatelessWidget {
   final List<ChatMessage> messages;
   final bool isSending;
   final String? queuedMessage;
+  final String? sendingStageLabel;
   final int memoryCandidateCount;
   final bool hasDraftText;
   final VoidCallback onSend;
@@ -1185,6 +1188,7 @@ class _ChatGlassPanel extends StatelessWidget {
                   return _ThinkingBubble(
                     queuedMessage: queuedMessage,
                     avatarPath: AvatarState.thinking.assetPath,
+                    stageLabel: sendingStageLabel,
                   );
                 }
                 final message = messages[index];
@@ -1848,10 +1852,12 @@ class _ThinkingBubble extends StatefulWidget {
   const _ThinkingBubble({
     required this.queuedMessage,
     required this.avatarPath,
+    this.stageLabel,
   });
 
   final String? queuedMessage;
   final String avatarPath;
+  final String? stageLabel;
 
   @override
   State<_ThinkingBubble> createState() => _ThinkingBubbleState();
@@ -1883,9 +1889,12 @@ class _ThinkingBubbleState extends State<_ThinkingBubble> {
       MediaQuery.sizeOf(context).width - 76,
     );
     final dots = List.filled(_dotCount, '.').join();
-    final text = widget.queuedMessage == null
-        ? '正在思考中$dots'
-        : '已收到补充，继续思考中$dots';
+    final stage = widget.stageLabel;
+    final text = widget.queuedMessage != null
+        ? '已收到补充，继续思考中$dots'
+        : (stage != null && stage.isNotEmpty
+              ? '$stage$dots'
+              : '正在思考中$dots');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [

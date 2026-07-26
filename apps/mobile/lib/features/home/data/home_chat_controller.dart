@@ -55,6 +55,7 @@ class HomeChatController extends ChangeNotifier {
   AvatarState avatarState = AvatarState.hello;
   bool isSending = false;
   int memoryCandidateCount = 0;
+  String? sendingStageLabel;
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   String? get queuedMessage => _queuedMessage;
@@ -193,6 +194,22 @@ class HomeChatController extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<Map<String, String>> _recentMessagesContext({bool excludeLast = false}) {
+    final source = excludeLast && _messages.isNotEmpty
+        ? _messages.sublist(0, _messages.length - 1)
+        : List<ChatMessage>.from(_messages);
+    final recent = source.length > 8 ? source.sublist(source.length - 8) : source;
+    return recent
+        .where((m) => m.text.trim().isNotEmpty)
+        .map(
+          (m) => {
+            'role': m.sender == MessageSender.user ? 'user' : 'assistant',
+            'text': m.text.length > 200 ? m.text.substring(0, 200) : m.text,
+          },
+        )
+        .toList();
+  }
+
   Future<void> _sendToAgent(String text, {required bool addUserMessage}) async {
     if (addUserMessage) {
       _addUserMessage(text);
@@ -205,7 +222,7 @@ class HomeChatController extends ChangeNotifier {
     }
 
     try {
-      final response = await _agentChatService.sendMessage(
+      final response = await _agentChatService.sendMessageStreaming(
         text,
         sessionId: sessionId,
         userId: (await _authSessionService.currentSession())?.userId,
@@ -213,9 +230,14 @@ class HomeChatController extends ChangeNotifier {
         context: {
           'entry': 'home_companion',
           'surface': 'avatar_home',
+          'recentMessages': _recentMessagesContext(excludeLast: true),
           if (_queuedMessage != null) 'queuedSupplement': _queuedMessage,
         },
         cancelToken: _cancelToken,
+        onStage: (stage) {
+          sendingStageLabel = stage.label;
+          notifyListeners();
+        },
       );
       latestAgentResponse.value = response;
       avatarState = response.avatarState;
@@ -254,6 +276,7 @@ class HomeChatController extends ChangeNotifier {
       );
     } finally {
       isSending = false;
+      sendingStageLabel = null;
       _cancelToken = null;
       notifyListeners();
     }
