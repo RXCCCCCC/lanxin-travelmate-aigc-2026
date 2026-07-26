@@ -260,3 +260,6 @@
 - 产品化路线结论：先部署 HTTPS 公网 API + Postgres + 备份，再用正式签名构建内置公网 `API_BASE_URL` 的 release APK；当前 GitHub Release/debug APK 和本地 adb reverse 都不能视为真实用户交付。
 - 2026-07-06 已新增录制前交接文档：`docs/handoff/user-setup-and-usage.md` 说明云端/本地/模拟器/真机/API Key/APK 配置与常见问题；`docs/handoff/current-demo-video-script.md` 给出当前作品主链路录制脚本、3 分钟压缩版、隐私与降级口径。
 - 当前录制建议优先构建或运行 `--dart-define=API_BASE_URL=https://api.rxcccccc.icu`；若云端不可用，再按文档切本地 `uvicorn --host 0.0.0.0 --port 8000` + 真机局域网 IP 或 `adb reverse`。
+- 2026-07-26 仓库清理与提交：删除 `apps/mobile` 下 4 张临时调试截图和 `window.xml`（UI dump），`submission/` 大体积提交包目录加入 `.gitignore` 不入库；此前未提交的 API fallback 拦截器、下划线修复和两份 handoff 文档已提交（`bac533d`）。
+- 2026-07-26 修复后端回归：真实 provider 下模型抽取的记忆候选与规则候选同名时（如“不吃香菜”），合并后丢失规范 id `mem-cilantro` 与隐私元数据；已在 `_merge_memory_candidates` 中让同名模型候选复用规则 id 和 category/sensitivity/scope 元数据（`6917a99`）。验证：`pytest tests/test_travelmate_graph.py` 10 passed，`tests/test_agent_api.py tests/test_trip_dashboard.py` 通过，`flutter analyze` 无问题。
+- PRD P0/P1 功能面盘点结论：记忆胶囊/画像、个性化规划（profileMatches）、主动提醒（time/location/status 触发）、蓝小心状态机（avatar_states）、默契值/好感度、复盘、盲盒、旅拍文案、多人协调后端均已有实现；剩余主要是 `docs/todo.md` 中的人工验收项（双人真机验收、release 签名、正式账号体系、Demo 录制、PPT、提交确认）。
