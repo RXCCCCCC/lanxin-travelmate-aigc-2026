@@ -272,3 +272,7 @@
 - 2026-07-26 第三批：首页直聊已切换到 sendMessageStreaming（SSE 流式），思考气泡按 stage 显示中文阶段文案（sendingStageLabel），请求携带最近 8 条 recentMessages 多轮上下文，与聊天页策略一致（提交 f9af639）。
 - 验证：flutter analyze 无问题；home_dashboard_test + chat_page_integration_test 共 11 passed。
 - 待办口径：公网 api.rxcccccc.icu 仍为旧版后端（无 /chat/stream，客户端自动降级非流式），同步需推送 dev 并在服务器重建 Docker，属高风险远程操作，待用户单独确认。
+- 2026-07-27 简历作品优化第二批已逐项完成并提交：仓库瘦身归档（6ffa70c）、ARCHITECTURE.md 架构文档（805e496）、聊天页草稿持久化+回到底部按钮（c8da629）、设置页技术栈描述（2a72909）、后端 OpenAPI 摘要+全局异常处理器（210b32f）、INTERVIEW_PREP.md 终版同步。
+- 验证：flutter analyze 全局无问题；home_dashboard_test + chat_page_integration_test 共 11 passed；后端 test_agent_api 10 passed；py_compile 通过。
+- 公网部署已确认：api.rxcccccc.icu 已重建 Docker 镜像，/api/agent/chat/stream SSE 流式端点可用，8 个 stage 事件正常推送。
+- dev 分支已推送 origin/dev（2a2c6e8 及之前），后续提交待用户确认推送。
