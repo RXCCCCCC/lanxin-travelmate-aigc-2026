@@ -617,6 +617,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                       fontSize: 12,
                                     ),
                                   ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Flutter + FastAPI + LangGraph',
+                                    style: TextStyle(
+                                      color: AppTheme.textMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'AI 全旅程旅行陪伴 Agent',
+                                    style: TextStyle(
+                                      color: AppTheme.textMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
