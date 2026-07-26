@@ -35,6 +35,20 @@ def _planning_inputs(state: TravelMateState) -> dict[str, Any]:
     return planning_inputs if isinstance(planning_inputs, dict) else {}
 
 
+_NON_DESTINATION_WORDS = {
+    "哪里", "哪儿", "哪个", "哪些", "什么", "何处", "那里", "这里", "附近", "别的", "其他", "什么地方",
+}
+
+
+def _looks_like_non_destination(text: str) -> bool:
+    candidate = text.strip()
+    if not candidate:
+        return True
+    if candidate in _NON_DESTINATION_WORDS:
+        return True
+    return any(candidate.startswith(word) for word in ("哪", "什么", "何处"))
+
+
 def _looks_like_date_fragment(text: str) -> bool:
     candidate = text.strip()
     if not candidate:
@@ -74,7 +88,11 @@ def _extract_destination_from_message(message: str) -> str | None:
         match = re.search(pattern, text)
         if match:
             destination = _strip_planning_instruction_noise(match.group(1))
-            if len(destination) >= 2 and not _looks_like_date_fragment(destination):
+            if (
+                len(destination) >= 2
+                and not _looks_like_date_fragment(destination)
+                and not _looks_like_non_destination(destination)
+            ):
                 return destination
 
     stop_tokens = [
@@ -107,7 +125,11 @@ def _extract_destination_from_message(message: str) -> str | None:
             if token_index >= 0:
                 end = min(end, token_index)
         destination = _strip_planning_instruction_noise(candidate[:end])
-        if len(destination) >= 2 and not _looks_like_date_fragment(destination):
+        if (
+            len(destination) >= 2
+            and not _looks_like_date_fragment(destination)
+            and not _looks_like_non_destination(destination)
+        ):
             return destination
     return None
 
@@ -120,6 +142,19 @@ def _extract_trip_destination(state: TravelMateState) -> str:
     from_message = _extract_destination_from_message(state.get("normalized_input") or state.get("message") or "")
     if from_message:
         return from_message
+    # 多轮对话时从最近的历史消息继承目的地（新到旧）
+    context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+    recent = context.get("recentMessages")
+    if isinstance(recent, list):
+        for item in reversed(recent):
+            if not isinstance(item, dict):
+                continue
+            # 只从用户消息继承，避免把助手回复文案误判为目的地
+            if str(item.get("role", "")).strip() != "user":
+                continue
+            from_history = _extract_destination_from_message(str(item.get("text") or ""))
+            if from_history:
+                return from_history
     return "\u5f85\u786e\u8ba4\u76ee\u7684\u5730"
 
 
