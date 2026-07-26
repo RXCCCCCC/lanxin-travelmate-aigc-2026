@@ -101,14 +101,6 @@ flutter build apk --debug
 
 本机执行 `flutter build apk --debug` 前先运行 `python scripts/android_release_preflight.py --json`；当前预检会检查 Android-only 平台壳、`applicationId`、版本号、SDK 35、build-tools 35.0.0 和 release 签名状态。本机需要安装 Android SDK `platforms;android-35`；CI 的 Android APK job 会自动安装 Android SDK 35、`build-tools;35.0.0` 并运行 strict 预检。
 
-提交就绪总览：
-
-```powershell
-python scripts/submission_readiness_report.py --json
-```
-
-该脚本只读聚合 Git 工作区、Android-only 平台壳、PRD P0 演示闭环、比赛提交材料、交接文档、Android 预检和 Docker Compose 预检；不会启动服务、构建 APK、读取密钥值或修改文件。
-
 Docker：
 
 ```powershell
