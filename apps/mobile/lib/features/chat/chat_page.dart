@@ -59,7 +59,10 @@ class _ChatPageState extends State<ChatPage> {
   List<MemoryCandidate> _pendingMemoryCandidates = [];
   Map<String, dynamic>? _memoryConflictSuggestion;
   String? _memoryStatusText;
-  String? _voiceNotice;
+  String? _statusNotice;
+  DateTime? _statusNoticeTime;
+  static const _statusNoticeDuration = Duration(seconds: 4);
+
   bool _isListening = false;
   bool _isSending = false;
   late String _sessionId;
@@ -107,6 +110,22 @@ class _ChatPageState extends State<ChatPage> {
     _scrollToBottom();
   }
 
+  void _showStatusNotice(String text, {bool important = false}) {
+    setState(() {
+      _statusNotice = text;
+      _statusNoticeTime = DateTime.now();
+    });
+    if (!important) {
+      Future.delayed(_statusNoticeDuration, () {
+        if (!mounted) return;
+        if (_statusNoticeTime != null &&
+            DateTime.now().difference(_statusNoticeTime!) >= _statusNoticeDuration) {
+          setState(() => _statusNotice = null);
+        }
+      });
+    }
+  }
+
   List<Map<String, String>> _recentMessagesContext({bool excludeLast = false}) {
     final source = excludeLast && _messages.isNotEmpty
         ? _messages.sublist(0, _messages.length - 1)
@@ -128,7 +147,7 @@ class _ChatPageState extends State<ChatPage> {
     if (text.isEmpty || _isSending) return;
     setState(() {
       _isSending = true;
-      _voiceNotice = '模型生成中...';
+      _statusNotice = null;
       _messages.add(
         ChatMessage(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -150,9 +169,7 @@ class _ChatPageState extends State<ChatPage> {
             )
             .catchError((_) {
               if (mounted) {
-                setState(() {
-                  _voiceNotice = '本地聊天记录暂存失败，但消息已继续发送';
-                });
+                _showStatusNotice('本地聊天记录暂存失败，但消息已继续发送');
               }
             }),
       );
@@ -190,11 +207,11 @@ class _ChatPageState extends State<ChatPage> {
         ),
       );
       _isSending = false;
-      _voiceNotice =
-          resolvedResponse.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')
-          ? '离线兜底：请检查后端连接'
-          : null;
+      _statusNotice = null;
     });
+    if (resolvedResponse.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')) {
+      _showStatusNotice('离线兜底：请检查后端连接', important: true);
+    }
     unawaited(
       _chatHistoryService
           .saveMessage(
@@ -205,9 +222,7 @@ class _ChatPageState extends State<ChatPage> {
           )
           .catchError((_) {
             if (mounted) {
-              setState(() {
-                _voiceNotice = '回复已显示，本地聊天记录暂存失败';
-              });
+              _showStatusNotice('回复已显示，本地聊天记录暂存失败');
             }
           }),
     );
@@ -217,35 +232,35 @@ class _ChatPageState extends State<ChatPage> {
         : resolvedResponse.replyText;
     final spoken = await _voiceInteractionService.speak(voiceText);
     if (!mounted) return;
-    setState(() {
-      _voiceNotice = spoken
-          ? _voiceNotice
-          : (_voiceInteractionService.lastFailureMessage ??
-                _voiceNotice ??
-                '系统语音播报暂不可用，已保留文字回复');
-    });
+    if (!spoken) {
+      _showStatusNotice(
+        _voiceInteractionService.lastFailureMessage ?? '系统语音播报暂不可用，已保留文字回复',
+      );
+    }
   }
 
   Future<void> _listenAndFillInput() async {
     if (_isListening || _isSending) return;
     setState(() {
       _isListening = true;
-      _voiceNotice = null;
+      _statusNotice = null;
     });
     final text = await _voiceInteractionService.listenOnce();
     if (!mounted) return;
     setState(() {
       _isListening = false;
-      if (text == null || text.isEmpty) {
-        _voiceNotice =
-            _voiceInteractionService.lastFailureMessage ??
-            '未识别到语音内容，请确认麦克风权限或使用文字输入';
-        return;
+      if (text != null && text.isNotEmpty) {
+        _controller.text = text;
+        _controller.selection = TextSelection.collapsed(offset: text.length);
       }
-      _controller.text = text;
-      _controller.selection = TextSelection.collapsed(offset: text.length);
-      _voiceNotice = '已填入语音识别文本，可编辑后发送';
     });
+    if (text == null || text.isEmpty) {
+      _showStatusNotice(
+        _voiceInteractionService.lastFailureMessage ?? '未识别到语音内容，请确认麦克风权限或使用文字输入',
+      );
+    } else {
+      _showStatusNotice('已填入语音识别文本，可编辑后发送');
+    }
   }
 
   Map<String, dynamic>? _firstSyncSuggestion(
@@ -370,8 +385,10 @@ class _ChatPageState extends State<ChatPage> {
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: EdgeInsets.symmetric(vertical: metrics.cardGap),
-                    itemCount: _messages.length,
-                    itemBuilder: (_, i) => ChatBubble(message: _messages[i]),
+                    itemCount: _messages.length + (_isSending ? 1 : 0),
+                    itemBuilder: (_, i) => i < _messages.length
+                        ? ChatBubble(message: _messages[i])
+                        : const _TypingIndicatorBubble(),
                   ),
                 ),
                 if (_pendingMemoryCandidates.isNotEmpty ||
@@ -420,7 +437,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 ),
                 // 输入栏
-                if (_voiceNotice != null)
+                if (_statusNotice != null)
                   Padding(
                     padding: EdgeInsets.fromLTRB(
                       metrics.horizontalPadding,
@@ -431,14 +448,14 @@ class _ChatPageState extends State<ChatPage> {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.volume_up_rounded,
+                          Icons.info_outline_rounded,
                           color: AppTheme.primary,
                           size: 16,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            _voiceNotice!,
+                            _statusNotice!,
                             style: const TextStyle(
                               color: AppTheme.textSecondary,
                               fontSize: 12,
@@ -774,6 +791,104 @@ class _QuickChip extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _TypingIndicatorBubble extends StatefulWidget {
+  const _TypingIndicatorBubble();
+
+  @override
+  State<_TypingIndicatorBubble> createState() => _TypingIndicatorBubbleState();
+}
+
+class _TypingIndicatorBubbleState extends State<_TypingIndicatorBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = context.responsive;
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: metrics.horizontalPadding,
+        vertical: AppTheme.spacingSm,
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.white.withOpacity(0.3),
+            child: ClipOval(
+              child: Image.asset(
+                AvatarState.thinking.assetPath,
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+                cacheWidth: 96,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.face_rounded,
+                  color: AppTheme.primary,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppTheme.spacingSm),
+          GlassBox(
+            opacity: 0.18,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingLg,
+              vertical: AppTheme.spacingMd,
+            ),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(AppTheme.radiusLg),
+              topRight: Radius.circular(AppTheme.radiusLg),
+              bottomLeft: Radius.circular(AppTheme.spacingSm),
+              bottomRight: Radius.circular(AppTheme.radiusLg),
+            ),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(3, (index) {
+                    final phase = (_controller.value * 3 - index).clamp(0.0, 1.0);
+                    final opacity =
+                        0.25 + 0.75 * (1 - (phase - 0.5).abs() * 2).clamp(0.0, 1.0);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Opacity(
+                        opacity: opacity,
+                        child: const CircleAvatar(
+                          radius: 3.5,
+                          backgroundColor: AppTheme.primary,
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
