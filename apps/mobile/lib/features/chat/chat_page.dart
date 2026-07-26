@@ -65,6 +65,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool _isListening = false;
   bool _isSending = false;
+  String? _retryText;
   late String _sessionId;
   late String _tripId;
 
@@ -145,34 +146,58 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
+    _controller.clear();
+    await _sendText(text);
+  }
+
+  Future<void> _retryLastMessage() async {
+    final text = _retryText;
+    if (text == null || _isSending) return;
+    setState(() {
+      _retryText = null;
+      _statusNotice = null;
+      // 移除上一条离线兜底回复，重试成功后展示真实回复
+      if (_messages.isNotEmpty &&
+          _messages.last.sender == MessageSender.assistant) {
+        _messages.removeLast();
+      }
+    });
+    await _sendText(text, isRetry: true);
+  }
+
+  Future<void> _sendText(String text, {bool isRetry = false}) async {
     setState(() {
       _isSending = true;
       _statusNotice = null;
-      _messages.add(
-        ChatMessage(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          sender: MessageSender.user,
-          text: text,
-          time: TimeOfDay.now().format(context),
-        ),
-      );
+      _retryText = null;
+      if (!isRetry) {
+        _messages.add(
+          ChatMessage(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            sender: MessageSender.user,
+            text: text,
+            time: TimeOfDay.now().format(context),
+          ),
+        );
+      }
     });
-    _controller.clear();
     AgentChatResponse? response;
     try {
-      unawaited(
-        _chatHistoryService
-            .saveMessage(
-              sessionId: _sessionId,
-              sender: MessageSender.user,
-              text: text,
-            )
-            .catchError((_) {
-              if (mounted) {
-                _showStatusNotice('本地聊天记录暂存失败，但消息已继续发送');
-              }
-            }),
-      );
+      if (!isRetry) {
+        unawaited(
+          _chatHistoryService
+              .saveMessage(
+                sessionId: _sessionId,
+                sender: MessageSender.user,
+                text: text,
+              )
+              .catchError((_) {
+                if (mounted) {
+                  _showStatusNotice('本地聊天记录暂存失败，但消息已继续发送');
+                }
+              }),
+        );
+      }
       response = await _agentChatService.sendMessage(
         text,
         sessionId: _sessionId,
@@ -210,7 +235,8 @@ class _ChatPageState extends State<ChatPage> {
       _statusNotice = null;
     });
     if (resolvedResponse.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')) {
-      _showStatusNotice('离线兜底：请检查后端连接', important: true);
+      setState(() => _retryText = text);
+      _showStatusNotice('离线兜底：请检查后端连接后重试', important: true);
     }
     unawaited(
       _chatHistoryService
@@ -463,6 +489,31 @@ class _ChatPageState extends State<ChatPage> {
                             ),
                           ),
                         ),
+                        if (_retryText != null && !_isSending)
+                          TextButton.icon(
+                            onPressed: _retryLastMessage,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              minimumSize: const Size(0, 28),
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            icon: const Icon(
+                              Icons.refresh_rounded,
+                              size: 14,
+                              color: AppTheme.primary,
+                            ),
+                            label: const Text(
+                              '重试',
+                              style: TextStyle(
+                                color: AppTheme.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
