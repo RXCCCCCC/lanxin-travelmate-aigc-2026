@@ -275,7 +275,7 @@ def _stream_agent_events(
         yield f"event: error\ndata: {payload}\n\n"
 
 
-@router.post("/chat", response_model=AgentChatResponse)
+@router.post("/chat", response_model=AgentChatResponse, summary="Agent 聊天（非流式）")
 def chat(
     request: AgentChatRequest,
     current_user: CurrentUser = Depends(get_current_user),
@@ -299,7 +299,7 @@ def chat(
     return AgentChatResponse.model_validate(result["response"])
 
 
-@router.post("/chat/stream")
+@router.post("/chat/stream", summary="Agent 聊天（SSE 流式）")
 def chat_stream(
     request: AgentChatRequest,
     current_user: CurrentUser = Depends(get_current_user),
@@ -326,7 +326,7 @@ def chat_stream(
     )
 
 
-@router.get("/avatar-state")
+@router.get("/avatar-state", summary="蓝小心状态查询")
 def read_avatar_state() -> dict[str, int | str]:
     return {
         "energy": 85,
