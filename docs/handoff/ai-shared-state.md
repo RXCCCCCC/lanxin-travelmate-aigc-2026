@@ -269,3 +269,6 @@
 - 2D 数字人策略已确认：保持现有静态立绘+11 状态表情切换（avatar_states.dart），不上 Live2D；聊天与用户体验优先。
 - 2026-07-26 第二批已完成并逐项提交：后端 SSE 流式端点 /api/agent/chat/stream（stage/final/error 事件，LangGraph stream_nodes）；移动端 sendMessageStreaming 接入并在打字指示器显示阶段文案，失败自动降级非流式；聊天页内嵌 tripPlan 摘要卡片（含历史持久化与会话恢复）。
 - 验证：本地真实链路 SSE 依次推送 8 个 stage 后输出完整规划；test_agent_api 10 passed（含新增 SSE 测试）；flutter analyze 无问题；chat_page_integration_test 6 passed。
+- 2026-07-26 第三批：首页直聊已切换到 sendMessageStreaming（SSE 流式），思考气泡按 stage 显示中文阶段文案（sendingStageLabel），请求携带最近 8 条 recentMessages 多轮上下文，与聊天页策略一致（提交 f9af639）。
+- 验证：flutter analyze 无问题；home_dashboard_test + chat_page_integration_test 共 11 passed。
+- 待办口径：公网 api.rxcccccc.icu 仍为旧版后端（无 /chat/stream，客户端自动降级非流式），同步需推送 dev 并在服务器重建 Docker，属高风险远程操作，待用户单独确认。
