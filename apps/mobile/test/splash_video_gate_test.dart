@@ -19,4 +19,24 @@ void main() {
       expect(gate.childRevealDuration, const Duration(milliseconds: 3000));
     },
   );
+
+  testWidgets('SplashVideoGate clears inherited yellow text underline', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: DefaultTextStyle(
+          style: TextStyle(decoration: TextDecoration.underline),
+          child: SplashVideoGate(
+            enabled: false,
+            child: Text('plain child text'),
+          ),
+        ),
+      ),
+    );
+
+    final context = tester.element(find.text('plain child text'));
+    expect(DefaultTextStyle.of(context).style.decoration, TextDecoration.none);
+  });
 }

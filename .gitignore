@@ -53,3 +53,6 @@ pnpm-debug.log*
 .cache/
 .npm-cache/
 .pnpm-home/
+
+# Competition submission packages (large local artifacts)
+submission/

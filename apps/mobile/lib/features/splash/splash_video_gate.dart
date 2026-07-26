@@ -87,6 +87,7 @@ class _SplashVideoGateState extends State<SplashVideoGate> {
       _checkingPolicy = false;
       _visible = false;
       _removed = true;
+      _childRevealed = true;
     });
   }
 
@@ -215,34 +216,37 @@ class _SplashVideoGateState extends State<SplashVideoGate> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        AnimatedOpacity(
-          opacity: _childRevealed ? 1 : 0,
-          duration: widget.childRevealDuration,
-          curve: Curves.easeOutCubic,
-          child: AnimatedSlide(
-            offset: _childRevealed ? Offset.zero : const Offset(0, 0.018),
+    return DefaultTextStyle.merge(
+      style: const TextStyle(decoration: TextDecoration.none),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedOpacity(
+            opacity: _childRevealed ? 1 : 0,
             duration: widget.childRevealDuration,
             curve: Curves.easeOutCubic,
-            child: widget.child,
-          ),
-        ),
-        if (_checkingPolicy || !_removed)
-          AnimatedOpacity(
-            opacity: _visible ? 1 : 0,
-            duration: widget.fadeDuration,
-            curve: Curves.easeInOutCubic,
-            child: _SplashLayer(
-              controller: _activeController,
-              idleReady: _idleReady,
-              waitingForContinue: _waitingForContinue,
-              continueLabel: widget.continueLabel,
-              onContinue: _finishSplash,
+            child: AnimatedSlide(
+              offset: _childRevealed ? Offset.zero : const Offset(0, 0.018),
+              duration: widget.childRevealDuration,
+              curve: Curves.easeOutCubic,
+              child: widget.child,
             ),
           ),
-      ],
+          if (_checkingPolicy || !_removed)
+            AnimatedOpacity(
+              opacity: _visible ? 1 : 0,
+              duration: widget.fadeDuration,
+              curve: Curves.easeInOutCubic,
+              child: _SplashLayer(
+                controller: _activeController,
+                idleReady: _idleReady,
+                waitingForContinue: _waitingForContinue,
+                continueLabel: widget.continueLabel,
+                onContinue: _finishSplash,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -281,12 +285,6 @@ class _SplashLayer extends StatelessWidget {
             )
           else
             const _SplashFallback(),
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 30,
-            child: IgnorePointer(child: _SplashBrandMark()),
-          ),
           Positioned(
             left: 28,
             right: 28,
@@ -358,6 +356,7 @@ class _ContinueTravelButton extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
+                        decoration: TextDecoration.none,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                         height: 1.1,
@@ -400,31 +399,6 @@ class _SplashFallback extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-      ),
-    );
-  }
-}
-
-class _SplashBrandMark extends StatelessWidget {
-  const _SplashBrandMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      '蓝心同行',
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0,
-        shadows: [
-          Shadow(
-            color: Color(0x66000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
     );
   }

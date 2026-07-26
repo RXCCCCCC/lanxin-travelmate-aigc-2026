@@ -80,10 +80,13 @@ class _LanXinAppState extends State<LanXinApp> with WidgetsBindingObserver {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: AppTheme.light,
       routerConfig: appRouter,
-      builder: (context, child) => SplashVideoGate(
-        enabled: widget.splashEnabled,
-        preferenceService: widget.splashPreferenceService,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => DefaultTextStyle.merge(
+        style: const TextStyle(decoration: TextDecoration.none),
+        child: SplashVideoGate(
+          enabled: widget.splashEnabled,
+          preferenceService: widget.splashPreferenceService,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }
