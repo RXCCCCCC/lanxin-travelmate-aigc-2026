@@ -7,9 +7,12 @@ import 'glass_box.dart';
 
 /// 聊天气泡组件
 class ChatBubble extends StatelessWidget {
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({super.key, required this.message, this.onOpenTripPlan});
 
   final ChatMessage message;
+
+  /// 点击行程卡片时回调；为 null 时不渲染行程卡片。
+  final VoidCallback? onOpenTripPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +104,15 @@ class ChatBubble extends StatelessWidget {
                           fontSize: 11,
                         ),
                       ),
+                      if (!isUser &&
+                          message.hasTripPlanCard &&
+                          onOpenTripPlan != null) ...[
+                        const SizedBox(height: AppTheme.spacingSm),
+                        TripPlanSummaryCard(
+                          plan: message.tripPlanCard!,
+                          onOpen: onOpenTripPlan!,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -120,6 +132,97 @@ class ChatBubble extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+
+/// 聊天气泡内嵌的行程摘要卡片，点击可进入行程页。
+class TripPlanSummaryCard extends StatelessWidget {
+  const TripPlanSummaryCard({
+    super.key,
+    required this.plan,
+    required this.onOpen,
+  });
+
+  final Map<String, dynamic> plan;
+  final VoidCallback onOpen;
+
+  static String _text(Object? value, String fallback) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _text(plan['title'], '行程建议');
+    final destination = _text(plan['destination'], '目的地待确认');
+    final days = plan['days'];
+    final dayCount = days is List ? days.length : 0;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTheme.spacingMd,
+            vertical: AppTheme.spacingSm,
+          ),
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            border: Border.all(color: AppTheme.primary.withOpacity(0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.map_rounded,
+                color: AppTheme.primary,
+                size: 18,
+              ),
+              const SizedBox(width: AppTheme.spacingSm),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      dayCount > 0
+                          ? '$destination · $dayCount天行程'
+                          : destination,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingSm),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.primary,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

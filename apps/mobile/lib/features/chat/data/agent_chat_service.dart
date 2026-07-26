@@ -34,6 +34,17 @@ class AgentChatService {
     CancelToken? cancelToken,
     void Function(AgentChatStageEvent stage)? onStage,
   }) async {
+    // 未配置 baseUrl（如测试注入的裸 Dio）时直接走非流式路径。
+    if (_dio.options.baseUrl.isEmpty) {
+      return sendMessage(
+        message,
+        sessionId: sessionId,
+        userId: userId,
+        tripId: tripId,
+        context: context,
+        cancelToken: cancelToken,
+      );
+    }
     final resolvedUserId =
         userId ?? (await _authSession.currentSession())?.userId ?? 'guest';
     try {

@@ -267,6 +267,7 @@ class _ChatPageState extends State<ChatPage> {
           text: resolvedResponse.replyText,
           time: TimeOfDay.now().format(context),
           avatarState: resolvedResponse.avatarState,
+          tripPlanCard: agentCardPayload(resolvedResponse, 'tripPlan'),
         ),
       );
       _isSending = false;
@@ -284,6 +285,7 @@ class _ChatPageState extends State<ChatPage> {
             sender: MessageSender.assistant,
             text: resolvedResponse.replyText,
             avatarState: resolvedResponse.avatarState,
+            tripPlanCard: agentCardPayload(resolvedResponse, 'tripPlan'),
           )
           .catchError((_) {
             if (mounted) {
@@ -452,7 +454,10 @@ class _ChatPageState extends State<ChatPage> {
                     padding: EdgeInsets.symmetric(vertical: metrics.cardGap),
                     itemCount: _messages.length + (_isSending ? 1 : 0),
                     itemBuilder: (_, i) => i < _messages.length
-                        ? ChatBubble(message: _messages[i])
+                        ? ChatBubble(
+                            message: _messages[i],
+                            onOpenTripPlan: () => context.go('/trip'),
+                          )
                         : _TypingIndicatorBubble(stageLabel: _sendingStageLabel),
                   ),
                 ),
