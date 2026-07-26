@@ -67,6 +67,7 @@ class _ChatPageState extends State<ChatPage> {
   bool _isSending = false;
   String? _retryText;
   List<Map<String, dynamic>> _nextActions = [];
+  String? _sendingStageLabel;
   late String _sessionId;
   late String _tripId;
 
@@ -230,11 +231,15 @@ class _ChatPageState extends State<ChatPage> {
               }),
         );
       }
-      response = await _agentChatService.sendMessage(
+      response = await _agentChatService.sendMessageStreaming(
         text,
         sessionId: _sessionId,
         tripId: _tripId,
         context: {'recentMessages': _recentMessagesContext(excludeLast: true)},
+        onStage: (stage) {
+          if (!mounted) return;
+          setState(() => _sendingStageLabel = stage.label);
+        },
       );
     } catch (_) {
       response = AgentChatResponse.fallback(
@@ -266,6 +271,7 @@ class _ChatPageState extends State<ChatPage> {
       );
       _isSending = false;
       _statusNotice = null;
+      _sendingStageLabel = null;
     });
     if (resolvedResponse.errors.any((error) => error['code'] == 'NETWORK_FALLBACK')) {
       setState(() => _retryText = text);
@@ -447,7 +453,7 @@ class _ChatPageState extends State<ChatPage> {
                     itemCount: _messages.length + (_isSending ? 1 : 0),
                     itemBuilder: (_, i) => i < _messages.length
                         ? ChatBubble(message: _messages[i])
-                        : const _TypingIndicatorBubble(),
+                        : _TypingIndicatorBubble(stageLabel: _sendingStageLabel),
                   ),
                 ),
                 if (_pendingMemoryCandidates.isNotEmpty ||
@@ -892,7 +898,9 @@ class _QuickChip extends StatelessWidget {
 
 
 class _TypingIndicatorBubble extends StatefulWidget {
-  const _TypingIndicatorBubble();
+  const _TypingIndicatorBubble({this.stageLabel});
+
+  final String? stageLabel;
 
   @override
   State<_TypingIndicatorBubble> createState() => _TypingIndicatorBubbleState();
@@ -961,7 +969,7 @@ class _TypingIndicatorBubbleState extends State<_TypingIndicatorBubble>
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, _) {
-                return Row(
+                final dots = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(3, (index) {
                     final phase = (_controller.value * 3 - index).clamp(0.0, 1.0);
@@ -978,6 +986,22 @@ class _TypingIndicatorBubbleState extends State<_TypingIndicatorBubble>
                       ),
                     );
                   }),
+                );
+                final label = widget.stageLabel;
+                if (label == null || label.isEmpty) return dots;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    dots,
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
