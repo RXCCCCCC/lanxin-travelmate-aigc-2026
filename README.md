@@ -1,6 +1,15 @@
 # 蓝心同行：懂你的全旅程 AI 旅伴
 
-本仓库用于 2026 年 AIGC 创新赛应用赛道作品“蓝心同行”。当前已形成可运行的 Flutter App + FastAPI + LangGraph Agent 链路，支持本地演示“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的 P0 闭环；后端支持蓝心/OpenAI 兼容真实模型 Provider，高德天气/POI/路线工具已接入真实 Provider，无 Key 或服务异常时明确降级，不把 Mock/固定样例计入真实验收。
+一个可完整运行的 AI 旅行陪伴应用：Flutter Android 客户端 + FastAPI/LangGraph Agent 后端，覆盖“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 旅行复盘”闭环。项目源于 2026 AIGC 创新赛，现持续演进为个人作品。
+
+核心亮点：
+
+- LangGraph 显式状态机 Agent：输入规范化 → 意图路由 → 记忆抽取 → 行程上下文 → 工具调用规划 → 角色化回复，每个节点可单测、可降级。
+- SSE 流式体验：`/api/agent/chat/stream` 逐节点推送中文阶段进度，客户端实时显示“查询实时天气与景点”等状态，失败自动降级非流式。
+- 多轮上下文与目的地继承：客户端携带最近对话，追问“第一天晚上去哪”能正确继承上轮目的地。
+- 真实数据优先：蓝心/OpenAI 兼容模型 + 高德天气/POI/路线真实 Provider，无 Key 或异常时明确降级标注，不用假数据冒充。
+- 隐私与审计：模型调用日志脱敏（密钥/原文摘要化），记忆写入需用户确认。
+- 工程化：Docker Compose 一键部署（含 Postgres + Alembic 迁移）、公网 HTTPS API、真机验证、CI 预检脚本。
 
 ## 当前结构
 
@@ -25,6 +34,8 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 - 健康检查：`http://127.0.0.1:8000/api/health`
 - Swagger：`http://127.0.0.1:8000/docs`
+
+流式接口（SSE）：`POST /api/agent/chat/stream`，依次推送 `stage`（中文阶段文案）、`final`（完整响应）事件；非流式为 `POST /api/agent/chat`。
 
 聊天接口 smoke：
 
