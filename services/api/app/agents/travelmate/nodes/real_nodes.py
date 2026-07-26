@@ -372,8 +372,25 @@ def _merge_memory_candidates(
     model_candidates: list[dict[str, Any]],
     rule_candidates: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    merged = list(model_candidates)
-    seen_titles = {str(item.get("title", "")).strip() for item in model_candidates}
+    rule_by_title = {
+        str(item.get("title", "")).strip(): item
+        for item in rule_candidates
+        if str(item.get("title", "")).strip()
+    }
+    merged: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
+    for candidate in model_candidates:
+        title = str(candidate.get("title", "")).strip()
+        rule_match = rule_by_title.get(title)
+        if rule_match is not None:
+            # Keep canonical rule id and privacy metadata stable for known preferences.
+            candidate = {**candidate, "id": rule_match["id"]}
+            for key in ("category", "sensitivity", "recommendedScope", "scopeOptions", "requiresExplicitConsent"):
+                if key in rule_match:
+                    candidate[key] = rule_match[key]
+        merged.append(candidate)
+        if title:
+            seen_titles.add(title)
     for candidate in rule_candidates:
         title = str(candidate.get("title", "")).strip()
         if title and title not in seen_titles:
