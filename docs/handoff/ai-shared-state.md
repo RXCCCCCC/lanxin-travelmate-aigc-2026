@@ -263,3 +263,7 @@
 - 2026-07-26 仓库清理与提交：删除 `apps/mobile` 下 4 张临时调试截图和 `window.xml`（UI dump），`submission/` 大体积提交包目录加入 `.gitignore` 不入库；此前未提交的 API fallback 拦截器、下划线修复和两份 handoff 文档已提交（`bac533d`）。
 - 2026-07-26 修复后端回归：真实 provider 下模型抽取的记忆候选与规则候选同名时（如“不吃香菜”），合并后丢失规范 id `mem-cilantro` 与隐私元数据；已在 `_merge_memory_candidates` 中让同名模型候选复用规则 id 和 category/sensitivity/scope 元数据（`6917a99`）。验证：`pytest tests/test_travelmate_graph.py` 10 passed，`tests/test_agent_api.py tests/test_trip_dashboard.py` 通过，`flutter analyze` 无问题。
 - PRD P0/P1 功能面盘点结论：记忆胶囊/画像、个性化规划（profileMatches）、主动提醒（time/location/status 触发）、蓝小心状态机（avatar_states）、默契值/好感度、复盘、盲盒、旅拍文案、多人协调后端均已有实现；剩余主要是 `docs/todo.md` 中的人工验收项（双人真机验收、release 签名、正式账号体系、Demo 录制、PPT、提交确认）。
+- 2026-07-26 简历作品优化第一批已完成并逐项提交：多轮对话上下文（前端带 recentMessages、后端注入 companion_chat）、打字指示动画+状态提示瞬态化、网络降级一键重试、快捷操作按 nextActions 动态渲染、多轮追问目的地继承修复（疑问词过滤+仅从历史用户消息继承）。
+- 验证结论：本地真实链路两轮对话第二轮正确继承“重庆”并推荐洪崖洞/南山；flutter analyze 无问题；chat_page_integration_test 6 passed；test_travelmate_graph 10 passed。
+- 面试文档：根目录 INTERVIEW_PREP.md 持续维护（技术选型/难点/架构/追问准备/现状），每次功能落地后同步更新。
+- 2D 数字人策略已确认：保持现有静态立绘+11 状态表情切换（avatar_states.dart），不上 Live2D；聊天与用户体验优先。
