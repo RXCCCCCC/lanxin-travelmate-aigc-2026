@@ -953,9 +953,21 @@ def _compact_chat_state(next_state: TravelMateState) -> dict[str, Any]:
                 "content": _truncate_text(item.get("content"), 120),
                 "category": item.get("category"),
             })
+    context = next_state.get("context", {}) if isinstance(next_state.get("context"), dict) else {}
+    recent_messages: list[dict[str, Any]] = []
+    raw_recent = context.get("recentMessages")
+    if isinstance(raw_recent, list):
+        for item in raw_recent[-8:]:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role", "")).strip()
+            text = _truncate_text(item.get("text"), 200)
+            if role in {"user", "assistant"} and text:
+                recent_messages.append({"role": role, "text": text})
     return {
         "message": next_state.get("message"),
         "intent": next_state.get("intent"),
+        "recentMessages": recent_messages,
         "profile": next_state.get("user_profile", {}),
         "tripPlan": {
             "title": _truncate_text(trip_plan.get("title"), 120),

@@ -107,6 +107,22 @@ class _ChatPageState extends State<ChatPage> {
     _scrollToBottom();
   }
 
+  List<Map<String, String>> _recentMessagesContext({bool excludeLast = false}) {
+    final source = excludeLast && _messages.isNotEmpty
+        ? _messages.sublist(0, _messages.length - 1)
+        : List<ChatMessage>.from(_messages);
+    final recent = source.length > 8 ? source.sublist(source.length - 8) : source;
+    return recent
+        .where((m) => m.text.trim().isNotEmpty)
+        .map(
+          (m) => {
+            'role': m.sender == MessageSender.user ? 'user' : 'assistant',
+            'text': m.text.length > 200 ? m.text.substring(0, 200) : m.text,
+          },
+        )
+        .toList();
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
@@ -144,6 +160,7 @@ class _ChatPageState extends State<ChatPage> {
         text,
         sessionId: _sessionId,
         tripId: _tripId,
+        context: {'recentMessages': _recentMessagesContext(excludeLast: true)},
       );
     } catch (_) {
       response = AgentChatResponse.fallback(
