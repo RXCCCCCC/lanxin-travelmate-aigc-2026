@@ -11,6 +11,10 @@
 - 隐私与审计：模型调用日志脱敏（密钥/原文摘要化），记忆写入需用户确认。
 - 工程化：Docker Compose 一键部署（含 Postgres + Alembic 迁移）、公网 HTTPS API、真机验证、CI 预检脚本。
 
+## 架构
+
+详细架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，包含系统图、Agent 状态机流程、SSE 流式机制、端云分工和技术选型理由。
+
 ## 当前结构
 
 - `apps/mobile/`：Flutter 移动端原型，含蓝小心状态、聊天页、记忆、规划、提醒、复盘页面。
