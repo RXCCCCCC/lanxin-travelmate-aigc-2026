@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../core/constants/avatar_states.dart';
 import '../../core/layout/responsive_metrics.dart';
 import '../../core/router/navigation_helpers.dart';
@@ -65,6 +67,8 @@ class _ChatPageState extends State<ChatPage> {
 
   bool _isListening = false;
   bool _isSending = false;
+  bool _showScrollToBottom = false;
+  String? _draftPath;
   String? _retryText;
   List<Map<String, dynamic>> _nextActions = [];
   String? _sendingStageLabel;
@@ -89,16 +93,71 @@ class _ChatPageState extends State<ChatPage> {
       _historyDatabase = _memoryRepository.database;
     }
     _chatHistoryService = ChatHistoryService(_historyDatabase);
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadExistingSession();
+      _initSession();
     });
   }
 
   @override
   void dispose() {
+    _saveDraft();
+    _scrollController.removeListener(_onScroll);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final nearBottom = pos.pixels >= pos.maxScrollExtent - 120;
+    if (nearBottom != !_showScrollToBottom) {
+      setState(() => _showScrollToBottom = nearBottom ? false : true);
+    }
+  }
+
+  Future<void> _initSession() async {
+    await _loadExistingSession();
+    await _loadDraft();
+  }
+
+  Future<void> _loadDraft() async {
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final path = '${dir.path}/chat_draft_$_sessionId.txt';
+      _draftPath = path;
+      final file = File(path);
+      if (await file.exists()) {
+        final text = await file.readAsString();
+        if (text.isNotEmpty && mounted) {
+          _controller.text = text;
+          _controller.selection =
+              TextSelection.collapsed(offset: text.length);
+        }
+      }
+    } catch (_) {
+      // draft load failure is non-fatal
+    }
+  }
+
+  void _saveDraft() {
+    final path = _draftPath;
+    if (path == null) return;
+    final text = _controller.text;
+    try {
+      File(path).writeAsStringSync(text);
+    } catch (_) {
+      // draft save failure is non-fatal
+    }
+  }
+
+  void _jumpToBottom() {
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _loadExistingSession() async {
@@ -180,6 +239,7 @@ class _ChatPageState extends State<ChatPage> {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
     _controller.clear();
+    _saveDraft();
     await _sendText(text);
   }
 
@@ -449,16 +509,35 @@ class _ChatPageState extends State<ChatPage> {
                 ),
                 // 聊天消息列表
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: EdgeInsets.symmetric(vertical: metrics.cardGap),
-                    itemCount: _messages.length + (_isSending ? 1 : 0),
-                    itemBuilder: (_, i) => i < _messages.length
-                        ? ChatBubble(
-                            message: _messages[i],
-                            onOpenTripPlan: () => context.go('/trip'),
-                          )
-                        : _TypingIndicatorBubble(stageLabel: _sendingStageLabel),
+                  child: Stack(
+                    children: [
+                      ListView.builder(
+                        controller: _scrollController,
+                        padding: EdgeInsets.symmetric(vertical: metrics.cardGap),
+                        itemCount: _messages.length + (_isSending ? 1 : 0),
+                        itemBuilder: (_, i) => i < _messages.length
+                            ? ChatBubble(
+                                message: _messages[i],
+                                onOpenTripPlan: () => context.go('/trip'),
+                              )
+                            : _TypingIndicatorBubble(
+                                stageLabel: _sendingStageLabel),
+                      ),
+                      if (_showScrollToBottom && _messages.length > 4)
+                        Positioned(
+                          right: metrics.horizontalPadding,
+                          bottom: 8,
+                          child: FloatingActionButton.small(
+                            heroTag: 'chatScrollBottom',
+                            onPressed: _jumpToBottom,
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppTheme.primary,
+                            elevation: 2,
+                            child: const Icon(Icons.arrow_downward_rounded,
+                                size: 20),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 if (_pendingMemoryCandidates.isNotEmpty ||
@@ -626,6 +705,7 @@ class _ChatPageState extends State<ChatPage> {
                                 vertical: 8,
                               ),
                             ),
+                            textInputAction: TextInputAction.send,
                             onSubmitted: (_) => _send(),
                           ),
                         ),
