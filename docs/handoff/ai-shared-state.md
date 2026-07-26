@@ -267,3 +267,5 @@
 - 验证结论：本地真实链路两轮对话第二轮正确继承“重庆”并推荐洪崖洞/南山；flutter analyze 无问题；chat_page_integration_test 6 passed；test_travelmate_graph 10 passed。
 - 面试文档：根目录 INTERVIEW_PREP.md 持续维护（技术选型/难点/架构/追问准备/现状），每次功能落地后同步更新。
 - 2D 数字人策略已确认：保持现有静态立绘+11 状态表情切换（avatar_states.dart），不上 Live2D；聊天与用户体验优先。
+- 2026-07-26 第二批已完成并逐项提交：后端 SSE 流式端点 /api/agent/chat/stream（stage/final/error 事件，LangGraph stream_nodes）；移动端 sendMessageStreaming 接入并在打字指示器显示阶段文案，失败自动降级非流式；聊天页内嵌 tripPlan 摘要卡片（含历史持久化与会话恢复）。
+- 验证：本地真实链路 SSE 依次推送 8 个 stage 后输出完整规划；test_agent_api 10 passed（含新增 SSE 测试）；flutter analyze 无问题；chat_page_integration_test 6 passed。
