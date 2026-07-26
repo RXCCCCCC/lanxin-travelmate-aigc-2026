@@ -376,3 +376,32 @@ def test_agent_chat_plan_card_adds_digest_days_when_model_omits_days(monkeypatch
     first_item = plan["days"][0]["items"][0]
     assert "沙面" in first_item["location"] or "沙面" in first_item["activity"]
     assert "永庆坊" in json.dumps(plan["days"], ensure_ascii=False)
+
+
+def test_agent_chat_stream_emits_stage_and_final_events():
+    with client.stream(
+        "POST",
+        "/api/agent/chat/stream",
+        json={
+            "message": "\u5468\u672b\u60f3\u53bb\u91cd\u5e86\u4e24\u5929\uff0c\u4e0d\u60f3\u592a\u7d2f\uff0c\u559c\u6b22\u591c\u666f\uff0c\u6211\u4e0d\u5403\u9999\u83dc",
+            "sessionId": "sse-session",
+        },
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        events: list[tuple[str, dict]] = []
+        current_event = None
+        for line in response.iter_lines():
+            if line.startswith("event:"):
+                current_event = line.split(":", 1)[1].strip()
+            elif line.startswith("data:") and current_event:
+                events.append((current_event, json.loads(line.split(":", 1)[1].strip())))
+
+    stage_events = [payload for name, payload in events if name == "stage"]
+    final_events = [payload for name, payload in events if name == "final"]
+    assert len(stage_events) >= 3
+    assert all(payload.get("label") for payload in stage_events)
+    assert len(final_events) == 1
+    final = final_events[0]
+    assert final["avatarState"] == "planning"
+    assert any(card["type"] == "tripPlan" for card in final["cards"])
