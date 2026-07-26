@@ -66,6 +66,7 @@ class _ChatPageState extends State<ChatPage> {
   bool _isListening = false;
   bool _isSending = false;
   String? _retryText;
+  List<Map<String, dynamic>> _nextActions = [];
   late String _sessionId;
   late String _tripId;
 
@@ -125,6 +126,37 @@ class _ChatPageState extends State<ChatPage> {
         }
       });
     }
+  }
+
+  void _handleNextAction(Map<String, dynamic> action) {
+    final type = action['type']?.toString() ?? '';
+    switch (type) {
+      case 'openTripPlan':
+        context.go('/trip');
+      case 'openReview':
+        context.go('/review');
+      case 'confirmMemory':
+        context.push('/memory');
+      case 'simulateReminder':
+        context.push('/reminder');
+      case 'openPhoto':
+        context.push('/photo');
+      case 'suggestedQuestion':
+        final label = action['label']?.toString() ?? '';
+        if (label.isNotEmpty) {
+          _controller.text = label;
+          _controller.selection =
+              TextSelection.collapsed(offset: label.length);
+        }
+      default:
+        break;
+    }
+  }
+
+  static String _quickChipLabel(Map<String, dynamic> action) {
+    final label = action['label']?.toString().trim() ?? '';
+    if (label.length <= 12) return label;
+    return '${label.substring(0, 12)}...';
   }
 
   List<Map<String, String>> _recentMessagesContext({bool excludeLast = false}) {
@@ -222,6 +254,7 @@ class _ChatPageState extends State<ChatPage> {
         'memoryConflict',
       );
       _memoryStatusText = null;
+      _nextActions = resolvedResponse.nextActions;
       _messages.add(
         ChatMessage(
           id: 'assistant-${DateTime.now().millisecondsSinceEpoch}',
@@ -438,27 +471,37 @@ class _ChatPageState extends State<ChatPage> {
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children: [
-                        _QuickChip(
-                          label: '规划路线',
-                          onTap: () => context.go('/trip'),
-                        ),
-                        const SizedBox(width: AppTheme.spacingSm),
-                        _QuickChip(
-                          label: '记忆胶囊',
-                          onTap: () => context.push('/memory'),
-                        ),
-                        const SizedBox(width: AppTheme.spacingSm),
-                        _QuickChip(
-                          label: '调整行程',
-                          onTap: () => context.go('/trip'),
-                        ),
-                        const SizedBox(width: AppTheme.spacingSm),
-                        _QuickChip(
-                          label: '生成复盘',
-                          onTap: () => context.go('/review'),
-                        ),
-                      ],
+                      children: _nextActions.isNotEmpty
+                          ? [
+                              for (final action in _nextActions) ...[
+                                _QuickChip(
+                                  label: _quickChipLabel(action),
+                                  onTap: () => _handleNextAction(action),
+                                ),
+                                const SizedBox(width: AppTheme.spacingSm),
+                              ],
+                            ]
+                          : [
+                              _QuickChip(
+                                label: '规划路线',
+                                onTap: () => context.go('/trip'),
+                              ),
+                              const SizedBox(width: AppTheme.spacingSm),
+                              _QuickChip(
+                                label: '记忆胶囊',
+                                onTap: () => context.push('/memory'),
+                              ),
+                              const SizedBox(width: AppTheme.spacingSm),
+                              _QuickChip(
+                                label: '调整行程',
+                                onTap: () => context.go('/trip'),
+                              ),
+                              const SizedBox(width: AppTheme.spacingSm),
+                              _QuickChip(
+                                label: '生成复盘',
+                                onTap: () => context.go('/review'),
+                              ),
+                            ],
                     ),
                   ),
                 ),
