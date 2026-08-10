@@ -58,6 +58,18 @@ uv run python -m evals.runner --output-dir artifacts/evals
 
 生成目录默认被 Git 忽略。
 
+## CI 门禁
+
+`.github/workflows/ci.yml` 的 API job 在 `uv run pytest` 后执行：
+
+```powershell
+uv run python -m evals.runner --output-dir artifacts/evals
+```
+
+任一 Case 失败会使 job 失败。`actions/upload-artifact@v4` 使用 `if: always()` 上传 `services/api/artifacts/evals`，因此失败时仍可下载 JSON 和 Markdown 报告定位差异。
+
+真实 Provider smoke 继续按 GitHub secrets 条件执行，不会因为缺少密钥、RPM、网络或第三方服务波动阻塞普通 PR。
+
 ## 当前基线
 
 2026 年 8 月 10 日的本地确定性基线：
@@ -76,4 +88,4 @@ uv run python -m evals.runner --output-dir artifacts/evals
 - 本地规则耗时不能代表大模型或高德 API 的线上延迟。
 - 规则评测不能判断回复是否自然、是否有帮助。
 - 真实 Provider 评测需要单独记录模型、Prompt 版本、配置、日期和外部服务状态。
-- CI 工作流接入尚待单独确认；当前 Runner 和测试已可直接执行。
+- 确定性 CI 只能证明规则、Schema 和工具选择等稳定契约，不能替代真实模型回复质量和真实高德数据的人工 smoke。

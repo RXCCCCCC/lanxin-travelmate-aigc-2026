@@ -34,6 +34,7 @@ uv run pytest `
   tests/test_dynamic_tool_planning.py `
   tests/test_tool_execution.py `
   tests/test_intent_routing.py `
+  tests/test_agent_runs.py `
   tests/test_agent_evals.py -q
 ```
 
@@ -44,6 +45,8 @@ uv run pytest `
 - 未知工具计划自动降级。
 - 独立工具并行执行，失败互不取消。
 - API 和图使用同一个意图决策。
+- AgentRun 只保存脱敏结构化状态并记录节点耗时。
+- HITL 确认/取消具备用户隔离、token、TTL 和幂等语义。
 
 ### 4. 验证移动端证据，1 分钟
 
@@ -68,6 +71,7 @@ flutter test test/trip_page_integration_test.dart --no-pub
 - 如何实现 scope 记忆与隐私最小化；
 - 为什么确定性评测与真实 Provider 评测分离；
 - 并行执行、错误隔离和 Trace 如何设计。
+- 为什么采用业务级 HITL，而不是把普通数据库状态描述成 LangGraph checkpointer。
 
 ## 当前完成状态
 
@@ -79,19 +83,17 @@ flutter test test/trip_page_integration_test.dart --no-pub
 - 受约束动态 ToolPlan；
 - 依赖感知并行工具执行；
 - 统一 IntentDecision；
+- 持久化 AgentRun 与 Alembic `0009_agent_runs`；
+- 运行级节点、模型和工具 Trace；
+- HITL `pending_confirmation`、确认/取消与 resume；
 - 32 条 Golden Cases；
+- GitHub Actions 确定性评测门禁与报告上传；
 - 移动端 Agent 依据展示；
 - README、架构和面试材料。
 
 尚未完成：
 
-- 持久化 AgentRun；
-- HITL interrupt/resume；
-- 运行级 Trace 持久化；
-- CI 评测门禁；
 - 最终全量回归和真实 Provider 手动验收。
-
-其中 AgentRun/HITL 需要新增数据库表和 Alembic 迁移，CI 门禁需要修改 GitHub Actions；两项均等待用户单独确认。
 
 ## 2026-08-10 自动化验收结果
 
