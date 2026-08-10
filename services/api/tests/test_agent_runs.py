@@ -1,10 +1,19 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.services.agent_runs import complete_agent_run, start_agent_run
+from app.db.models import AgentRunRecord, CloudMemory
+from app.services.agent_runs import (
+    AgentRunExpiredError,
+    AgentRunNotFoundError,
+    ResumeTokenInvalidError,
+    complete_agent_run,
+    prepare_agent_run_completion,
+    resume_agent_run,
+    start_agent_run,
+)
 
 
 def _session() -> Session:
@@ -98,3 +107,172 @@ def test_complete_agent_run_persists_redacted_trace_and_unknown_usage():
     assert state["modelCalls"][0]["tokenUsage"] == {"status": "unknown"}
     assert raw_message not in completed.state_json
     assert "recentMessages" not in completed.state_json
+
+
+def test_resume_agent_run_confirms_memory_once_with_user_scoped_id():
+    with _session() as session:
+        run = start_agent_run(
+            session,
+            user_id="user-a",
+            session_id="session-a",
+            trip_id="trip-a",
+        )
+        pending, resume_token = prepare_agent_run_completion(
+            session,
+            run,
+            result={
+                "intent": "chat",
+                "response": {
+                    "memoryCandidates": [
+                        {
+                            "id": "mem-cilantro",
+                            "title": "不吃香菜",
+                            "content": "用户不吃香菜。",
+                            "category": "dietary_preference",
+                            "recommendedScope": "longTerm",
+                            "confidence": 0.96,
+                            "requiresExplicitConsent": True,
+                        }
+                    ]
+                },
+            },
+        )
+        pending_status = pending.status
+
+        first = resume_agent_run(
+            session,
+            run_id=pending.run_id,
+            user_id="user-a",
+            resume_token=resume_token,
+            action="confirm",
+            candidate_ids=["mem-cilantro"],
+        )
+        repeated = resume_agent_run(
+            session,
+            run_id=pending.run_id,
+            user_id="user-a",
+            resume_token=resume_token,
+            action="confirm",
+            candidate_ids=["mem-cilantro"],
+        )
+        memories = session.exec(
+            select(CloudMemory).where(CloudMemory.user_id == "user-a")
+        ).all()
+
+    assert pending_status == "pending_confirmation"
+    assert resume_token
+    assert first.status == "completed"
+    assert first.already_applied is False
+    assert repeated.already_applied is True
+    assert first.saved_memory_ids == repeated.saved_memory_ids
+    assert len(memories) == 1
+    assert memories[0].title == "不吃香菜"
+    assert memories[0].source_text is None
+
+
+def test_resume_agent_run_cancel_completes_without_saving_memory():
+    with _session() as session:
+        run = start_agent_run(
+            session,
+            user_id="user-a",
+            session_id="session-a",
+            trip_id="trip-a",
+        )
+        pending, resume_token = prepare_agent_run_completion(
+            session,
+            run,
+            result={
+                "response": {
+                    "memoryCandidates": [
+                        {
+                            "id": "memory-1",
+                            "title": "膝盖不适",
+                            "content": "用户当前膝盖不适。",
+                            "category": "health",
+                            "recommendedScope": "currentTrip",
+                            "requiresExplicitConsent": True,
+                        }
+                    ]
+                }
+            },
+        )
+
+        result = resume_agent_run(
+            session,
+            run_id=pending.run_id,
+            user_id="user-a",
+            resume_token=resume_token,
+            action="cancel",
+        )
+        memories = session.exec(select(CloudMemory)).all()
+
+    assert result.status == "completed"
+    assert result.saved_memory_ids == []
+    assert memories == []
+
+
+def test_resume_agent_run_rejects_other_user_invalid_token_and_expired_run():
+    with _session() as session:
+        run = start_agent_run(
+            session,
+            user_id="user-a",
+            session_id="session-a",
+            trip_id=None,
+        )
+        pending, resume_token = prepare_agent_run_completion(
+            session,
+            run,
+            result={
+                "response": {
+                    "memoryCandidates": [
+                        {
+                            "id": "memory-1",
+                            "title": "慢节奏",
+                            "content": "偏好慢节奏。",
+                            "recommendedScope": "longTerm",
+                            "requiresExplicitConsent": True,
+                        }
+                    ]
+                }
+            },
+        )
+
+        try:
+            resume_agent_run(
+                session,
+                run_id=pending.run_id,
+                user_id="user-b",
+                resume_token=resume_token,
+                action="confirm",
+            )
+            raise AssertionError("other user must not resume this run")
+        except AgentRunNotFoundError:
+            pass
+
+        try:
+            resume_agent_run(
+                session,
+                run_id=pending.run_id,
+                user_id="user-a",
+                resume_token="wrong-token",
+                action="confirm",
+            )
+            raise AssertionError("invalid token must be rejected")
+        except ResumeTokenInvalidError:
+            pass
+
+        stored = session.get(AgentRunRecord, pending.run_id)
+        stored.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        session.add(stored)
+        session.commit()
+        try:
+            resume_agent_run(
+                session,
+                run_id=pending.run_id,
+                user_id="user-a",
+                resume_token=resume_token,
+                action="confirm",
+            )
+            raise AssertionError("expired run must be rejected")
+        except AgentRunExpiredError:
+            pass
