@@ -1,5 +1,7 @@
 from collections.abc import Callable
 from functools import lru_cache
+from time import perf_counter
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
@@ -49,6 +51,39 @@ class TravelMateGraph:
 
     def invoke_chat_only(self, state: TravelMateState) -> TravelMateState:
         return _compile_sequence(tuple(CHAT_ONLY_NODE_SEQUENCE)).invoke(state)
+
+    def invoke_traced(
+        self,
+        state: TravelMateState,
+        *,
+        mode: str = "full",
+    ) -> tuple[TravelMateState, list[dict[str, Any]]]:
+        merged_state: TravelMateState = dict(state)
+        node_trace: list[dict[str, Any]] = []
+        started = perf_counter()
+        try:
+            for node_name, node_state in self.stream_nodes(state, mode=mode):
+                elapsed_ms = int((perf_counter() - started) * 1000)
+                if isinstance(node_state, dict):
+                    merged_state.update(node_state)
+                node_trace.append(
+                    {
+                        "node": node_name,
+                        "elapsedMs": elapsed_ms,
+                        "status": "completed",
+                    }
+                )
+                started = perf_counter()
+        except Exception:
+            node_trace.append(
+                {
+                    "node": "graph",
+                    "elapsedMs": int((perf_counter() - started) * 1000),
+                    "status": "failed",
+                }
+            )
+            raise
+        return merged_state, node_trace
 
     def stream_nodes(self, state: TravelMateState, mode: str = "full"):
         """逐节点流式执行，产出 (节点名, 节点执行后的完整状态)。"""

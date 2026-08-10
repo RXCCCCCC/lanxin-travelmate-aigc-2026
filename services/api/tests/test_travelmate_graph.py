@@ -3,6 +3,29 @@ from app.agents.travelmate.nodes import real_nodes
 from app.agents.travelmate.state import create_initial_state
 
 
+def test_travelmate_graph_invoke_traced_merges_updates_and_records_node_latency(monkeypatch):
+    graph = TravelMateGraph()
+
+    def fake_stream_nodes(state, mode="full"):
+        assert mode == "chat"
+        yield "input_normalizer", {"normalized_input": "你好"}
+        yield "fast_chat_response", {"response": {"replyText": "你好"}}
+
+    monkeypatch.setattr(graph, "stream_nodes", fake_stream_nodes)
+
+    result, node_trace = graph.invoke_traced({"message": "你好"}, mode="chat")
+
+    assert result["message"] == "你好"
+    assert result["normalized_input"] == "你好"
+    assert result["response"]["replyText"] == "你好"
+    assert [item["node"] for item in node_trace] == [
+        "input_normalizer",
+        "fast_chat_response",
+    ]
+    assert all(item["status"] == "completed" for item in node_trace)
+    assert all(item["elapsedMs"] >= 0 for item in node_trace)
+
+
 def test_travelmate_graph_runs_mock_p0_flow():
     state = create_initial_state(
         message="周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜",
