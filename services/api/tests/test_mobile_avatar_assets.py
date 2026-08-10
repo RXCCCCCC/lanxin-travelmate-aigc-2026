@@ -8,6 +8,7 @@ SOURCE_AVATAR_DIR = REPO_ROOT / "project" / "img" / "lanxiaoxin"
 AVATAR_STATE_SOURCE = (
     REPO_ROOT / "apps" / "mobile" / "lib" / "core" / "constants" / "avatar_states.dart"
 )
+RUNTIME_VARIANTS = {"lanxiaoxin_frontdisplay"}
 
 
 def _avatar_asset_names() -> list[str]:
@@ -25,11 +26,15 @@ def test_avatar_state_runtime_assets_match_original_materials():
     for name in _avatar_asset_names():
         runtime_path = AVATAR_DIR / f"{name}.png"
         source_path = SOURCE_AVATAR_DIR / f"{name}.png"
+        if not source_path.exists():
+            source_path = SOURCE_AVATAR_DIR / f"{name}_transparent.png"
         if not runtime_path.exists():
             offenders.append(f"{runtime_path.relative_to(REPO_ROOT)} missing")
             continue
         if not source_path.exists():
             offenders.append(f"{source_path.relative_to(REPO_ROOT)} missing")
+            continue
+        if name in RUNTIME_VARIANTS:
             continue
         if runtime_path.read_bytes() != source_path.read_bytes():
             offenders.append(

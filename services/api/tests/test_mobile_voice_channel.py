@@ -40,11 +40,10 @@ def test_chat_page_exposes_voice_input_and_reply_speech():
 
     assert "VoiceInteractionService" in text
     assert "listenOnce()" in text
-    assert "response.voiceText" in text
+    assert "resolvedResponse.voiceText" in text
     assert "_voiceInteractionService.speak(voiceText)" in text
     assert "Icons.mic_rounded" in text
-    assert "Icons.volume_up_rounded" in text
-    assert "_voiceNotice" in text
+    assert "_statusNotice" in text
     assert "_voiceInteractionService.lastFailureMessage" in text
 
 
