@@ -91,13 +91,24 @@ def _deterministic_plan(state: TravelMateState, *, reason: str) -> dict[str, Any
         _coordinate_to_location(planning_inputs.get("originCoordinate"))
         and _coordinate_to_location(planning_inputs.get("destinationCoordinate"))
     )
+    if state.get("intent") == "trip_review":
+        return ToolPlan(
+            goal=text or "旅行复盘",
+            steps=[],
+            maxSteps=MAX_TOOL_STEPS,
+            plannerProvider="deterministic",
+            fallback=True,
+            fallbackReason=reason,
+        ).model_dump()
     weather_requested = any(word in text for word in ("天气", "气温", "下雨", "雨天")) or any(
         word in lowered for word in ("weather", "temperature")
     )
     poi_requested = any(word in text for word in ("景点", "夜景", "推荐", "好玩", "从当前位置")) or any(
         word in lowered for word in ("poi", "attraction", "night view", "recommend")
     )
-    route_requested = any(word in text for word in ("路线", "行程", "规划", "导航", "从当前位置")) or any(
+    route_requested = state.get("intent") == "trip_planning" or any(
+        word in text for word in ("路线", "行程", "规划", "导航", "从当前位置")
+    ) or any(
         word in lowered for word in ("route", "itinerary", "plan", "weekend")
     )
     steps: list[ToolStep] = []
@@ -143,6 +154,10 @@ def _deterministic_plan(state: TravelMateState, *, reason: str) -> dict[str, Any
         fallback=True,
         fallbackReason=reason,
     ).model_dump()
+
+
+def build_deterministic_tool_plan(state: TravelMateState) -> dict[str, Any]:
+    return _deterministic_plan(state, reason="确定性评测或模型规划降级。")
 
 
 def build_constrained_tool_plan(state: TravelMateState) -> dict[str, Any]:
