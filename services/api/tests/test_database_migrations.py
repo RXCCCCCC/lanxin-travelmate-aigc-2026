@@ -3,6 +3,8 @@ import sys
 import importlib.util
 from pathlib import Path
 
+from app.db.models import AgentRunRecord
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parents[1]
@@ -41,8 +43,34 @@ def test_migrations_contain_current_core_tables():
         "blind_box_task_records",
         "trip_route_points",
         "avatar_state_events",
+        "agent_runs",
     ]:
         assert f'"{table_name}"' in migration_text
+
+
+def test_agent_run_model_has_structured_state_contract():
+    fields = AgentRunRecord.model_fields
+
+    assert set(fields) == {
+        "run_id",
+        "request_id",
+        "idempotency_key",
+        "user_id",
+        "session_id",
+        "trip_id",
+        "status",
+        "intent",
+        "state_json",
+        "summary",
+        "prompt_version",
+        "created_at",
+        "updated_at",
+        "expires_at",
+    }
+    assert fields["run_id"].is_required()
+    assert fields["user_id"].is_required()
+    assert fields["session_id"].is_required()
+    assert fields["expires_at"].is_required()
 
 
 def test_docker_compose_wires_api_to_postgres_with_healthcheck():
@@ -85,7 +113,7 @@ def test_migration_plan_script_validates_revision_chain():
     )
 
     assert "OK: " in result.stdout
-    assert "head=0008_trip_review_scope" in result.stdout
+    assert "head=0009_agent_runs" in result.stdout
 
 
 def test_alembic_revision_ids_fit_default_version_table():

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -102,6 +103,32 @@ class ModelCallLog(SQLModel, table=True):
     error: str | None = None
     request_summary_json: str = "{}"
     created_at: datetime = Field(default_factory=utc_now)
+
+
+class AgentRunRecord(SQLModel, table=True):
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "idempotency_key",
+            name="uq_agent_runs_user_id_idempotency_key",
+        ),
+    )
+
+    run_id: str = Field(primary_key=True)
+    request_id: str = Field(index=True, unique=True)
+    idempotency_key: str | None = Field(default=None, index=True)
+    user_id: str = Field(index=True)
+    session_id: str = Field(index=True)
+    trip_id: str | None = Field(default=None, index=True)
+    status: str = Field(default="running", index=True)
+    intent: str | None = None
+    state_json: str = "{}"
+    summary: str = ""
+    prompt_version: str = "travelmate-v1"
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+    expires_at: datetime = Field(index=True)
 
 
 
