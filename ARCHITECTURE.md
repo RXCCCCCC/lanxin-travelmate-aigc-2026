@@ -14,6 +14,9 @@ graph TB
     subgraph "FastAPI 后端 services/api"
         API[API 路由层]
         Graph["LangGraph TravelMate Agent"]
+        Memory[记忆上下文: 用户/scope/status 过滤]
+        Planner[受约束 ToolPlan]
+        Executor[依赖感知并行执行器]
         Provider[模型 Provider: OpenAI 兼容]
         Tools[工具层: 高德天气/POI/路线]
         DB[(Postgres + Alembic)]
@@ -24,8 +27,11 @@ graph TB
     Dio -->|"POST /api/agent/chat/stream SSE"| API
     Dio -->|"POST /api/agent/chat"| API
     API --> Graph
+    API --> Memory --> Graph
+    Graph --> Planner --> Executor
+    Planner -->|"结构化规划"| Provider
+    Executor --> Tools
     Graph -->|"结构化输出校验"| Provider
-    Graph -->|"真实工具调用"| Tools
     Graph --> DB
     Graph --> Audit
     Drift -->|"端侧聊天历史/记忆"| UI
@@ -33,7 +39,7 @@ graph TB
 
 ## Agent 状态机
 
-TravelMateGraph 是一个 LangGraph 显式状态机，由 19 个节点顺序串联组成。根据意图路由结果，可选择 4 种执行模式：
+TravelMateGraph 是一个 LangGraph 显式状态机，由 19 个节点组成。API 和图节点共用单一 `IntentDecision`，根据结构化意图选择 4 种执行模式：
 
 ```mermaid
 graph LR
@@ -76,7 +82,33 @@ graph LR
     end
 ```
 
-每个节点签名为 `def node(state: TravelMateState) -> TravelMateState`，通过 `_next_state(state, "node_name")` 不可变更新状态。`error_fallback` 作为兜底节点，确保任何异常都不会导致整个图崩溃。
+每个节点签名为 `def node(state: TravelMateState) -> TravelMateState`，通过 `_next_state(state, "node_name")` 不可变更新状态。`intent_router` 会把决策写入 Trace；`error_fallback` 作为兜底节点，确保任何异常都不会导致整个图崩溃。
+
+## 记忆上下文
+
+Agent 路由在创建 state 前从数据库加载最小化 `memoryContext`：
+
+- 只查询当前认证用户且 `status=confirmed` 的记忆。
+- `longTerm` 可跨行程使用。
+- `currentTrip` 必须与当前 `tripId` 匹配。
+- `temporary`、待确认和其他行程记忆不会进入规划。
+- 长期与当前行程记忆分别限制数量，标题和内容限制字符数。
+- 健康、位置、同行人等敏感类别不传完整原文，只保留记忆 ID、标题、scope 和结构化约束。
+
+`context_loader` 按 category 通用聚合饮食、节奏、兴趣、交通和预算画像，不再依赖“不吃香菜”“喜欢夜景”等固定标题。规划结果通过 `memoryReferences` 解释使用了哪些已确认记忆，移动端只展示引用数量，不展示敏感内容。
+
+## 动态 ToolPlan 与并行执行
+
+`tool_planner` 首选模型生成以下结构化信息：
+
+- `goal`
+- `steps[].stepId/tool/reason/input/dependsOn`
+- `maxSteps`
+- `plannerProvider/fallback`
+
+计划必须通过 Pydantic Schema、工具白名单、非空参数、最大 4 步、依赖存在性和无环校验。无效计划自动回退确定性规则：天气问题只查天气，景点推荐查天气与 POI，有起终点坐标时才增加路线工具。
+
+`tool_executor` 按依赖层级执行 DAG：同一层的独立工具使用线程池并行执行；单步异常转换为结构化 fallback，不取消其他独立步骤；依赖失败的步骤标记为 `blocked`。最终 Trace 顺序与 ToolPlan 一致，并包含 `stepId`、原因、耗时、依赖状态、重试、缓存和错误类型。
 
 ## SSE 流式机制
 
@@ -95,7 +127,7 @@ graph LR
 `TravelMateState` 是一个 `TypedDict`，承载整个对话轮次的全部中间状态：
 
 - 输入：`message`、`session_id`、`user_id`、`context`（含 `recentMessages` 多轮上下文）
-- 中间产物：`normalized_input`、`intent`、`memory_candidates`、`user_profile`、`trip_context`、`tool_plan`、`tool_trace`、`trip_plan`、`reminders`
+- 中间产物：`normalized_input`、`intent_decision`、`intent`、`memory_candidates`、`user_profile`、`trip_context`、`tool_plan`、`tool_plan_metadata`、`tool_trace`、`trip_plan`、`reminders`
 - 输出：`response`（含 `replyText`、`avatarState`、`emotion`、`cards`、`memoryCandidates`、`toolTrace`、`nextActions`、`syncSuggestions`）
 - 审计：`model_call_logs`、`visited_nodes`
 
@@ -109,6 +141,17 @@ graph LR
 | 用户画像 | 本地缓存 | 云端记忆聚合更新 |
 | 模型调用 | 不直接调用 | OpenAI 兼容 Provider 结构化校验 |
 | 审计日志 | 不涉及 | 脱敏日志落库 |
+
+## Agent 评测
+
+`services/api/evals/` 提供不依赖真实 Provider 的确定性评测：
+
+- 32 条 Golden Cases 覆盖聊天、规划、复盘、多轮目的地、目的地漂移、长期/当前行程/敏感记忆、记忆冲突、天气/POI/路线工具和降级。
+- Runner 输出 JSON 与 Markdown 报告。
+- 指标包含意图准确率、工具选择准确率、目的地一致性、记忆命中率、敏感确认规则、Schema 通过率及 P50/P95。
+- 当前本地基线为 32/32 通过。
+
+服务端持久化 `AgentRun`、HITL interrupt/resume 和 CI 评测门禁仍属于下一阶段；数据库表与 CI 工作流修改将在单独确认后执行。
 
 端侧不直接调用大模型 API，所有模型调用通过后端 Agent 统一管理，便于审计和降级控制。
 

@@ -5,11 +5,15 @@
 核心亮点：
 
 - LangGraph 显式状态机 Agent：输入规范化 → 意图路由 → 记忆抽取 → 行程上下文 → 工具调用规划 → 角色化回复，每个节点可单测、可降级。
+- 真实可控记忆：服务端只加载当前用户已确认的 `longTerm` 记忆，以及与当前 `tripId` 匹配的 `currentTrip` 记忆；敏感记忆进入模型上下文前只保留结构化约束。
+- 受约束动态工具规划：模型优先生成结构化 `ToolPlan`，经过工具白名单、参数、步骤数和依赖关系校验；失败时自动切换确定性 Planner。
+- 并行工具执行：无依赖的天气、POI、路线步骤并发执行，单步失败不会取消其他结果，Trace 保持计划顺序并记录原因、耗时和降级状态。
 - SSE 流式体验：`/api/agent/chat/stream` 逐节点推送中文阶段进度，客户端实时显示“查询实时天气与景点”等状态，失败自动降级非流式。
 - 多轮上下文与目的地继承：客户端携带最近对话，追问“第一天晚上去哪”能正确继承上轮目的地。
 - 真实数据优先：蓝心/OpenAI 兼容模型 + 高德天气/POI/路线真实 Provider，无 Key 或异常时明确降级标注，不用假数据冒充。
 - 隐私与审计：模型调用日志脱敏（密钥/原文摘要化），记忆写入需用户确认。
 - 工程化：Docker Compose 一键部署（含 Postgres + Alembic 迁移）、公网 HTTPS API、真机验证、CI 预检脚本。
+- 确定性评测：内置 32 条中文 Golden Cases，覆盖意图、目的地、记忆、敏感确认、工具选择和降级，无密钥环境可运行。
 
 ## 架构
 
@@ -88,7 +92,12 @@ flutter run --dart-define=API_BASE_URL=http://你的电脑局域网IP:8000
 ```powershell
 cd services/api
 uv run pytest
+
+# 无密钥 Agent 确定性评测
+uv run python -m evals.runner --output-dir artifacts/evals
 ```
+
+当前确定性基线为 32/32 Case 通过；评测会输出 JSON 和 Markdown 报告，并统计意图准确率、工具选择准确率、目的地一致性、记忆命中率、敏感确认规则、Schema 通过率和 P50/P95 延迟。
 
 前端：
 
