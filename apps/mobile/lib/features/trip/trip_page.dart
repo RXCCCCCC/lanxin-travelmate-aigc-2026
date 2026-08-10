@@ -1396,6 +1396,10 @@ class _AgentTripPlanView extends StatelessWidget {
       '已根据你的旅行画像调整安排。',
       (value) => _planDisplayText(value, '已根据你的旅行画像调整安排。'),
     );
+    final memoryReferences =
+        (plan['memoryReferences'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
     final alternatives = (plan['alternatives'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .toList();
@@ -1407,6 +1411,12 @@ class _AgentTripPlanView extends StatelessWidget {
     final externalContext =
         (plan['externalContext'] as Map<String, dynamic>?) ??
         const <String, dynamic>{};
+    final toolLabels = <String>[
+      if (externalContext['weather'] is Map<String, dynamic>) '天气',
+      if ((externalContext['pois'] as List<dynamic>? ?? const []).isNotEmpty)
+        '景点',
+      if (externalContext['route'] is Map<String, dynamic>) '路线',
+    ];
 
     return ListView(
       padding: EdgeInsets.only(bottom: metrics.listBottomPadding),
@@ -1452,6 +1462,19 @@ class _AgentTripPlanView extends StatelessWidget {
         ],
         if (onWeatherReplan != null) ...[
           _ReplanActionCard(onWeatherReplan: onWeatherReplan!),
+        ],
+        if (memoryReferences.isNotEmpty || toolLabels.isNotEmpty) ...[
+          const _SectionHeader(icon: Icons.hub_rounded, title: 'Agent 依据'),
+          if (memoryReferences.isNotEmpty)
+            _SimpleInfoCard(
+              text: '已参考 ${memoryReferences.length} 条已确认偏好',
+              icon: Icons.verified_user_rounded,
+            ),
+          if (toolLabels.isNotEmpty)
+            _SimpleInfoCard(
+              text: '已使用${toolLabels.join('、')}工具结果',
+              icon: Icons.travel_explore_rounded,
+            ),
         ],
         if (matches.isNotEmpty) ...[
           const _SectionHeader(icon: Icons.psychology_rounded, title: '画像匹配解释'),
