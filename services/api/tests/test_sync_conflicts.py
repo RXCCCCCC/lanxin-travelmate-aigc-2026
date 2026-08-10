@@ -8,15 +8,25 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers(label: str) -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"sync-conflict-{label}-{uuid4().hex}", "displayName": "Sync Guest"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
+
+
 def test_sync_push_reports_memory_conflict_when_client_copy_is_older():
     suffix = uuid4().hex
-    user_id = f"sync-conflict-user-a-{suffix}"
+    headers = _guest_headers("server-wins")
     memory_id = f"sync-conflict-memory-a-{suffix}"
 
     first = client.post(
         "/api/sync/push",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "memories": [
                 {
                     "id": memory_id,
@@ -33,8 +43,9 @@ def test_sync_push_reports_memory_conflict_when_client_copy_is_older():
 
     older = client.post(
         "/api/sync/push",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "conflictStrategy": "serverWins",
             "memories": [
                 {
@@ -57,20 +68,21 @@ def test_sync_push_reports_memory_conflict_when_client_copy_is_older():
     assert conflict["entityId"] == memory_id
     assert conflict["resolution"] == "serverWins"
 
-    pulled = client.get("/api/sync/pull", params={"userId": user_id})
+    pulled = client.get("/api/sync/pull", headers=headers)
     item = next(memory for memory in pulled.json()["memories"] if memory["id"] == memory_id)
     assert item["title"] == "server version"
 
 
 def test_sync_push_client_wins_can_resolve_memory_conflict():
     suffix = uuid4().hex
-    user_id = f"sync-conflict-user-b-{suffix}"
+    headers = _guest_headers("client-wins")
     memory_id = f"sync-conflict-memory-b-{suffix}"
 
     created = client.post(
         "/api/sync/push",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "memories": [
                 {
                     "id": memory_id,
@@ -87,8 +99,9 @@ def test_sync_push_client_wins_can_resolve_memory_conflict():
 
     client_wins = client.post(
         "/api/sync/push",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "conflictStrategy": "clientWins",
             "memories": [
                 {
@@ -107,7 +120,7 @@ def test_sync_push_client_wins_can_resolve_memory_conflict():
     assert payload["pushed"]["memories"] == 1
     assert payload["conflicts"][0]["resolution"] == "clientWins"
 
-    pulled = client.get("/api/sync/pull", params={"userId": user_id})
+    pulled = client.get("/api/sync/pull", headers=headers)
     item = next(memory for memory in pulled.json()["memories"] if memory["id"] == memory_id)
     assert item["title"] == "client chosen version"
     assert item["scope"] == "currentTrip"

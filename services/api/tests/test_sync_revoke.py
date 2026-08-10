@@ -8,17 +8,27 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers() -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"sync-revoke-{uuid4().hex}", "displayName": "Sync Revoke Guest"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
+
+
 def test_sync_revoke_removes_selected_cloud_entities_without_clearing_everything():
     suffix = uuid4().hex
-    user_id = f"sync-revoke-user-{suffix}"
+    headers = _guest_headers()
     keep_memory_id = f"sync-revoke-keep-memory-{suffix}"
     revoke_memory_id = f"sync-revoke-memory-{suffix}"
     trip_id = f"sync-revoke-trip-{suffix}"
 
     pushed = client.post(
         "/api/sync/push",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "memories": [
                 {
                     "id": keep_memory_id,
@@ -50,8 +60,9 @@ def test_sync_revoke_removes_selected_cloud_entities_without_clearing_everything
 
     revoked = client.post(
         "/api/sync/revoke",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "memories": [revoke_memory_id],
             "profile": True,
             "trips": [trip_id],
@@ -63,7 +74,7 @@ def test_sync_revoke_removes_selected_cloud_entities_without_clearing_everything
     assert payload["revoked"] == {"memories": 1, "profile": 1, "trips": 1}
     assert {item["entityId"] for item in payload["records"]} >= {revoke_memory_id, trip_id}
 
-    pulled = client.get("/api/sync/pull", params={"userId": user_id})
+    pulled = client.get("/api/sync/pull", headers=headers)
     assert pulled.status_code == 200
     cloud = pulled.json()
     assert [item["id"] for item in cloud["memories"]] == [keep_memory_id]
