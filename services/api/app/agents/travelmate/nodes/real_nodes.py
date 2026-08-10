@@ -20,6 +20,7 @@ from app.services.memory_context import aggregate_memory_profile
 from app.tools.registry import build_tool_registry
 from app.agents.travelmate.tool_planning import build_constrained_tool_plan
 from app.agents.travelmate.tool_execution import execute_tool_plan
+from app.agents.travelmate.intent_routing import ensure_intent_decision
 
 
 def _next_state(state: TravelMateState, node_name: str) -> TravelMateState:
@@ -335,30 +336,18 @@ def context_loader(state: TravelMateState) -> TravelMateState:
 
 def intent_router(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "intent_router")
-    text = next_state["normalized_input"]
-    if _contains_any(
-        text,
-        [
-            "规划",
-            "周末",
-            "两天",
-            "路线",
-            "行程",
-            "攻略",
-            "怎么玩",
-            "怎么逛",
-            "好玩",
-            "景点",
-            "去哪玩",
-            "哪里玩",
-            "推荐",
-        ],
-    ):
-        next_state["intent"] = "trip_planning"
-    elif _contains_any(text, ["复盘", "总结"]):
-        next_state["intent"] = "trip_review"
-    else:
-        next_state["intent"] = "companion_chat"
+    decision = ensure_intent_decision(next_state)
+    next_state["intent"] = str(decision["intent"])
+    next_state.setdefault("tool_trace", []).append(
+        {
+            "tool": "intent_router",
+            "provider": decision["provider"],
+            "decision": decision["intent"],
+            "mode": decision["mode"],
+            "reason": decision["reason"],
+            "fallback": decision["fallback"],
+        }
+    )
     return next_state
 
 

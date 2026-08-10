@@ -14,6 +14,7 @@ from app.agents.travelmate.nodes.registry import (
 )
 from app.agents.travelmate.nodes.fallback_nodes import build_rule_memory_candidates
 from app.agents.travelmate.state import create_initial_state
+from app.agents.travelmate.intent_routing import ensure_intent_decision
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import CloudUserProfile
 from app.db.session import get_session
@@ -108,40 +109,6 @@ def _build_plan_chat_reply(plan: dict[str, object]) -> str:
     return "".join(parts)
 
 
-_PLAN_KEYWORDS_EN = ("plan", "route", "itinerary", "destination", "weekend")
-_PLAN_KEYWORDS_CN = (
-    "\u89c4\u5212",
-    "\u8def\u7ebf",
-    "\u884c\u7a0b",
-    "\u5468\u672b",
-    "\u4e24\u5929",
-    "\u76ee\u7684\u5730",
-    "\u653b\u7565",
-    "\u600e\u4e48\u73a9",
-    "\u600e\u4e48\u9009",
-    "\u597d\u73a9",
-    "\u666f\u70b9",
-    "\u53bb\u54ea\u73a9",
-    "\u54ea\u91cc\u73a9",
-    "\u63a8\u8350",
-)
-_GREETING_KEYWORDS = ("\u4f60\u597d", "\u5728\u5417")
-_REVIEW_KEYWORDS = ("\u590d\u76d8", "\u603b\u7ed3")
-
-
-def _detect_route_mode(message: str) -> str:
-    normalized = message.lower()
-    if any(keyword in message for keyword in _REVIEW_KEYWORDS):
-        return "review"
-    if any(keyword in normalized for keyword in _PLAN_KEYWORDS_EN):
-        return "plan"
-    if any(keyword in message for keyword in _PLAN_KEYWORDS_CN) and not any(
-        keyword in message for keyword in _GREETING_KEYWORDS
-    ):
-        return "plan"
-    return "chat"
-
-
 def _compose_review_response(result: dict[str, object]) -> None:
     reply = "\u590d\u76d8\u5df2\u7ecf\u751f\u6210\uff0c\u6211\u628a\u91cd\u70b9\u653e\u5728\u5b8c\u6210\u4efb\u52a1\u3001\u7167\u7247\u9ad8\u5149\u548c\u4e0b\u6b21\u5efa\u8bae\u4e0a\u3002"
     result["response"] = {
@@ -182,7 +149,7 @@ def _compose_plan_response(result: dict[str, object], message: str) -> None:
 
 def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict[str, object]:
     message = str(state.get("message") or "")
-    mode = _detect_route_mode(message)
+    mode = str(ensure_intent_decision(state)["mode"])
     if mode == "review":
         result = graph.invoke_review_only(state)
         _compose_review_response(result)
@@ -224,7 +191,7 @@ def _stream_agent_events(
     session: Session,
 ) -> Iterator[str]:
     message = str(state.get("message") or "")
-    mode = _detect_route_mode(message)
+    mode = str(ensure_intent_decision(state)["mode"])
     merged_state: dict[str, object] = dict(state)
 
     def _stage_event(node: str) -> str:

@@ -9,6 +9,7 @@ class TravelMateState(TypedDict, total=False):
     context: dict[str, Any]
     normalized_input: str
     intent: str
+    intent_decision: dict[str, Any]
     memory_candidates: list[dict[str, Any]]
     memory_conflicts: list[dict[str, Any]]
     user_profile: dict[str, Any]
@@ -49,6 +50,7 @@ def create_initial_state(
         "trip_id": trip_id,
         "context": context or {},
         "memory_candidates": [],
+        "intent_decision": {},
         "memory_conflicts": [],
         "user_profile": {},
         "trip_context": {},
