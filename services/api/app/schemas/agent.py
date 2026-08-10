@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,3 +27,18 @@ class AgentChatResponse(BaseModel):
     requestId: str | None = None
     status: str = "completed"
     resumeToken: str | None = None
+
+
+class AgentRunResumeRequest(BaseModel):
+    resumeToken: str = Field(min_length=1)
+    action: Literal["confirm", "cancel"]
+    candidateIds: list[str] = Field(default_factory=list)
+
+
+class AgentRunResumeResponse(BaseModel):
+    runId: str
+    requestId: str
+    status: str
+    action: Literal["confirm", "cancel"]
+    savedMemoryIds: list[str]
+    alreadyApplied: bool

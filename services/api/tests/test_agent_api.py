@@ -45,10 +45,12 @@ def test_agent_chat_returns_unified_mock_response():
         "runId",
         "requestId",
         "status",
+        "resumeToken",
     }
     assert payload["runId"].startswith("run-")
     assert payload["requestId"].startswith("req-")
-    assert payload["status"] == "completed"
+    assert payload["status"] == "pending_confirmation"
+    assert payload["resumeToken"]
     assert payload["avatarState"] == "planning"
     assert payload["errors"] == []
     assert len(payload["memoryCandidates"]) >= 3
@@ -149,6 +151,49 @@ def test_agent_chat_memory_preference_returns_candidates_without_ack_template():
     assert any(item["title"] == "不吃香菜" for item in payload["memoryCandidates"])
     assert not payload["replyText"].startswith("收到：")
     assert "确认记忆胶囊" not in payload["replyText"]
+
+
+def test_agent_chat_memory_confirmation_resumes_idempotently():
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "我不吃香菜",
+            "sessionId": f"resume-{uuid4().hex}",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    pending = response.json()
+    assert pending["status"] == "pending_confirmation"
+    assert pending["resumeToken"]
+    resume_payload = {
+        "resumeToken": pending["resumeToken"],
+        "action": "confirm",
+        "candidateIds": ["mem-cilantro"],
+    }
+
+    first = client.post(
+        f"/api/agent/runs/{pending['runId']}/resume",
+        json=resume_payload,
+    )
+    repeated = client.post(
+        f"/api/agent/runs/{pending['runId']}/resume",
+        json=resume_payload,
+    )
+    trace = client.get(f"/api/agent/runs/{pending['runId']}")
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "completed"
+    assert first.json()["savedMemoryIds"]
+    assert first.json()["alreadyApplied"] is False
+    assert repeated.status_code == 200
+    assert repeated.json()["alreadyApplied"] is True
+    assert repeated.json()["savedMemoryIds"] == first.json()["savedMemoryIds"]
+    assert trace.status_code == 200
+    assert trace.json()["status"] == "completed"
+    assert trace.json()["state"]["pendingConfirmation"]["decision"]["action"] == "confirm"
+    assert "tokenHash" not in trace.json()["state"]["pendingConfirmation"]
 
 
 def test_agent_chat_plan_reply_summarizes_plan_instead_of_only_redirecting(monkeypatch):
@@ -442,5 +487,6 @@ def test_agent_chat_stream_emits_stage_and_final_events():
     assert final["avatarState"] == "planning"
     assert final["runId"].startswith("run-")
     assert final["requestId"].startswith("req-")
-    assert final["status"] == "completed"
+    assert final["status"] == "pending_confirmation"
+    assert final["resumeToken"]
     assert any(card["type"] == "tripPlan" for card in final["cards"])

@@ -2,7 +2,7 @@ import json
 from collections.abc import Iterator
 from time import perf_counter
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
@@ -19,8 +19,22 @@ from app.agents.travelmate.intent_routing import ensure_intent_decision
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
 from app.db.models import AgentRunRecord, CloudUserProfile
 from app.db.session import get_session
-from app.schemas.agent import AgentChatRequest, AgentChatResponse
-from app.services.agent_runs import complete_agent_run, fail_agent_run, start_agent_run
+from app.schemas.agent import (
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentRunResumeRequest,
+    AgentRunResumeResponse,
+)
+from app.services.agent_runs import (
+    AgentRunConflictError,
+    AgentRunExpiredError,
+    AgentRunNotFoundError,
+    ResumeTokenInvalidError,
+    fail_agent_run,
+    prepare_agent_run_completion,
+    resume_agent_run as resume_persisted_agent_run,
+    start_agent_run,
+)
 from app.services.model_audit import persist_model_call_logs
 from app.services.memory_context import build_memory_context
 from app.services.trip_plan_formatter import sanitize_trip_plan_for_client
@@ -252,7 +266,7 @@ def _stream_agent_events(
                 "errors": [{"code": "GRAPH_EMPTY_RESPONSE", "message": "\u672a\u751f\u6210\u6b63\u5f0f\u54cd\u5e94"}],
             }
         persist_model_call_logs(session, merged_state.get("model_call_logs", []))
-        completed_run = complete_agent_run(
+        completed_run, resume_token = prepare_agent_run_completion(
             session,
             run,
             result=merged_state,
@@ -263,6 +277,7 @@ def _stream_agent_events(
                 "runId": completed_run.run_id,
                 "requestId": completed_run.request_id,
                 "status": completed_run.status,
+                "resumeToken": resume_token,
             }
         )
         payload = response.model_dump_json(exclude_none=True)
@@ -316,7 +331,7 @@ def chat(
     try:
         result = _route_agent_graph(graph, state)
         persist_model_call_logs(session, result.get("model_call_logs", []))
-        completed_run = complete_agent_run(
+        completed_run, resume_token = prepare_agent_run_completion(
             session,
             run,
             result=result,
@@ -327,6 +342,7 @@ def chat(
                 "runId": completed_run.run_id,
                 "requestId": completed_run.request_id,
                 "status": completed_run.status,
+                "resumeToken": resume_token,
             }
         )
     except Exception as exc:
@@ -367,6 +383,93 @@ def chat_stream(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post(
+    "/runs/{run_id}/resume",
+    response_model=AgentRunResumeResponse,
+    summary="恢复待人工确认的 Agent Run",
+)
+def resume_run(
+    run_id: str,
+    payload: AgentRunResumeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AgentRunResumeResponse:
+    effective_user_id = resolve_effective_user_id(None, current_user)
+    try:
+        result = resume_persisted_agent_run(
+            session,
+            run_id=run_id,
+            user_id=effective_user_id,
+            resume_token=payload.resumeToken,
+            action=payload.action,
+            candidate_ids=payload.candidateIds,
+        )
+    except AgentRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Agent run not found") from exc
+    except AgentRunExpiredError as exc:
+        raise HTTPException(status_code=410, detail="Agent run expired") from exc
+    except ResumeTokenInvalidError as exc:
+        raise HTTPException(status_code=403, detail="Resume token is invalid") from exc
+    except AgentRunConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return AgentRunResumeResponse(
+        runId=result.run_id,
+        requestId=result.request_id,
+        status=result.status,
+        action=result.action,
+        savedMemoryIds=result.saved_memory_ids,
+        alreadyApplied=result.already_applied,
+    )
+
+
+@router.get("/runs/{run_id}", summary="查询当前用户的 Agent Run Trace")
+def read_run(
+    run_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(None, current_user)
+    record = session.exec(
+        select(AgentRunRecord).where(
+            AgentRunRecord.run_id == run_id,
+            AgentRunRecord.user_id == effective_user_id,
+        )
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+    state = json.loads(record.state_json or "{}")
+    pending = state.get("pendingConfirmation")
+    if isinstance(pending, dict):
+        visible_pending = dict(pending)
+        visible_pending.pop("tokenHash", None)
+        candidates = visible_pending.get("candidates")
+        if isinstance(candidates, list):
+            visible_pending["candidates"] = [
+                {
+                    key: value
+                    for key, value in candidate.items()
+                    if key != "memoryValue"
+                }
+                for candidate in candidates
+                if isinstance(candidate, dict)
+            ]
+        state["pendingConfirmation"] = visible_pending
+    return {
+        "runId": record.run_id,
+        "requestId": record.request_id,
+        "sessionId": record.session_id,
+        "tripId": record.trip_id,
+        "status": record.status,
+        "intent": record.intent,
+        "summary": record.summary,
+        "promptVersion": record.prompt_version,
+        "createdAt": record.created_at.isoformat(),
+        "updatedAt": record.updated_at.isoformat(),
+        "expiresAt": record.expires_at.isoformat(),
+        "state": state,
+    }
 
 
 @router.get("/avatar-state", summary="蓝小心状态查询")
