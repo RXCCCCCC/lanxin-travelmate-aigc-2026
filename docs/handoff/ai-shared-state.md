@@ -288,3 +288,6 @@
 - README 与 ARCHITECTURE 已同步当前真实实现；提交 `a77fea0`。
 - 当前待确认门槛：新增 AgentRun 数据表与 Alembic 迁移；修改 `.github/workflows/ci.yml` 加入确定性评测。未确认前继续推进不依赖这两项的文档和验收工作。
 - 本轮所有提交仅在本地 `dev` 分支，未自动推送或部署。
+- 2026-08-10 完整回归已收敛：首次全量测试暴露旧测试未适配认证、真实模型回复被固定文案覆盖、导航链接缺失和移动端过期静态守卫等问题；已分里程碑修复并提交。
+- 第二轮全量验收结果：后端 `213 passed`，Flutter `108 passed`，`flutter analyze` 无问题；Golden Cases 仍为 32/32。
+- 当前剩余核心工作只包括：经确认后新增 AgentRun/Alembic 迁移并实现 HITL 与运行级持久化 Trace；经确认后修改 CI 工作流加入确定性评测门禁。

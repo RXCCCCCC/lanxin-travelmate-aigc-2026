@@ -103,6 +103,8 @@ uv run python -m evals.runner --output-dir artifacts/evals
 
 当前确定性基线为 32/32 Case 通过；评测会输出 JSON 和 Markdown 报告，并统计意图准确率、工具选择准确率、目的地一致性、记忆命中率、敏感确认规则、Schema 通过率和 P50/P95 延迟。
 
+2026 年 8 月 10 日完整回归基线：后端 `213 passed`，Flutter `108 passed`，`flutter analyze` 无问题。
+
 前端：
 
 ```powershell

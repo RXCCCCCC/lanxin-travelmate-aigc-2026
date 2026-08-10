@@ -92,3 +92,17 @@ flutter test test/trip_page_integration_test.dart --no-pub
 - 最终全量回归和真实 Provider 手动验收。
 
 其中 AgentRun/HITL 需要新增数据库表和 Alembic 迁移，CI 门禁需要修改 GitHub Actions；两项均等待用户单独确认。
+
+## 2026-08-10 自动化验收结果
+
+- 后端完整测试：213 条通过。
+- Flutter 完整测试：108 条通过。
+- Flutter 静态分析：无问题。
+- Agent Golden Cases：32/32 通过。
+- Git 工作区：干净。
+- 未执行远程推送或部署。
+
+当前已知非阻塞警告：
+
+- FastAPI TestClient 提示未来可迁移到 `httpx2`。
+- Flutter 响应式布局测试会提示同一测试进程创建多个 Drift 数据库实例，但全部测试通过；该警告不代表生产数据库共用同一执行器。
