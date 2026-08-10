@@ -18,6 +18,7 @@ from app.services.model_providers import MockModelProvider, ModelProviderError, 
 from app.services.model_providers.call_log import ModelCallLogger
 from app.services.memory_context import aggregate_memory_profile
 from app.tools.registry import build_tool_registry
+from app.agents.travelmate.tool_planning import build_constrained_tool_plan
 
 
 def _next_state(state: TravelMateState, node_name: str) -> TravelMateState:
@@ -550,30 +551,15 @@ def _coordinate_to_location(value: object) -> str | None:
 
 def tool_planner(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "tool_planner")
-    planning_inputs = next_state.get("context", {}).get("planningInputs") or {}
-    destination = str(
-        planning_inputs.get("destination")
-        or next_state.get("trip_context", {}).get("destination")
-        or _extract_trip_destination(next_state)
-    )
-    transport_mode = str(planning_inputs.get("transportMode") or "walking")
-    origin_location = _coordinate_to_location(planning_inputs.get("originCoordinate"))
-    destination_location = _coordinate_to_location(planning_inputs.get("destinationCoordinate"))
-    route_input = {
-        "city": destination,
-        "destination": destination,
-        "pace": next_state.get("trip_context", {}).get("pace") or "\u8f7b\u677e",
-        "mode": transport_mode,
+    plan = build_constrained_tool_plan(next_state)
+    next_state["tool_plan"] = plan["steps"]
+    next_state["tool_plan_metadata"] = {
+        "goal": plan["goal"],
+        "maxSteps": plan["maxSteps"],
+        "plannerProvider": plan["plannerProvider"],
+        "fallback": plan["fallback"],
+        "fallbackReason": plan.get("fallbackReason"),
     }
-    if origin_location and destination_location:
-        route_input["originLocation"] = origin_location
-        route_input["destinationLocation"] = destination_location
-
-    next_state["tool_plan"] = [
-        {"tool": "weather_tool", "input": {"city": destination}},
-        {"tool": "poi_tool", "input": {"city": destination, "keyword": "\u591c\u666f"}},
-        {"tool": "route_tool", "input": route_input},
-    ]
     return next_state
 
 def tool_executor(state: TravelMateState) -> TravelMateState:

@@ -14,6 +14,7 @@ class TravelMateState(TypedDict, total=False):
     user_profile: dict[str, Any]
     trip_context: dict[str, Any]
     tool_plan: list[dict[str, Any]]
+    tool_plan_metadata: dict[str, Any]
     tool_trace: list[dict[str, Any]]
     trip_plan: dict[str, Any]
     reminders: list[dict[str, Any]]
@@ -52,6 +53,7 @@ def create_initial_state(
         "user_profile": {},
         "trip_context": {},
         "tool_plan": [],
+        "tool_plan_metadata": {},
         "tool_trace": [],
         "trip_plan": {},
         "reminders": [],
