@@ -19,6 +19,7 @@ from app.services.model_providers.call_log import ModelCallLogger
 from app.services.memory_context import aggregate_memory_profile
 from app.tools.registry import build_tool_registry
 from app.agents.travelmate.tool_planning import build_constrained_tool_plan
+from app.agents.travelmate.tool_execution import execute_tool_plan
 
 
 def _next_state(state: TravelMateState, node_name: str) -> TravelMateState:
@@ -560,29 +561,24 @@ def tool_planner(state: TravelMateState) -> TravelMateState:
         "fallback": plan["fallback"],
         "fallbackReason": plan.get("fallbackReason"),
     }
+    next_state.setdefault("tool_trace", []).append(
+        {
+            "tool": "tool_planner",
+            "provider": plan["plannerProvider"],
+            "scenario": "tool_planning",
+            "fallback": plan["fallback"],
+            "fallbackReason": plan.get("fallbackReason"),
+            "errorType": "planner_fallback" if plan["fallback"] else None,
+            "stepCount": len(plan["steps"]),
+        }
+    )
     return next_state
 
 def tool_executor(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "tool_executor")
     registry = build_tool_registry()
-    trace = list(next_state.get("tool_trace", []))
-    for item in next_state["tool_plan"]:
-        output = registry.call(item["tool"], item["input"])
-        trace.append({
-            "tool": item["tool"],
-            "input": item["input"],
-            "output": output,
-            "provider": output.get("provider"),
-            "fallback": bool(output.get("fallback")),
-            "fallbackReason": output.get("fallbackReason"),
-            "sourceTime": output.get("sourceTime"),
-            "errorType": output.get("errorType"),
-            "retryCount": int(output.get("retryCount") or 0),
-            "cacheHit": bool(output.get("cacheHit")),
-            "circuitOpen": bool(output.get("circuitOpen")),
-            "mock": output.get("provider") == "mock",
-        })
-    next_state["tool_trace"] = trace
+    execution_trace = execute_tool_plan(next_state["tool_plan"], registry)
+    next_state["tool_trace"] = [*next_state.get("tool_trace", []), *execution_trace]
     return next_state
 
 
