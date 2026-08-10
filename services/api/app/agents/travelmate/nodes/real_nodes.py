@@ -624,6 +624,22 @@ def _merge_trip_plan_tool_context(plan: dict[str, Any], state: TravelMateState) 
     merged = dict(plan)
     tool_context = _tool_context_from_trace(state.get("tool_trace", []))
     merged["externalContext"] = tool_context
+    destination = str(
+        merged.get("destination")
+        or state.get("trip_context", {}).get("destination")
+        or _extract_trip_destination(state)
+    ).strip()
+    if destination and destination != "待确认目的地" and not merged.get("navigationLinks"):
+        merged["navigationLinks"] = [
+            {
+                "provider": "amap",
+                "label": f"打开高德查看{destination}",
+                "url": (
+                    "androidamap://route?"
+                    f"sourceApplication=lanxin-travelmate&dname={destination}&dev=0&t=0"
+                ),
+            }
+        ]
     memory_references = []
     memory_context = state.get("context", {}).get("memoryContext") or {}
     for item in memory_context.get("items", []) if isinstance(memory_context, dict) else []:

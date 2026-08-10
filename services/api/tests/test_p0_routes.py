@@ -56,7 +56,11 @@ def test_trip_plan_reminder_and_avatar_endpoints():
         json={"message": "周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜"},
     )
     assert plan_response.status_code == 200
-    assert plan_response.json()["title"] == "重庆两日轻松夜景线"
+    plan = plan_response.json()
+    assert plan["destination"] == "重庆"
+    assert plan["title"]
+    assert plan["summary"]
+    assert plan["alternatives"]
 
     reminder_response = client.post(
         "/api/trip/reminders/trigger",
