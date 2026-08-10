@@ -19,6 +19,10 @@
 
 详细架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，包含系统图、Agent 状态机流程、SSE 流式机制、端云分工和技术选型理由。
 
+- Agent 评测方法与当前指标：[docs/engineering/agent-evaluation.md](docs/engineering/agent-evaluation.md)
+- 面试官 5 分钟验收：[docs/handoff/final-acceptance.md](docs/handoff/final-acceptance.md)
+- 面试追问与简历描述：[INTERVIEW_PREP.md](INTERVIEW_PREP.md)
+
 ## 当前结构
 
 - `apps/mobile/`：Flutter 移动端原型，含蓝小心状态、聊天页、记忆、规划、提醒、复盘页面。
