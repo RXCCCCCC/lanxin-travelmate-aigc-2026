@@ -8,6 +8,7 @@ class AgentChatRequest(BaseModel):
     sessionId: str | None = None
     userId: str | None = None
     tripId: str | None = None
+    idempotencyKey: str | None = None
     context: dict[str, Any] | None = None
 
 
@@ -22,3 +23,7 @@ class AgentChatResponse(BaseModel):
     nextActions: list[dict[str, Any]]
     syncSuggestions: list[dict[str, Any]]
     errors: list[dict[str, Any]]
+    runId: str | None = None
+    requestId: str | None = None
+    status: str = "completed"
+    resumeToken: str | None = None

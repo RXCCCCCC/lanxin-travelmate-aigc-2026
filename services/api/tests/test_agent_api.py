@@ -1,7 +1,11 @@
 import json
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
+from app.db.models import AgentRunRecord
+from app.db.session import engine
 from app.main import app
 
 
@@ -38,13 +42,45 @@ def test_agent_chat_returns_unified_mock_response():
         "nextActions",
         "syncSuggestions",
         "errors",
+        "runId",
+        "requestId",
+        "status",
     }
+    assert payload["runId"].startswith("run-")
+    assert payload["requestId"].startswith("req-")
+    assert payload["status"] == "completed"
     assert payload["avatarState"] == "planning"
     assert payload["errors"] == []
     assert len(payload["memoryCandidates"]) >= 3
     assert any(item["title"] == "不吃香菜" for item in payload["memoryCandidates"])
     assert any(card["type"] == "tripPlan" for card in payload["cards"])
     assert any(step["tool"] == "weather_tool" for step in payload["toolTrace"])
+
+
+def test_agent_chat_idempotency_key_reuses_persisted_run():
+    idempotency_key = f"test-{uuid4().hex}"
+    request = {
+        "message": "你好",
+        "sessionId": "idempotent-session",
+        "userId": "guest",
+        "idempotencyKey": idempotency_key,
+    }
+
+    first = client.post("/api/agent/chat", json=request)
+    repeated = client.post("/api/agent/chat", json=request)
+
+    assert first.status_code == 200
+    assert repeated.status_code == 200
+    assert repeated.json()["runId"] == first.json()["runId"]
+    with Session(engine) as session:
+        record = session.exec(
+            select(AgentRunRecord).where(
+                AgentRunRecord.run_id == first.json()["runId"],
+            )
+        ).one()
+    state = json.loads(record.state_json)
+    assert record.status == "completed"
+    assert state["nodeTrace"]
 
 
 def test_agent_chat_plain_message_uses_chat_only_graph(monkeypatch):
@@ -404,4 +440,7 @@ def test_agent_chat_stream_emits_stage_and_final_events():
     assert len(final_events) == 1
     final = final_events[0]
     assert final["avatarState"] == "planning"
+    assert final["runId"].startswith("run-")
+    assert final["requestId"].startswith("req-")
+    assert final["status"] == "completed"
     assert any(card["type"] == "tripPlan" for card in final["cards"])

@@ -1,5 +1,6 @@
 import json
 from collections.abc import Iterator
+from time import perf_counter
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -16,9 +17,10 @@ from app.agents.travelmate.nodes.fallback_nodes import build_rule_memory_candida
 from app.agents.travelmate.state import create_initial_state
 from app.agents.travelmate.intent_routing import ensure_intent_decision
 from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
-from app.db.models import CloudUserProfile
+from app.db.models import AgentRunRecord, CloudUserProfile
 from app.db.session import get_session
 from app.schemas.agent import AgentChatRequest, AgentChatResponse
+from app.services.agent_runs import complete_agent_run, fail_agent_run, start_agent_run
 from app.services.model_audit import persist_model_call_logs
 from app.services.memory_context import build_memory_context
 from app.services.trip_plan_formatter import sanitize_trip_plan_for_client
@@ -150,15 +152,22 @@ def _compose_plan_response(result: dict[str, object], message: str) -> None:
 def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict[str, object]:
     message = str(state.get("message") or "")
     mode = str(ensure_intent_decision(state)["mode"])
-    if mode == "review":
+    node_trace: list[dict[str, object]] = []
+    if hasattr(graph, "invoke_traced"):
+        result, node_trace = graph.invoke_traced(state, mode=mode)
+    elif mode == "review":
         result = graph.invoke_review_only(state)
-        _compose_review_response(result)
-        return result
-    if mode == "plan":
+    elif mode == "plan":
         result = graph.invoke_plan_only(state)
+    else:
+        result = graph.invoke_chat_only(state)
+
+    if mode == "review":
+        _compose_review_response(result)
+    elif mode == "plan":
         _compose_plan_response(result, message)
-        return result
-    return graph.invoke_chat_only(state)
+    result["node_trace"] = node_trace
+    return result
 
 
 _NODE_STAGE_LABELS = {
@@ -189,10 +198,12 @@ def _stream_agent_events(
     graph: TravelMateGraph,
     state: dict[str, object],
     session: Session,
+    run: AgentRunRecord,
 ) -> Iterator[str]:
     message = str(state.get("message") or "")
     mode = str(ensure_intent_decision(state)["mode"])
     merged_state: dict[str, object] = dict(state)
+    node_trace: list[dict[str, object]] = []
 
     def _stage_event(node: str) -> str:
         payload = json.dumps(
@@ -207,9 +218,18 @@ def _stream_agent_events(
         # 先推送第一个阶段，之后每完成一个节点推送下一个“正在进行”的阶段
         if labeled:
             yield _stage_event(labeled[0])
+        started = perf_counter()
         for node_name, node_state in graph.stream_nodes(state, mode=mode):
+            node_trace.append(
+                {
+                    "node": node_name,
+                    "elapsedMs": int((perf_counter() - started) * 1000),
+                    "status": "completed",
+                }
+            )
             if isinstance(node_state, dict):
                 merged_state.update(node_state)
+            started = perf_counter()
             if node_name in labeled:
                 index = labeled.index(node_name)
                 if index + 1 < len(labeled):
@@ -232,18 +252,41 @@ def _stream_agent_events(
                 "errors": [{"code": "GRAPH_EMPTY_RESPONSE", "message": "\u672a\u751f\u6210\u6b63\u5f0f\u54cd\u5e94"}],
             }
         persist_model_call_logs(session, merged_state.get("model_call_logs", []))
-        response = AgentChatResponse.model_validate(merged_state["response"])
-        payload = response.model_dump_json()
+        completed_run = complete_agent_run(
+            session,
+            run,
+            result=merged_state,
+            node_trace=node_trace,
+        )
+        response = AgentChatResponse.model_validate(merged_state["response"]).model_copy(
+            update={
+                "runId": completed_run.run_id,
+                "requestId": completed_run.request_id,
+                "status": completed_run.status,
+            }
+        )
+        payload = response.model_dump_json(exclude_none=True)
         yield f"event: final\ndata: {payload}\n\n"
     except Exception as exc:  # noqa: BLE001 - \u6d41\u5f0f\u901a\u9053\u5185\u5fc5\u987b\u81ea\u884c\u5151\u5e95
+        fail_agent_run(session, run, error=exc, node_trace=node_trace)
         payload = json.dumps(
-            {"type": "error", "message": str(exc)[:200]},
+            {
+                "type": "error",
+                "message": "Agent 运行失败，请稍后重试。",
+                "runId": run.run_id,
+                "requestId": run.request_id,
+            },
             ensure_ascii=False,
         )
         yield f"event: error\ndata: {payload}\n\n"
 
 
-@router.post("/chat", response_model=AgentChatResponse, summary="Agent 聊天（非流式）")
+@router.post(
+    "/chat",
+    response_model=AgentChatResponse,
+    response_model_exclude_none=True,
+    summary="Agent 聊天（非流式）",
+)
 def chat(
     request: AgentChatRequest,
     current_user: CurrentUser = Depends(get_current_user),
@@ -251,6 +294,13 @@ def chat(
 ) -> AgentChatResponse:
     graph = TravelMateGraph()
     effective_user_id = resolve_effective_user_id(request.userId, current_user)
+    run = start_agent_run(
+        session,
+        user_id=effective_user_id,
+        session_id=request.sessionId,
+        trip_id=request.tripId,
+        idempotency_key=request.idempotencyKey,
+    )
     context = dict(request.context or {})
     user_settings = _load_user_settings(session, effective_user_id)
     if user_settings:
@@ -263,9 +313,25 @@ def chat(
         trip_id=request.tripId,
         context=context,
     )
-    result = _route_agent_graph(graph, state)
-    persist_model_call_logs(session, result.get("model_call_logs", []))
-    return AgentChatResponse.model_validate(result["response"])
+    try:
+        result = _route_agent_graph(graph, state)
+        persist_model_call_logs(session, result.get("model_call_logs", []))
+        completed_run = complete_agent_run(
+            session,
+            run,
+            result=result,
+            node_trace=result.get("node_trace", []),
+        )
+        return AgentChatResponse.model_validate(result["response"]).model_copy(
+            update={
+                "runId": completed_run.run_id,
+                "requestId": completed_run.request_id,
+                "status": completed_run.status,
+            }
+        )
+    except Exception as exc:
+        fail_agent_run(session, run, error=exc)
+        raise
 
 
 @router.post("/chat/stream", summary="Agent 聊天（SSE 流式）")
@@ -277,6 +343,13 @@ def chat_stream(
     """SSE \u6d41\u5f0f\u7248\u804a\u5929\uff1a\u5148\u63a8\u9001\u9010\u8282\u70b9\u9636\u6bb5\u4e8b\u4ef6\uff0c\u6700\u540e\u63a8\u9001\u5b8c\u6574\u54cd\u5e94\u3002"""
     graph = TravelMateGraph()
     effective_user_id = resolve_effective_user_id(request.userId, current_user)
+    run = start_agent_run(
+        session,
+        user_id=effective_user_id,
+        session_id=request.sessionId,
+        trip_id=request.tripId,
+        idempotency_key=request.idempotencyKey,
+    )
     context = dict(request.context or {})
     user_settings = _load_user_settings(session, effective_user_id)
     if user_settings:
@@ -290,7 +363,7 @@ def chat_stream(
         context=context,
     )
     return StreamingResponse(
-        _stream_agent_events(graph, state, session),
+        _stream_agent_events(graph, state, session, run),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
