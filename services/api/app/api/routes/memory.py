@@ -104,11 +104,15 @@ def create_memory_capsule(
 def update_memory_capsule(
     memory_id: str,
     payload: MemoryCapsuleUpdatePayload,
+    current_user: CurrentUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, object]:
     memory = session.get(CloudMemory, memory_id)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory capsule not found")
+    effective_user_id = resolve_effective_user_id(None, current_user)
+    if memory.user_id != effective_user_id:
+        raise HTTPException(status_code=403, detail="Memory capsule belongs to another user")
     memory.title = payload.title
     memory.content = payload.content
     if payload.scope is not None:
@@ -125,10 +129,17 @@ def update_memory_capsule(
 
 
 @router.delete("/capsules/{memory_id}")
-def delete_memory_capsule(memory_id: str, session: Session = Depends(get_session)) -> dict[str, bool]:
+def delete_memory_capsule(
+    memory_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, bool]:
     memory = session.get(CloudMemory, memory_id)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory capsule not found")
+    effective_user_id = resolve_effective_user_id(None, current_user)
+    if memory.user_id != effective_user_id:
+        raise HTTPException(status_code=403, detail="Memory capsule belongs to another user")
     session.delete(memory)
     session.commit()
     return {"deleted": True}

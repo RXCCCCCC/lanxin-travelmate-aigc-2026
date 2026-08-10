@@ -73,6 +73,47 @@ def test_memory_guest_payload_is_scoped_to_authenticated_user():
     assert all(item["id"] != memory_id for item in global_guest.json()["items"])
 
 
+def test_authenticated_user_cannot_update_or_delete_another_users_memory():
+    owner_id, owner_headers = _guest_headers(f"scope-memory-owner-{uuid4().hex}")
+    _attacker_id, attacker_headers = _guest_headers(f"scope-memory-attacker-{uuid4().hex}")
+    memory_id = f"mem-cross-user-{uuid4().hex}"
+
+    created = client.post(
+        "/api/memory/capsules",
+        headers=owner_headers,
+        json={
+            "id": memory_id,
+            "userId": "guest",
+            "title": "Owner memory",
+            "content": "Only the owner can change this.",
+            "scope": "longTerm",
+        },
+    )
+    assert created.status_code == 200
+    assert created.json()["userId"] == owner_id
+
+    update = client.put(
+        f"/api/memory/capsules/{memory_id}",
+        headers=attacker_headers,
+        json={
+            "title": "Attacker overwrite",
+            "content": "Should be rejected.",
+        },
+    )
+    delete = client.delete(
+        f"/api/memory/capsules/{memory_id}",
+        headers=attacker_headers,
+    )
+
+    assert update.status_code == 403
+    assert delete.status_code == 403
+
+    owner_memories = client.get("/api/memory/capsules", headers=owner_headers)
+    assert owner_memories.status_code == 200
+    item = next(item for item in owner_memories.json()["items"] if item["id"] == memory_id)
+    assert item["title"] == "Owner memory"
+
+
 def test_authenticated_settings_routes_reject_user_id_impersonation():
     _user_id, headers = _guest_headers(f"scope-impersonation-{uuid4().hex}")
 
@@ -130,7 +171,11 @@ def test_agent_chat_loads_authenticated_profile_when_user_id_is_omitted():
     )
 
     assert chat.status_code == 200
-    audit = client.get("/api/audit/model-calls", params={"scenario": "trip_planning", "limit": 20})
+    audit = client.get(
+        "/api/audit/model-calls",
+        headers=headers,
+        params={"scenario": "trip_planning", "limit": 20},
+    )
     assert audit.status_code == 200
     latest = next(item for item in audit.json()["items"] if item["requestSummary"].get("userId") == user_id)
     assert latest["requestSummary"]["userSettings"]["customPrompt"] == "Keep authenticated suggestions calm."

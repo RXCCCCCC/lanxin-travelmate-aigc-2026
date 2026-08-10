@@ -568,6 +568,7 @@ def _copywriting_with_model(
     candidates: list[PhotoCandidateRecord],
     persona: str,
     style: str,
+    user_id: str,
     logger: ModelCallLogger,
 ) -> dict[str, object]:
     provider = build_model_provider(get_settings())
@@ -576,6 +577,7 @@ def _copywriting_with_model(
         provider.name,
         "photo_copywriting",
         {
+            "userId": user_id,
             "photoCount": len(candidates),
             "photoIds": [item.id for item in candidates],
             "persona": persona,
@@ -761,7 +763,13 @@ def create_photo_copywriting(
         ).all()
     logger = ModelCallLogger()
     try:
-        copywriting = _copywriting_with_model(candidates, payload.persona, payload.style, logger)
+        copywriting = _copywriting_with_model(
+            candidates,
+            payload.persona,
+            payload.style,
+            effective_user_id,
+            logger,
+        )
     except ModelProviderError as exc:
         copywriting = _copywriting_fallback(
             candidates,

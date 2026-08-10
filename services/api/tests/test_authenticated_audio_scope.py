@@ -15,8 +15,8 @@ def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
     return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
 
 
-def _audit_item_by_trace_id(trace_id: str) -> dict[str, object]:
-    response = client.get("/api/audit/tool-calls", params={"limit": 50})
+def _audit_item_by_trace_id(trace_id: str, headers: dict[str, str]) -> dict[str, object]:
+    response = client.get("/api/audit/tool-calls", headers=headers, params={"limit": 50})
     assert response.status_code == 200
     for item in response.json()["items"]:
         if item["toolTraceId"] == trace_id:
@@ -43,9 +43,35 @@ def test_audio_routes_audit_guest_payload_as_authenticated_user():
     assert asr.json()["userId"] == user_id
     assert tts.json()["userId"] == user_id
 
-    asr_audit = _audit_item_by_trace_id(asr.json()["toolTraceId"])
-    tts_audit = _audit_item_by_trace_id(tts.json()["toolTraceId"])
+    asr_audit = _audit_item_by_trace_id(asr.json()["toolTraceId"], headers)
+    tts_audit = _audit_item_by_trace_id(tts.json()["toolTraceId"], headers)
     assert asr_audit["toolName"] == "asr_tool"
     assert tts_audit["toolName"] == "tts_tool"
     assert asr_audit["userId"] == user_id
     assert tts_audit["userId"] == user_id
+
+
+def test_audit_tool_calls_require_authentication_and_are_user_scoped():
+    owner_id, owner_headers = _guest_headers(f"scope-audit-owner-{uuid4().hex}")
+    _attacker_id, attacker_headers = _guest_headers(f"scope-audit-attacker-{uuid4().hex}")
+
+    asr = client.post(
+        "/api/audio/asr",
+        headers=owner_headers,
+        json={"userId": "guest", "audioRef": "audit-scope", "mockText": "hello"},
+    )
+    assert asr.status_code == 200
+    trace_id = asr.json()["toolTraceId"]
+
+    anonymous = client.get("/api/audit/tool-calls", params={"limit": 50})
+    attacker = client.get("/api/audit/tool-calls", headers=attacker_headers, params={"limit": 50})
+    owner = client.get("/api/audit/tool-calls", headers=owner_headers, params={"limit": 50})
+
+    assert anonymous.status_code == 401
+    assert attacker.status_code == 200
+    assert all(item["toolTraceId"] != trace_id for item in attacker.json()["items"])
+    assert owner.status_code == 200
+    assert any(
+        item["toolTraceId"] == trace_id and item["userId"] == owner_id
+        for item in owner.json()["items"]
+    )
