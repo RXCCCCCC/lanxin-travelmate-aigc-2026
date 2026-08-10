@@ -64,6 +64,17 @@ jobs:
       - name: Run API tests
         run: uv run pytest
 
+      - name: Run deterministic Agent eval
+        run: uv run python -m evals.runner --output-dir artifacts/evals
+
+      - name: Upload deterministic Agent eval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-agent-eval
+          path: services/api/artifacts/evals
+          if-no-files-found: error
+
   real-provider-smoke:
     name: Real provider smoke
     runs-on: ubuntu-latest
