@@ -408,7 +408,8 @@ def _merge_memory_candidates(
         rule_match = rule_by_title.get(title)
         if rule_match is not None:
             # Keep canonical rule id and privacy metadata stable for known preferences.
-            candidate = {**candidate, "id": rule_match["id"]}
+            if rule_match.get("id"):
+                candidate = {**candidate, "id": rule_match["id"]}
             for key in ("category", "sensitivity", "recommendedScope", "scopeOptions", "requiresExplicitConsent"):
                 if key in rule_match:
                     candidate[key] = rule_match[key]
@@ -1122,8 +1123,6 @@ def response_composer(state: TravelMateState) -> TravelMateState:
     if get_settings().model_provider != "mock":
         try:
             next_state["response"] = _model_chat_response(next_state)
-            next_state["response"]["replyText"] = reply
-            next_state["response"]["voiceText"] = reply
         except (AttributeError, ModelProviderError) as exc:
             _append_chat_model_trace(next_state, {
                 "tool": "model_provider",
