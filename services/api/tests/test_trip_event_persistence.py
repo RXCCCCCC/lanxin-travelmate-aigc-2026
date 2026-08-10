@@ -7,13 +7,23 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers(label: str) -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"trip-event-{label}-{uuid4().hex}", "displayName": "Trip Event Guest"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
+
+
 def test_trip_review_is_persisted_and_readable_by_trip_id():
-    user_id = f"review-user-{uuid4().hex}"
+    headers = _guest_headers("review")
     trip_id = f"review-persist-trip-{uuid4().hex}"
     create_response = client.post(
         "/api/trip/review",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "tripId": trip_id,
             "message": "生成今天旅行复盘",
             "completedTasks": [{"id": "task-a", "title": "完成一次夜景拍照", "status": "completed"}],
@@ -25,7 +35,11 @@ def test_trip_review_is_persisted_and_readable_by_trip_id():
     created = create_response.json()
     assert created["reviewId"].startswith("review-")
 
-    read_response = client.get("/api/trip/review", params={"userId": user_id, "tripId": trip_id})
+    read_response = client.get(
+        "/api/trip/review",
+        headers=headers,
+        params={"tripId": trip_id},
+    )
 
     assert read_response.status_code == 200
     payload = read_response.json()
@@ -35,12 +49,13 @@ def test_trip_review_is_persisted_and_readable_by_trip_id():
 
 
 def test_trip_review_read_returns_latest_review_for_user():
-    user_id = "review-latest-user-a"
-    trip_id = "review-latest-trip-a"
+    headers = _guest_headers("latest-review")
+    trip_id = f"review-latest-trip-{uuid4().hex}"
     first_response = client.post(
         "/api/trip/review",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "tripId": trip_id,
             "message": "生成第一次旅行复盘",
             "completedTasks": [{"id": "task-a", "title": "第一次复盘任务", "status": "completed"}],
@@ -48,8 +63,9 @@ def test_trip_review_read_returns_latest_review_for_user():
     )
     second_response = client.post(
         "/api/trip/review",
+        headers=headers,
         json={
-            "userId": user_id,
+            "userId": "guest",
             "tripId": trip_id,
             "message": "生成第二次旅行复盘",
             "completedTasks": [{"id": "task-b", "title": "第二次复盘任务", "status": "completed"}],
@@ -59,7 +75,11 @@ def test_trip_review_read_returns_latest_review_for_user():
     assert first_response.status_code == 200
     assert second_response.status_code == 200
 
-    read_response = client.get("/api/trip/review", params={"userId": user_id, "tripId": trip_id})
+    read_response = client.get(
+        "/api/trip/review",
+        headers=headers,
+        params={"tripId": trip_id},
+    )
 
     assert read_response.status_code == 200
     payload = read_response.json()
@@ -68,12 +88,14 @@ def test_trip_review_read_returns_latest_review_for_user():
 
 
 def test_reminder_trigger_is_persisted_in_history():
-    user_id = "reminder-history-user-a"
+    headers = _guest_headers("reminder")
+    trip_id = f"reminder-trip-{uuid4().hex}"
     trigger_response = client.post(
         "/api/trip/reminders/trigger",
+        headers=headers,
         json={
-            "userId": user_id,
-            "tripId": "reminder-trip-a",
+            "userId": "guest",
+            "tripId": trip_id,
             "triggerType": "status",
             "location": "解放碑",
             "eventPayload": {"energy": 28},
@@ -84,7 +106,11 @@ def test_reminder_trigger_is_persisted_in_history():
     triggered = trigger_response.json()
     assert triggered["historyId"].startswith("reminder-")
 
-    history_response = client.get("/api/trip/reminders/history", params={"userId": user_id})
+    history_response = client.get(
+        "/api/trip/reminders/history",
+        headers=headers,
+        params={"tripId": trip_id},
+    )
 
     assert history_response.status_code == 200
     items = history_response.json()["items"]
@@ -95,9 +121,11 @@ def test_reminder_trigger_is_persisted_in_history():
 
 
 def test_tool_call_endpoint_records_trace_id_and_provider():
+    headers = _guest_headers("tool")
     response = client.post(
         "/api/tools/weather_tool/call",
-        json={"userId": "tool-call-user-a", "payload": {"city": "杭州"}},
+        headers=headers,
+        json={"userId": "guest", "payload": {"city": "杭州"}},
     )
 
     assert response.status_code == 200

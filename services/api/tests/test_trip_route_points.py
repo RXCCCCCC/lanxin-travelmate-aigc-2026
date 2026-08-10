@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
@@ -6,9 +7,18 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers() -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"route-points-{uuid4().hex}", "displayName": "Route Guest"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
+
+
 def test_trip_route_points_are_persisted_readable_and_used_by_review():
-    user_id = "route-user-a"
-    trip_id = "route-trip-a"
+    headers = _guest_headers()
+    trip_id = f"route-trip-{uuid4().hex}"
     points = [
         {"label": "真实起点", "latitude": 29.56301, "longitude": 106.55156, "source": "device", "recordedAt": "2026-06-20T09:00:00+08:00"},
         {"label": "真实中途点", "latitude": 29.55890, "longitude": 106.54810, "source": "device", "recordedAt": "2026-06-20T10:10:00+08:00"},
@@ -17,7 +27,8 @@ def test_trip_route_points_are_persisted_readable_and_used_by_review():
 
     created = client.post(
         "/api/trip/route-points",
-        json={"userId": user_id, "tripId": trip_id, "points": points},
+        headers=headers,
+        json={"userId": "guest", "tripId": trip_id, "points": points},
     )
 
     assert created.status_code == 200
@@ -26,7 +37,11 @@ def test_trip_route_points_are_persisted_readable_and_used_by_review():
     assert created_payload["route"] == "真实起点 → 真实中途点 → 真实终点"
     assert created_payload["points"][0]["source"] == "device"
 
-    read_back = client.get("/api/trip/route-points", params={"userId": user_id, "tripId": trip_id})
+    read_back = client.get(
+        "/api/trip/route-points",
+        headers=headers,
+        params={"tripId": trip_id},
+    )
 
     assert read_back.status_code == 200
     payload = read_back.json()
@@ -35,7 +50,8 @@ def test_trip_route_points_are_persisted_readable_and_used_by_review():
 
     review = client.post(
         "/api/trip/review",
-        json={"userId": user_id, "tripId": trip_id, "message": "生成真实路线复盘"},
+        headers=headers,
+        json={"userId": "guest", "tripId": trip_id, "message": "生成真实路线复盘"},
     )
 
     assert review.status_code == 200
