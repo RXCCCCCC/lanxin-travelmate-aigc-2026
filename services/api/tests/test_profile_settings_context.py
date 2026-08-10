@@ -13,10 +13,17 @@ client = TestClient(app)
 
 
 def test_profile_settings_are_persisted_and_loaded_into_agent_context():
-    user_id = f"settings-user-{uuid4().hex}"
+    auth = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"profile-context-{uuid4().hex}", "displayName": "Profile Context Guest"},
+    )
+    assert auth.status_code == 200
+    user_id = auth.json()["userId"]
+    headers = {"Authorization": f"Bearer {auth.json()['accessToken']}"}
 
     update = client.put(
         "/api/profile/me",
+        headers=headers,
         params={"userId": user_id},
         json={
             "travelPace": "slow",
@@ -31,7 +38,7 @@ def test_profile_settings_are_persisted_and_loaded_into_agent_context():
     )
     assert update.status_code == 200
 
-    profile = client.get("/api/profile/me", params={"userId": user_id})
+    profile = client.get("/api/profile/me", headers=headers)
     assert profile.status_code == 200
     profile_payload = profile.json()
     assert profile_payload["personality"] == "gentle_companion"
@@ -43,8 +50,8 @@ def test_profile_settings_are_persisted_and_loaded_into_agent_context():
 
     chat = client.post(
         "/api/agent/chat",
+        headers=headers,
         json={
-            "userId": user_id,
             "sessionId": "settings-context-session",
             "message": "Plan a quiet afternoon nearby.",
         },

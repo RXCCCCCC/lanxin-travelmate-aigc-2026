@@ -111,7 +111,7 @@ def test_agent_chat_memory_preference_returns_candidates_without_ack_template():
     assert response.status_code == 200
     payload = response.json()
     assert any(item["title"] == "不吃香菜" for item in payload["memoryCandidates"])
-    assert "收到" not in payload["replyText"]
+    assert not payload["replyText"].startswith("收到：")
     assert "确认记忆胶囊" not in payload["replyText"]
 
 

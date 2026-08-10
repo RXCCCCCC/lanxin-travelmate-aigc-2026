@@ -16,6 +16,7 @@ from app.agents.travelmate.state import TravelMateState
 from app.core.config import get_settings
 from app.services.model_providers import MockModelProvider, ModelProviderError, build_model_provider
 from app.services.model_providers.call_log import ModelCallLogger
+from app.services.memory_context import aggregate_memory_profile
 from app.tools.registry import build_tool_registry
 
 
@@ -325,11 +326,8 @@ def input_normalizer(state: TravelMateState) -> TravelMateState:
 
 def context_loader(state: TravelMateState) -> TravelMateState:
     next_state = _next_state(state, "context_loader")
-    next_state["user_profile"] = {
-        "dietaryPreferences": ["不吃香菜"],
-        "travelPace": "慢节奏",
-        "interestTags": ["夜景", "轻量美食"],
-    }
+    memory_context = next_state.get("context", {}).get("memoryContext") or {}
+    next_state["user_profile"] = aggregate_memory_profile(memory_context)
     return next_state
 
 
@@ -654,6 +652,25 @@ def _merge_trip_plan_tool_context(plan: dict[str, Any], state: TravelMateState) 
     merged = dict(plan)
     tool_context = _tool_context_from_trace(state.get("tool_trace", []))
     merged["externalContext"] = tool_context
+    memory_references = []
+    memory_context = state.get("context", {}).get("memoryContext") or {}
+    for item in memory_context.get("items", []) if isinstance(memory_context, dict) else []:
+        if not isinstance(item, dict) or not item.get("memoryId"):
+            continue
+        scope = str(item.get("scope") or "")
+        memory_references.append(
+            {
+                "memoryId": str(item["memoryId"]),
+                "title": str(item.get("title") or "已确认偏好"),
+                "scope": scope,
+                "appliedReason": (
+                    "已作为当前行程的结构化约束参考。"
+                    if scope == "currentTrip"
+                    else "已作为长期旅行偏好参考。"
+                ),
+            }
+        )
+    merged["memoryReferences"] = memory_references[:8]
 
     profile_matches = list(merged.get("profileMatches") or [])
     pois = tool_context.get("pois") or []
@@ -1178,4 +1195,3 @@ def error_fallback(state: TravelMateState) -> TravelMateState:
             "errors": [{"code": "GRAPH_EMPTY_RESPONSE", "message": "\u672a\u751f\u6210\u6b63\u5f0f\u54cd\u5e94"}],
         }
     return next_state
-

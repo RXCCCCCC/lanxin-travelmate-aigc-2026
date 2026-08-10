@@ -44,6 +44,7 @@ class TripPlanningOutput(BaseModel):
     destination: str
     summary: str
     profileMatches: list[str] = Field(default_factory=list)
+    memoryReferences: list[dict[str, Any]] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
     alternatives: list[dict[str, Any]] = Field(default_factory=list)
     fallback: bool = False

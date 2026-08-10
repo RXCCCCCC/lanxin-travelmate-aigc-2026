@@ -19,6 +19,7 @@ from app.db.models import CloudUserProfile
 from app.db.session import get_session
 from app.schemas.agent import AgentChatRequest, AgentChatResponse
 from app.services.model_audit import persist_model_call_logs
+from app.services.memory_context import build_memory_context
 from app.services.trip_plan_formatter import sanitize_trip_plan_for_client
 
 
@@ -287,6 +288,7 @@ def chat(
     user_settings = _load_user_settings(session, effective_user_id)
     if user_settings:
         context["userSettings"] = user_settings
+    context["memoryContext"] = build_memory_context(session, effective_user_id, request.tripId)
     state = create_initial_state(
         message=request.message,
         session_id=request.sessionId,
@@ -312,6 +314,7 @@ def chat_stream(
     user_settings = _load_user_settings(session, effective_user_id)
     if user_settings:
         context["userSettings"] = user_settings
+    context["memoryContext"] = build_memory_context(session, effective_user_id, request.tripId)
     state = create_initial_state(
         message=request.message,
         session_id=request.sessionId,
