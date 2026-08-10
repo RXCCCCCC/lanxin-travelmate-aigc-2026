@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
@@ -6,12 +7,23 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers() -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"group-{uuid4().hex}", "displayName": "Group Organizer"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
+
+
 def test_group_coordination_persists_conflicts_compromise_and_privacy_summary():
-    trip_id = "group-trip-a"
+    headers = _guest_headers()
+    trip_id = f"group-trip-{uuid4().hex}"
     response = client.post(
         "/api/trip/group/coordinate",
+        headers=headers,
         json={
-            "userId": "organizer-a",
+            "userId": "guest",
             "tripId": trip_id,
             "destination": "重庆",
             "members": [
@@ -54,7 +66,11 @@ def test_group_coordination_persists_conflicts_compromise_and_privacy_summary():
     assert payload["privacySummary"]["sensitiveMemberDetailsHidden"] is True
     assert "脚踝不适" not in str(payload["privacySummary"])
 
-    read_back = client.get("/api/trip/group/coordination", params={"tripId": trip_id})
+    read_back = client.get(
+        "/api/trip/group/coordination",
+        headers=headers,
+        params={"tripId": trip_id},
+    )
 
     assert read_back.status_code == 200
     saved = read_back.json()

@@ -8,11 +8,20 @@ from app.main import app
 client = TestClient(app)
 
 
+def _guest_headers(label: str) -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"reminder-{label}-{uuid4().hex}", "displayName": "Reminder Guest"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
+
+
 def test_reminder_evaluate_triggers_from_context_and_respects_cooldown():
-    user_id = f"reminder-eval-{uuid4().hex}"
+    headers = _guest_headers("evaluate")
     trip_id = f"trip-{uuid4().hex}"
     payload = {
-        "userId": user_id,
+        "userId": "guest",
         "tripId": trip_id,
         "proactivityLevel": "standard",
         "currentTime": "2026-06-20T18:20:00+08:00",
@@ -21,8 +30,8 @@ def test_reminder_evaluate_triggers_from_context_and_respects_cooldown():
         "external": {"weatherWarning": "rain", "queueLevel": "high"},
     }
 
-    first = client.post("/api/trip/reminders/evaluate", json=payload)
-    second = client.post("/api/trip/reminders/evaluate", json=payload)
+    first = client.post("/api/trip/reminders/evaluate", headers=headers, json=payload)
+    second = client.post("/api/trip/reminders/evaluate", headers=headers, json=payload)
 
     assert first.status_code == 200
     first_payload = first.json()
@@ -37,16 +46,22 @@ def test_reminder_evaluate_triggers_from_context_and_respects_cooldown():
     assert second_payload["suppressedReason"] == "cooldown"
     assert second_payload["cooldownRemainingSeconds"] > 0
 
-    history = client.get("/api/trip/reminders/history", params={"userId": user_id, "tripId": trip_id})
+    history = client.get(
+        "/api/trip/reminders/history",
+        headers=headers,
+        params={"tripId": trip_id},
+    )
     assert history.status_code == 200
     assert len(history.json()["items"]) == 1
 
 
 def test_reminder_evaluate_honors_quiet_proactivity():
+    headers = _guest_headers("quiet")
     response = client.post(
         "/api/trip/reminders/evaluate",
+        headers=headers,
         json={
-            "userId": f"quiet-{uuid4().hex}",
+            "userId": "guest",
             "tripId": f"trip-{uuid4().hex}",
             "proactivityLevel": "quiet",
             "currentTime": "2026-06-20T18:20:00+08:00",
