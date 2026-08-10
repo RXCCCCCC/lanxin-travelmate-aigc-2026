@@ -1,9 +1,19 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
 
 client = TestClient(app)
+
+
+def _guest_headers(label: str) -> dict[str, str]:
+    response = client.post(
+        "/api/auth/guest",
+        json={"deviceId": f"audio-{label}-{uuid4().hex}", "displayName": "Audio Guest"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
 
 
 def test_audio_status_reports_fallback_readiness():
@@ -17,10 +27,12 @@ def test_audio_status_reports_fallback_readiness():
 
 
 def test_audio_asr_returns_text_and_trace_id():
+    headers = _guest_headers("asr")
     response = client.post(
         "/api/audio/asr",
+        headers=headers,
         json={
-            "userId": "audio-user-a",
+            "userId": "guest",
             "audioRef": "file-audio-1",
             "mockText": "我想用语音规划重庆两天",
         },
@@ -34,10 +46,12 @@ def test_audio_asr_returns_text_and_trace_id():
 
 
 def test_audio_tts_returns_voice_text_and_trace_id():
+    headers = _guest_headers("tts")
     response = client.post(
         "/api/audio/tts",
+        headers=headers,
         json={
-            "userId": "audio-user-a",
+            "userId": "guest",
             "text": "蓝小心正在规划你的路线。",
             "voice": "lanxiaoxin",
         },

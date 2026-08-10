@@ -122,12 +122,14 @@ def test_guest_can_upgrade_to_password_account_without_losing_owned_data():
     assert guest.status_code == 200
     guest_payload = guest.json()
     guest_user_id = guest_payload["userId"]
+    guest_headers = {"Authorization": f"Bearer {guest_payload['accessToken']}"}
 
     memory = client.post(
         "/api/memory/capsules",
+        headers=guest_headers,
         json={
             "id": f"mem-upgrade-device-{suffix}",
-            "userId": guest_user_id,
+            "userId": "guest",
             "title": "Night view",
             "content": "Keep night-view spots in plans.",
             "scope": "longTerm",
@@ -136,8 +138,9 @@ def test_guest_can_upgrade_to_password_account_without_losing_owned_data():
     assert memory.status_code == 200
     trip = client.post(
         "/api/trip/plan",
+        headers=guest_headers,
         json={
-            "userId": guest_user_id,
+            "userId": "guest",
             "tripId": f"trip-upgrade-device-{suffix}",
             "destination": "Chongqing",
             "message": "Plan two relaxed days.",
@@ -178,7 +181,8 @@ def test_guest_can_upgrade_to_password_account_without_losing_owned_data():
     assert login.status_code == 200
     assert login.json()["userId"] == guest_user_id
 
-    memories = client.get("/api/memory/capsules", params={"userId": guest_user_id})
-    current_trip = client.get("/api/trip/current", params={"userId": guest_user_id})
+    upgraded_headers = {"Authorization": f"Bearer {upgraded_payload['accessToken']}"}
+    memories = client.get("/api/memory/capsules", headers=upgraded_headers)
+    current_trip = client.get("/api/trip/current", headers=upgraded_headers)
     assert any(item["id"] == f"mem-upgrade-device-{suffix}" for item in memories.json()["items"])
     assert current_trip.json()["tripId"] == f"trip-upgrade-device-{suffix}"
