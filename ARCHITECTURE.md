@@ -142,6 +142,21 @@ Agent 路由在创建 state 前从数据库加载最小化 `memoryContext`：
 | 模型调用 | 不直接调用 | OpenAI 兼容 Provider 结构化校验 |
 | 审计日志 | 不涉及 | 脱敏日志落库 |
 
+## Agent Run、Trace 与 HITL
+
+每次聊天请求先创建或复用 `AgentRunRecord`，主键与关联字段包含 `run_id/request_id/user_id/session_id/trip_id/idempotency_key`。运行记录保存状态、意图、Prompt 版本、创建/更新时间和 24 小时 TTL；`state_json` 只保留旅行约束、记忆引用、ToolPlan、工具 Trace、节点 Trace、模型调用摘要和确认状态，不保存完整用户消息、recentMessages 或完整回复原文。
+
+`TravelMateGraph.invoke_traced()` 复用 LangGraph 逐节点更新流，记录节点名称、`elapsedMs` 和完成状态。模型调用 Trace 关联 provider、scenario、fallback 和错误类型；Provider 未报告 Token usage 时明确写入 `{"status":"unknown"}`，不根据文本长度伪造。
+
+需要显式同意的记忆候选会使 run 进入 `pending_confirmation`：
+
+1. 响应返回 `runId/requestId/resumeToken`。
+2. 服务端只保存 resume token 的 SHA-256 哈希和结构化候选，不保存原始对话。
+3. `POST /api/agent/runs/{run_id}/resume` 校验当前用户、token、TTL 和既有决策。
+4. `confirm` 将选中候选写为当前用户 `confirmed` 记忆；`cancel` 完成 run 但不保存记忆。
+5. 相同决策重复调用返回相同结果；冲突决策返回 409。
+6. `GET /api/agent/runs/{run_id}` 只允许当前用户读取，并移除 token hash 与内部记忆值。
+
 ## Agent 评测
 
 `services/api/evals/` 提供不依赖真实 Provider 的确定性评测：
@@ -150,8 +165,7 @@ Agent 路由在创建 state 前从数据库加载最小化 `memoryContext`：
 - Runner 输出 JSON 与 Markdown 报告。
 - 指标包含意图准确率、工具选择准确率、目的地一致性、记忆命中率、敏感确认规则、Schema 通过率及 P50/P95。
 - 当前本地基线为 32/32 通过。
-
-服务端持久化 `AgentRun`、HITL interrupt/resume 和 CI 评测门禁仍属于下一阶段；数据库表与 CI 工作流修改将在单独确认后执行。
+- GitHub Actions 的 API job 在 pytest 后运行确定性 Runner；失败时阻塞 CI，并通过 artifact 上传 JSON/Markdown 报告。真实 Provider smoke 继续按 secrets 条件执行，不作为普通 PR 的稳定门禁。
 
 端侧不直接调用大模型 API，所有模型调用通过后端 Agent 统一管理，便于审计和降级控制。
 

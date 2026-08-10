@@ -12,14 +12,17 @@
 - 多轮上下文与目的地继承：客户端携带最近对话，追问“第一天晚上去哪”能正确继承上轮目的地。
 - 真实数据优先：蓝心/OpenAI 兼容模型 + 高德天气/POI/路线真实 Provider，无 Key 或异常时明确降级标注，不用假数据冒充。
 - 隐私与审计：模型调用日志脱敏（密钥/原文摘要化），记忆写入需用户确认。
+- 可恢复运行状态：每次请求生成 `runId/requestId`，服务端持久化脱敏结构化状态、节点耗时、模型/工具摘要和 24 小时 TTL，不保存完整聊天原文。
+- Human-in-the-loop：需显式同意的记忆候选进入 `pending_confirmation`，确认/取消接口具备用户隔离、resume token、过期校验和幂等语义。
 - 工程化：Docker Compose 一键部署（含 Postgres + Alembic 迁移）、公网 HTTPS API、真机验证、CI 预检脚本。
-- 确定性评测：内置 32 条中文 Golden Cases，覆盖意图、目的地、记忆、敏感确认、工具选择和降级，无密钥环境可运行。
+- 确定性评测：内置 32 条中文 Golden Cases，覆盖意图、目的地、记忆、敏感确认、工具选择和降级，无密钥环境可运行，并已接入 GitHub Actions 门禁与报告产物上传。
 
 ## 架构
 
 详细架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，包含系统图、Agent 状态机流程、SSE 流式机制、端云分工和技术选型理由。
 
 - Agent 评测方法与当前指标：[docs/engineering/agent-evaluation.md](docs/engineering/agent-evaluation.md)
+- Agent Run、Trace 与 HITL：[docs/engineering/agent-observability.md](docs/engineering/agent-observability.md)
 - 面试官 5 分钟验收：[docs/handoff/final-acceptance.md](docs/handoff/final-acceptance.md)
 - 面试追问与简历描述：[INTERVIEW_PREP.md](INTERVIEW_PREP.md)
 
@@ -102,6 +105,8 @@ uv run python -m evals.runner --output-dir artifacts/evals
 ```
 
 当前确定性基线为 32/32 Case 通过；评测会输出 JSON 和 Markdown 报告，并统计意图准确率、工具选择准确率、目的地一致性、记忆命中率、敏感确认规则、Schema 通过率和 P50/P95 延迟。
+
+`/api/agent/chat` 与 `/api/agent/chat/stream` 会返回 `runId/requestId/status`。当 `status=pending_confirmation` 时，客户端可使用 `resumeToken` 调用 `POST /api/agent/runs/{runId}/resume` 确认或取消记忆；`GET /api/agent/runs/{runId}` 可查询当前用户范围内的脱敏 Trace。
 
 2026 年 8 月 10 日完整回归基线：后端 `213 passed`，Flutter `108 passed`，`flutter analyze` 无问题。
 

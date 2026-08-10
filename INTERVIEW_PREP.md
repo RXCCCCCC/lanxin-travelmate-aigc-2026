@@ -60,11 +60,17 @@
 - 建立 32 条中文 Golden Cases，不依赖 API Key。
 - 覆盖聊天、规划、复盘、目的地继承/漂移、长期/本次/敏感记忆、工具选择、Provider/Schema/限流降级。
 - 当前确定性基线：32/32 通过；意图、工具选择、目的地、记忆、敏感确认和 Schema 指标均为 100%。
-- Runner 输出 JSON 和 Markdown，可直接作为回归证据；真实 Provider 评测与确定性 CI 分离。
+- Runner 输出 JSON 和 Markdown，可直接作为回归证据；GitHub Actions 将确定性评测作为 API job 门禁并上传报告，真实 Provider smoke 仍按 secrets 条件执行。
+
+### 9. Agent Run 与 Human-in-the-loop
+- 每次聊天生成 `runId/requestId`，服务端通过 SQLModel + Alembic 持久化用户隔离的结构化状态、节点耗时、模型/工具摘要、Prompt 版本和 TTL，不保存完整聊天原文。
+- 需显式同意的记忆候选进入 `pending_confirmation`；resume API 校验当前用户、token 哈希、24 小时 TTL 和既有决策。
+- 确认后使用“用户 + 候选 ID”的稳定主键写入记忆，重复确认幂等；取消后 run 继续完成但不写记忆，跨用户读取与恢复统一返回不可见。
+- 这里采用业务级 interrupt/resume，而非声称使用 LangGraph checkpointer：中断的是记忆副作用，Agent 回复已完成，边界更清晰且易于演示。
 
 ## 四、架构速览
 
-- 请求流：Flutter → /api/agent/chat → LangGraph（input_normalizer → intent_router → memory_extractor → trip_context_builder → trip_planner(工具调用) → avatar/rapport → response_composer）→ 结构化响应（replyText/avatarState/emotion/cards/memoryCandidates/toolTrace/nextActions）。
+- 请求流：Flutter → `/api/agent/chat` → AgentRun → LangGraph（input_normalizer → intent_router → memory_extractor → trip_context_builder → tool_planner/tool_executor → trip_planner → response_composer）→ 结构化响应与脱敏 Trace → 必要时 HITL resume。
 - 端云分工：端侧 Drift 存聊天历史与离线兜底；云端 Postgres 存记忆/行程/复盘/审计。
 - 工程文档：docs/engineering/（API 契约、Agent 图、隐私合规、数据库迁移）。
 
@@ -77,8 +83,8 @@
 
 ## 六、当前状态与已知不足（诚实回答用）
 
-- 已完成：多用户安全边界、真实按 scope 过滤的记忆上下文、通用画像聚合、`memoryReferences`、受约束动态 ToolPlan、并行工具执行、统一 IntentDecision、32 条 Golden Cases、移动端 Agent 依据展示，以及原有规划/提醒/旅拍/复盘/SSE/多轮体验。
-- 进行中：服务端 AgentRun、HITL interrupt/resume、运行级 Trace、CI 评测门禁和最终验收；其中数据库迁移与 CI 修改需单独确认。
+- 已完成：多用户安全边界、真实按 scope 过滤的记忆上下文、通用画像聚合、`memoryReferences`、受约束动态 ToolPlan、并行工具执行、统一 IntentDecision、AgentRun、业务级 HITL、运行级 Trace、32 条 Golden Cases、CI 评测门禁、移动端 Agent 依据展示，以及原有规划/提醒/旅拍/复盘/SSE/多轮体验。
+- 进行中：最终全量回归与文档收尾。
 - 已知不足：流式为阶段级而非 token 级；2D 数字人为静态立绘+状态表情；iOS 不在当前范围；不制作 PPT，展示材料以仓库文档和可运行验收为主。
 
 ## 七、简历项目描述候选
@@ -87,3 +93,4 @@
 - 构建受约束 `ToolPlan`：通过 Pydantic、工具白名单和 DAG 校验限制模型行为，并行执行无依赖工具，单步失败可隔离降级且保留步骤级 Trace。
 - 实现隐私可控记忆：仅加载当前用户已确认且场景允许的记忆，敏感内容最小化进入模型，并通过 `memoryReferences` 向用户解释规划依据。
 - 建立 32 条无密钥 Golden Cases，当前确定性评测在意图、工具选择、目的地一致性、记忆和敏感确认规则上均达到 100%。
+- 实现用户隔离的 Agent Run 与 HITL：持久化脱敏结构化状态和节点耗时，以 token + TTL + 幂等决策控制记忆确认/取消，并提供当前用户范围内 Trace 查询。
