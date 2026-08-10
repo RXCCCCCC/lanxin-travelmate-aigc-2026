@@ -10,7 +10,7 @@ dist/
 build/
 .coverage/
 coverage/
-artifacts/evals/
+**/artifacts/evals/
 
 # Python / uv
 .venv/
