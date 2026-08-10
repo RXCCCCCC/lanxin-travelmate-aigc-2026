@@ -276,3 +276,15 @@
 - 验证：flutter analyze 全局无问题；home_dashboard_test + chat_page_integration_test 共 11 passed；后端 test_agent_api 10 passed；py_compile 通过。
 - 公网部署已确认：api.rxcccccc.icu 已重建 Docker 镜像，/api/agent/chat/stream SSE 流式端点可用，8 个 stage 事件正常推送。
 - dev 分支已推送 origin/dev（2a2c6e8 及之前），后续提交待用户确认推送。
+
+## 2026-08-10 Agent 实习作品工程化进度
+
+- 项目主线已从比赛提交切换为 Agent 应用开发实习简历作品；不再制作 PPT，展示材料以 README、架构文档、面试材料和可运行验收为主。
+- 安全基线完成：记忆单条更新/删除增加用户所有权校验，审计接口要求认证并按用户隔离；提交 `374f259`。
+- 真实记忆上下文完成：按当前用户、`confirmed`、`longTerm/currentTrip` 和 `tripId` 加载，敏感内容最小化，规划返回 `memoryReferences`；提交 `90b002b`。
+- 动态工具完成：结构化 ToolPlan、白名单与 DAG 校验、确定性降级、并行执行、步骤级 Trace、统一 IntentDecision；提交 `d257df8`、`eac2171`、`3f9cc8e`。
+- 确定性评测完成：32 条 Golden Cases 全部通过，意图、工具选择、目的地、记忆、敏感确认和 Schema 指标均为 100%；提交 `0c59e0c`。
+- 移动端最小证据展示完成：行程页展示已参考记忆数量和天气/景点/路线工具依据；`trip_page_integration_test.dart` 10 条通过，`flutter analyze` 无问题；提交 `c050816`。
+- README 与 ARCHITECTURE 已同步当前真实实现；提交 `a77fea0`。
+- 当前待确认门槛：新增 AgentRun 数据表与 Alembic 迁移；修改 `.github/workflows/ci.yml` 加入确定性评测。未确认前继续推进不依赖这两项的文档和验收工作。
+- 本轮所有提交仅在本地 `dev` 分支，未自动推送或部署。

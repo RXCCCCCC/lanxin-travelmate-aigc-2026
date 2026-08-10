@@ -16,7 +16,7 @@
 - 赛道：第三届（2026）AIGC 创新赛应用赛道。
 - 产品方向：面向移动端出行场景的“全旅程 AI 旅游搭子”。
 - 核心差异点：长期记忆、隐私可控、主动陪伴、2D 形象化表达、完整旅程闭环。
-- 当前重点：主链路工程与交接材料已基本成型，优先真实模型、真实高德工具、Android/vivo 真机、Demo/PPT/提交材料验收。
+- 当前重点：将作品完善为 Agent 应用开发实习级简历项目，优先安全边界、真实记忆、动态工具、HITL、评测、Trace、移动端证据和面试材料。
 
 ## 仓库地图
 
@@ -25,7 +25,7 @@
 - `infra/docker-compose.yml`：本地 API + Postgres 编排，Docker API 可读取 `services/api/.env` 的真实模型/高德配置。
 - `docs/product/PRD.md`：产品需求与比赛叙事主文档。
 - `docs/engineering/`：API、Agent 图、技术设计、隐私合规、数据库迁移等工程文档。
-- `docs/handoff/`：AI/人工交接、验收、Demo、PPT、提交清单。
+- `docs/handoff/`：AI/人工交接、验收、运行与使用说明；历史比赛材料已归档，不作为当前主线。
 - `docs/reference/vivo-aigc/`：vivo AIGC 在线文档本地镜像；接入蓝心/ASR/TTS/LBS/端侧能力时优先查这里。
 - `project/img/`：蓝小心原始素材；新增原始角色图和图片统一放这里。
 - `docs/todo.md`：剩余人工事项总表；不要把 Mock 或固定演示数据标为真实完成。
@@ -168,7 +168,6 @@ PRD 不是单点问答助手，而是“全旅程 AI 旅游搭子”。理解需
 - 端到端验收：`docs/handoff/e2e-acceptance.md`
 - Demo 脚本：`docs/handoff/demo-script.md`
 - Demo 证据包：`docs/handoff/demo-evidence-pack.md`
-- PPT 大纲：`docs/handoff/presentation-outline.md`
 - 提交清单：`docs/handoff/submission-checklist.md`
 - 隐私合规：`docs/engineering/privacy-and-compliance.md`
 - API 契约：`docs/engineering/api-contract.md`
@@ -182,3 +181,4 @@ PRD 不是单点问答助手，而是“全旅程 AI 旅游搭子”。理解需
 - 不要提交真实 `.env` 或任何密钥。
 - 不要删除素材、历史文档、平台文件或大文件，除非用户明确确认。
 - 不要把当前状态流水账继续追加到本文件；写入 `docs/handoff/ai-shared-state.md`。
+- 当前简历作品优化不制作 PPT，不要新增或维护 PPT 相关交付；需要展示时优先维护 README、架构文档、面试材料和可运行验收命令。
