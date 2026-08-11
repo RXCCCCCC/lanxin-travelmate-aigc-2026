@@ -108,7 +108,7 @@ uv run python -m evals.runner --output-dir artifacts/evals
 
 `/api/agent/chat` 与 `/api/agent/chat/stream` 会返回 `runId/requestId/status`。当 `status=pending_confirmation` 时，客户端可使用 `resumeToken` 调用 `POST /api/agent/runs/{runId}/resume` 确认或取消记忆；`GET /api/agent/runs/{runId}` 可查询当前用户范围内的脱敏 Trace。
 
-2026 年 8 月 10 日完整回归基线：后端 `213 passed`，Flutter `108 passed`，`flutter analyze` 无问题。
+2026 年 8 月 11 日完整回归基线：后端 `223 passed`，Flutter `108 passed`，`flutter analyze` 无问题；Golden Cases 32/32；临时 Postgres 从空库升级到 `0009_agent_runs` 并回滚一版通过；高德天气/步行路线和 OpenAI 兼容模型真实 smoke 通过。
 
 前端：
 

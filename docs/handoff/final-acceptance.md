@@ -91,16 +91,22 @@ flutter test test/trip_page_integration_test.dart --no-pub
 - 移动端 Agent 依据展示；
 - README、架构和面试材料。
 
-尚未完成：
+本 Goal 范围内已完成：
 
-- 最终全量回归和真实 Provider 手动验收。
+- 最终全量回归；
+- 隔离 Postgres 完整迁移与回滚；
+- 高德天气、步行路线和 OpenAI 兼容模型真实 Provider smoke。
 
-## 2026-08-10 自动化验收结果
+未执行远程推送、生产部署、release 正式签名或真机主观体验验收；这些操作不属于当前自动化 Goal 的完成条件。
 
-- 后端完整测试：213 条通过。
+## 2026-08-11 自动化验收结果
+
+- 后端完整测试：223 条通过。
 - Flutter 完整测试：108 条通过。
 - Flutter 静态分析：无问题。
 - Agent Golden Cases：32/32 通过。
+- Postgres Alembic：空库升级到 `0009_agent_runs`，再回滚到 `0008_trip_review_scope` 通过。
+- 真实 Provider：高德天气/步行路线 `fallback=false`，OpenAI 兼容模型 `ok=true`。
 - Git 工作区：干净。
 - 未执行远程推送或部署。
 

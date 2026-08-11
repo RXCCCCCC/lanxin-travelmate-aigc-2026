@@ -2,7 +2,7 @@
 
 > 用途：给 Claude Code、Codex 和人工成员提供同一份短上下文。新会话优先读本文件，再按需读 `docs/todo.md`、`CLAUDE.md` 和具体代码。  
 > 维护口径：只写当前结论和下一步，不复述完整对话，不堆历史细节。  
-> 最近更新：2026-07-04 by Codex
+> 最近更新：2026-08-11 by Codex
 
 ## 当前阶段
 
@@ -286,8 +286,9 @@
 - 确定性评测完成：32 条 Golden Cases 全部通过，意图、工具选择、目的地、记忆、敏感确认和 Schema 指标均为 100%；提交 `0c59e0c`。
 - 移动端最小证据展示完成：行程页展示已参考记忆数量和天气/景点/路线工具依据；`trip_page_integration_test.dart` 10 条通过，`flutter analyze` 无问题；提交 `c050816`。
 - README 与 ARCHITECTURE 已同步当前真实实现；提交 `a77fea0`。
-- 当前待确认门槛：新增 AgentRun 数据表与 Alembic 迁移；修改 `.github/workflows/ci.yml` 加入确定性评测。未确认前继续推进不依赖这两项的文档和验收工作。
+- AgentRun、HITL、运行级 Trace 与 CI 门禁已完成：新增 `0009_agent_runs`，聊天返回 `runId/requestId/status`，显式记忆候选支持 token + TTL + 幂等 resume，CI 运行 32 条确定性评测并上传报告。
 - 本轮所有提交仅在本地 `dev` 分支，未自动推送或部署。
 - 2026-08-10 完整回归已收敛：首次全量测试暴露旧测试未适配认证、真实模型回复被固定文案覆盖、导航链接缺失和移动端过期静态守卫等问题；已分里程碑修复并提交。
-- 第二轮全量验收结果：后端 `213 passed`，Flutter `108 passed`，`flutter analyze` 无问题；Golden Cases 仍为 32/32。
-- 当前剩余核心工作只包括：经确认后新增 AgentRun/Alembic 迁移并实现 HITL 与运行级持久化 Trace；经确认后修改 CI 工作流加入确定性评测门禁。
+- 2026-08-11 最终验收：隔离数据库后端 `223 passed`，Flutter `108 passed`，`flutter analyze` 无问题，Golden Cases 32/32。
+- 隔离 Postgres 已从空库完整升级到 `0009_agent_runs` 并回滚到 `0008_trip_review_scope`；高德天气/步行路线与 OpenAI 兼容模型真实 smoke 均通过。
+- 当前 Goal 代码、评测和文档已完成；未自动推送、部署或配置 release 正式签名，后续如需远程交付必须单独执行 GitHub/部署流程。
