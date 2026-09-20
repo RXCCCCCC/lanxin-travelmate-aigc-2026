@@ -189,3 +189,5 @@ GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时�
 - `companion_chat`：校验 `ChatOutput`，生成最终聊天回复；失败时保留本地响应。
 
 每个模型场景都会在 `toolTrace` 或模型审计日志中标注 `provider`、`scenario`、`fallback` 和错误类型。未配置真实密钥或 schema 无效时必须明确降级，不计入真实数据验收。后端集成测试 `uv run pytest tests/test_model_providers.py -q` 覆盖同一个结构化 Provider 驱动记忆抽取、规划、复盘和聊天四个场景。
+
+test
