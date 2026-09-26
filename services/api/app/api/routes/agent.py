@@ -1,0 +1,483 @@
+import json
+from collections.abc import Iterator
+from time import perf_counter
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlmodel import Session, select
+
+from app.agents.travelmate.graph import TravelMateGraph
+from app.agents.travelmate.nodes.registry import (
+    CHAT_ONLY_NODE_SEQUENCE,
+    NODE_SEQUENCE,
+    PLAN_ONLY_NODE_SEQUENCE,
+    REVIEW_ONLY_NODE_SEQUENCE,
+)
+from app.agents.travelmate.nodes.fallback_nodes import build_rule_memory_candidates
+from app.agents.travelmate.state import create_initial_state
+from app.agents.travelmate.intent_routing import ensure_intent_decision
+from app.core.security import CurrentUser, get_current_user, resolve_effective_user_id
+from app.db.models import AgentRunRecord, CloudUserProfile
+from app.db.session import get_session
+from app.schemas.agent import (
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentRunResumeRequest,
+    AgentRunResumeResponse,
+)
+from app.services.agent_runs import (
+    AgentRunConflictError,
+    AgentRunExpiredError,
+    AgentRunNotFoundError,
+    ResumeTokenInvalidError,
+    fail_agent_run,
+    prepare_agent_run_completion,
+    resume_agent_run as resume_persisted_agent_run,
+    start_agent_run,
+)
+from app.services.model_audit import persist_model_call_logs
+from app.services.memory_context import build_memory_context
+from app.services.trip_plan_formatter import sanitize_trip_plan_for_client
+
+
+router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+def _load_user_settings(session: Session, user_id: str | None) -> dict[str, object]:
+    if not user_id:
+        return {}
+    profile = session.exec(select(CloudUserProfile).where(CloudUserProfile.user_id == user_id)).first()
+    if not profile:
+        return {}
+    data = json.loads(profile.profile_json)
+    return {
+        key: data.get(key)
+        for key in (
+            "personality",
+            "proactivityLevel",
+            "syncStrategy",
+            "notificationEnabled",
+            "voiceEnabled",
+            "textModePreferred",
+            "customPrompt",
+        )
+        if key in data
+    }
+
+
+def _compact_text(value: object, fallback: str = "") -> str:
+    text = str(value or "").strip()
+    return text or fallback
+
+
+def _safe_plan_reply_text(value: object, fallback: str = "") -> str:
+    text = _compact_text(value)
+    if not text:
+        return fallback
+    normalized = text.lower()
+    if (
+        "真实模型" in text
+        or "模型返回" in text
+        or "路线规划工具" in text
+        or "缺少坐标" in text
+        or "手动规划" in text
+        or "route_tool" in normalized
+        or "model_provider" in normalized
+        or "model fallback" in normalized
+        or "fallback model" in normalized
+        or "provider=" in normalized
+    ):
+        return fallback
+    english_letters = sum(1 for char in text if "a" <= char.lower() <= "z")
+    chinese_chars = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+    if english_letters and not chinese_chars:
+        return fallback
+    return text
+
+
+def _build_plan_chat_reply(plan: dict[str, object]) -> str:
+    destination = _safe_plan_reply_text(plan.get("destination"), "这次旅行")
+    title = _safe_plan_reply_text(plan.get("title"))
+    summary = _safe_plan_reply_text(
+        plan.get("summary"),
+        "我会把路线安排成更稳妥的版本，并提醒你出发前结合天气、体力和地图 App 再确认。",
+    )
+    alternatives = plan.get("alternatives")
+    first_alternative = alternatives[0] if isinstance(alternatives, list) and alternatives else {}
+    alternative_title = ""
+    alternative_summary = ""
+    if isinstance(first_alternative, dict):
+        alternative_title = _safe_plan_reply_text(first_alternative.get("title"))
+        alternative_summary = _safe_plan_reply_text(
+            first_alternative.get("summary"),
+            "适合在天气变化、排队拥挤或体力不足时切换。",
+        )
+
+    parts = [f"蓝小心先替你把{destination}这趟行程捋顺了。"]
+    if title:
+        parts.append(f"主线我先定成{title}。")
+    if summary:
+        parts.append(summary)
+    if alternative_title or alternative_summary:
+        alternative = "：".join(part for part in (alternative_title, alternative_summary) if part)
+        parts.append(f"我还顺手备了一条可切换方案，{alternative}")
+    parts.append("你继续告诉我预算、节奏、同行人，或者哪类地方坚决不去，我就直接贴着你的偏好往下改。")
+    return "".join(parts)
+
+
+def _compose_review_response(result: dict[str, object]) -> None:
+    reply = "\u590d\u76d8\u5df2\u7ecf\u751f\u6210\uff0c\u6211\u628a\u91cd\u70b9\u653e\u5728\u5b8c\u6210\u4efb\u52a1\u3001\u7167\u7247\u9ad8\u5149\u548c\u4e0b\u6b21\u5efa\u8bae\u4e0a\u3002"
+    result["response"] = {
+        "replyText": reply,
+        "voiceText": reply,
+        "avatarState": "after_playing",
+        "emotion": "reflective",
+        "cards": [{"type": "tripReview", "payload": result.get("review", {})}],
+        "memoryCandidates": [],
+        "toolTrace": result.get("tool_trace", []),
+        "nextActions": [],
+        "syncSuggestions": [],
+        "errors": result.get("errors", []),
+    }
+
+
+def _compose_plan_response(result: dict[str, object], message: str) -> None:
+    memory_candidates = build_rule_memory_candidates(message)
+    trip_plan = sanitize_trip_plan_for_client(
+        result.get("trip_plan", {}) if isinstance(result.get("trip_plan"), dict) else {},
+        requested_destination=str(result.get("trip_context", {}).get("destination") or ""),
+        message=message,
+    )
+    reply = _build_plan_chat_reply(trip_plan if isinstance(trip_plan, dict) else {})
+    result["response"] = {
+        "replyText": reply,
+        "voiceText": reply,
+        "avatarState": "planning",
+        "emotion": "curious",
+        "cards": [{"type": "tripPlan", "payload": trip_plan}],
+        "memoryCandidates": memory_candidates,
+        "toolTrace": result.get("tool_trace", []),
+        "nextActions": [{"type": "openTripPlan", "label": "\u67e5\u770b\u884c\u7a0b"}],
+        "syncSuggestions": [],
+        "errors": result.get("errors", []),
+    }
+
+
+def _route_agent_graph(graph: TravelMateGraph, state: dict[str, object]) -> dict[str, object]:
+    message = str(state.get("message") or "")
+    mode = str(ensure_intent_decision(state)["mode"])
+    node_trace: list[dict[str, object]] = []
+    if hasattr(graph, "invoke_traced"):
+        result, node_trace = graph.invoke_traced(state, mode=mode)
+    elif mode == "review":
+        result = graph.invoke_review_only(state)
+    elif mode == "plan":
+        result = graph.invoke_plan_only(state)
+    else:
+        result = graph.invoke_chat_only(state)
+
+    if mode == "review":
+        _compose_review_response(result)
+    elif mode == "plan":
+        _compose_plan_response(result, message)
+    result["node_trace"] = node_trace
+    return result
+
+
+_NODE_STAGE_LABELS = {
+    "input_normalizer": "\u7406\u89e3\u4f60\u7684\u9700\u6c42",
+    "context_loader": "\u56de\u5fc6\u4f60\u7684\u65c5\u884c\u753b\u50cf",
+    "intent_router": "\u5224\u65ad\u5982\u4f55\u5e2e\u4f60",
+    "memory_extractor": "\u8bc6\u522b\u65b0\u7684\u65c5\u884c\u504f\u597d",
+    "trip_context_builder": "\u6574\u7406\u884c\u7a0b\u7ea6\u675f",
+    "tool_planner": "\u51c6\u5907\u5929\u6c14\u4e0e\u5730\u70b9\u67e5\u8be2",
+    "tool_executor": "\u67e5\u8be2\u5b9e\u65f6\u5929\u6c14\u4e0e\u666f\u70b9",
+    "trip_planner": "\u751f\u6210\u4e2a\u6027\u5316\u8def\u7ebf",
+    "trip_adjuster": "\u4f18\u5316\u8def\u7ebf\u7ec6\u8282",
+    "fast_chat_response": "\u7ec4\u7ec7\u56de\u590d",
+    "review_generator": "\u751f\u6210\u65c5\u884c\u590d\u76d8",
+    "response_composer": "\u6574\u7406\u56de\u590d",
+}
+
+
+_SEQUENCE_BY_STREAM_MODE = {
+    "full": NODE_SEQUENCE,
+    "plan": PLAN_ONLY_NODE_SEQUENCE,
+    "review": REVIEW_ONLY_NODE_SEQUENCE,
+    "chat": CHAT_ONLY_NODE_SEQUENCE,
+}
+
+
+def _stream_agent_events(
+    graph: TravelMateGraph,
+    state: dict[str, object],
+    session: Session,
+    run: AgentRunRecord,
+) -> Iterator[str]:
+    message = str(state.get("message") or "")
+    mode = str(ensure_intent_decision(state)["mode"])
+    merged_state: dict[str, object] = dict(state)
+    node_trace: list[dict[str, object]] = []
+
+    def _stage_event(node: str) -> str:
+        payload = json.dumps(
+            {"type": "stage", "node": node, "label": _NODE_STAGE_LABELS[node]},
+            ensure_ascii=False,
+        )
+        return f"event: stage\ndata: {payload}\n\n"
+
+    try:
+        sequence = list(_SEQUENCE_BY_STREAM_MODE.get(mode, []))
+        labeled = [name for name in sequence if name in _NODE_STAGE_LABELS]
+        # 先推送第一个阶段，之后每完成一个节点推送下一个“正在进行”的阶段
+        if labeled:
+            yield _stage_event(labeled[0])
+        started = perf_counter()
+        for node_name, node_state in graph.stream_nodes(state, mode=mode):
+            node_trace.append(
+                {
+                    "node": node_name,
+                    "elapsedMs": int((perf_counter() - started) * 1000),
+                    "status": "completed",
+                }
+            )
+            if isinstance(node_state, dict):
+                merged_state.update(node_state)
+            started = perf_counter()
+            if node_name in labeled:
+                index = labeled.index(node_name)
+                if index + 1 < len(labeled):
+                    yield _stage_event(labeled[index + 1])
+        if mode == "review":
+            _compose_review_response(merged_state)
+        elif mode == "plan":
+            _compose_plan_response(merged_state, message)
+        elif "response" not in merged_state:
+            merged_state["response"] = {
+                "replyText": "\u6211\u5148\u7528\u79bb\u7ebf\u6a21\u5f0f\u966a\u4f60\u89c4\u5212\u3002",
+                "voiceText": "",
+                "avatarState": "thinking",
+                "emotion": "fallback",
+                "cards": [],
+                "memoryCandidates": [],
+                "toolTrace": merged_state.get("tool_trace", []),
+                "nextActions": [],
+                "syncSuggestions": [],
+                "errors": [{"code": "GRAPH_EMPTY_RESPONSE", "message": "\u672a\u751f\u6210\u6b63\u5f0f\u54cd\u5e94"}],
+            }
+        persist_model_call_logs(session, merged_state.get("model_call_logs", []))
+        completed_run, resume_token = prepare_agent_run_completion(
+            session,
+            run,
+            result=merged_state,
+            node_trace=node_trace,
+        )
+        response = AgentChatResponse.model_validate(merged_state["response"]).model_copy(
+            update={
+                "runId": completed_run.run_id,
+                "requestId": completed_run.request_id,
+                "status": completed_run.status,
+                "resumeToken": resume_token,
+            }
+        )
+        payload = response.model_dump_json(exclude_none=True)
+        yield f"event: final\ndata: {payload}\n\n"
+    except Exception as exc:  # noqa: BLE001 - \u6d41\u5f0f\u901a\u9053\u5185\u5fc5\u987b\u81ea\u884c\u5151\u5e95
+        fail_agent_run(session, run, error=exc, node_trace=node_trace)
+        payload = json.dumps(
+            {
+                "type": "error",
+                "message": "Agent 运行失败，请稍后重试。",
+                "runId": run.run_id,
+                "requestId": run.request_id,
+            },
+            ensure_ascii=False,
+        )
+        yield f"event: error\ndata: {payload}\n\n"
+
+
+@router.post(
+    "/chat",
+    response_model=AgentChatResponse,
+    response_model_exclude_none=True,
+    summary="Agent 聊天（非流式）",
+)
+def chat(
+    request: AgentChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AgentChatResponse:
+    graph = TravelMateGraph()
+    effective_user_id = resolve_effective_user_id(request.userId, current_user)
+    run = start_agent_run(
+        session,
+        user_id=effective_user_id,
+        session_id=request.sessionId,
+        trip_id=request.tripId,
+        idempotency_key=request.idempotencyKey,
+    )
+    context = dict(request.context or {})
+    user_settings = _load_user_settings(session, effective_user_id)
+    if user_settings:
+        context["userSettings"] = user_settings
+    context["memoryContext"] = build_memory_context(session, effective_user_id, request.tripId)
+    state = create_initial_state(
+        message=request.message,
+        session_id=request.sessionId,
+        user_id=effective_user_id,
+        trip_id=request.tripId,
+        context=context,
+    )
+    try:
+        result = _route_agent_graph(graph, state)
+        persist_model_call_logs(session, result.get("model_call_logs", []))
+        completed_run, resume_token = prepare_agent_run_completion(
+            session,
+            run,
+            result=result,
+            node_trace=result.get("node_trace", []),
+        )
+        return AgentChatResponse.model_validate(result["response"]).model_copy(
+            update={
+                "runId": completed_run.run_id,
+                "requestId": completed_run.request_id,
+                "status": completed_run.status,
+                "resumeToken": resume_token,
+            }
+        )
+    except Exception as exc:
+        fail_agent_run(session, run, error=exc)
+        raise
+
+
+@router.post("/chat/stream", summary="Agent 聊天（SSE 流式）")
+def chat_stream(
+    request: AgentChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    """SSE \u6d41\u5f0f\u7248\u804a\u5929\uff1a\u5148\u63a8\u9001\u9010\u8282\u70b9\u9636\u6bb5\u4e8b\u4ef6\uff0c\u6700\u540e\u63a8\u9001\u5b8c\u6574\u54cd\u5e94\u3002"""
+    graph = TravelMateGraph()
+    effective_user_id = resolve_effective_user_id(request.userId, current_user)
+    run = start_agent_run(
+        session,
+        user_id=effective_user_id,
+        session_id=request.sessionId,
+        trip_id=request.tripId,
+        idempotency_key=request.idempotencyKey,
+    )
+    context = dict(request.context or {})
+    user_settings = _load_user_settings(session, effective_user_id)
+    if user_settings:
+        context["userSettings"] = user_settings
+    context["memoryContext"] = build_memory_context(session, effective_user_id, request.tripId)
+    state = create_initial_state(
+        message=request.message,
+        session_id=request.sessionId,
+        user_id=effective_user_id,
+        trip_id=request.tripId,
+        context=context,
+    )
+    return StreamingResponse(
+        _stream_agent_events(graph, state, session, run),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post(
+    "/runs/{run_id}/resume",
+    response_model=AgentRunResumeResponse,
+    summary="恢复待人工确认的 Agent Run",
+)
+def resume_run(
+    run_id: str,
+    payload: AgentRunResumeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AgentRunResumeResponse:
+    effective_user_id = resolve_effective_user_id(None, current_user)
+    try:
+        result = resume_persisted_agent_run(
+            session,
+            run_id=run_id,
+            user_id=effective_user_id,
+            resume_token=payload.resumeToken,
+            action=payload.action,
+            candidate_ids=payload.candidateIds,
+        )
+    except AgentRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Agent run not found") from exc
+    except AgentRunExpiredError as exc:
+        raise HTTPException(status_code=410, detail="Agent run expired") from exc
+    except ResumeTokenInvalidError as exc:
+        raise HTTPException(status_code=403, detail="Resume token is invalid") from exc
+    except AgentRunConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return AgentRunResumeResponse(
+        runId=result.run_id,
+        requestId=result.request_id,
+        status=result.status,
+        action=result.action,
+        savedMemoryIds=result.saved_memory_ids,
+        alreadyApplied=result.already_applied,
+    )
+
+
+@router.get("/runs/{run_id}", summary="查询当前用户的 Agent Run Trace")
+def read_run(
+    run_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    effective_user_id = resolve_effective_user_id(None, current_user)
+    record = session.exec(
+        select(AgentRunRecord).where(
+            AgentRunRecord.run_id == run_id,
+            AgentRunRecord.user_id == effective_user_id,
+        )
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+    state = json.loads(record.state_json or "{}")
+    pending = state.get("pendingConfirmation")
+    if isinstance(pending, dict):
+        visible_pending = dict(pending)
+        visible_pending.pop("tokenHash", None)
+        candidates = visible_pending.get("candidates")
+        if isinstance(candidates, list):
+            visible_pending["candidates"] = [
+                {
+                    key: value
+                    for key, value in candidate.items()
+                    if key != "memoryValue"
+                }
+                for candidate in candidates
+                if isinstance(candidate, dict)
+            ]
+        state["pendingConfirmation"] = visible_pending
+    return {
+        "runId": record.run_id,
+        "requestId": record.request_id,
+        "sessionId": record.session_id,
+        "tripId": record.trip_id,
+        "status": record.status,
+        "intent": record.intent,
+        "summary": record.summary,
+        "promptVersion": record.prompt_version,
+        "createdAt": record.created_at.isoformat(),
+        "updatedAt": record.updated_at.isoformat(),
+        "expiresAt": record.expires_at.isoformat(),
+        "state": state,
+    }
+
+
+@router.get("/avatar-state", summary="蓝小心状态查询")
+def read_avatar_state() -> dict[str, int | str]:
+    return {
+        "energy": 85,
+        "mood": "planning",
+        "curiosity": 76,
+        "rapport": 13,
+        "affection": 38,
+    }

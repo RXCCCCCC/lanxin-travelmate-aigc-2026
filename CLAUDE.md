@@ -1,147 +1,185 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件是本仓库给 Claude Code / Codex / 其他 AI 助手的项目级硬规则入口。动态状态不要继续堆在这里：阶段性结论写入 `docs/handoff/ai-shared-state.md`，剩余人工事项写入 `docs/todo.md`。
+
+## 新会话必读顺序
+
+1. 先读 `docs/handoff/ai-shared-state.md`：当前阶段、最近结论、下一步、真实联调状态。
+2. 再读 `docs/todo.md`：只看仍需人工、真机、真实密钥、授权、提交确认的事项。
+3. 按任务需要再读具体源码、PRD、工程文档或交接文档。
+4. 阶段性工作结束时，用 3 到 8 条短 bullet 更新 `docs/handoff/ai-shared-state.md`；不要写入密钥、Token、私人位置、未授权素材或用户敏感原文。
 
 ## 项目定位
 
-本仓库用于第三届（2026）AIGC创新赛应用赛道，目前处于PRD修改与优化阶段。当前核心产物是面向初赛的产品策划、技术方案、原型说明和后续MVP规划，而不是已成型的软件工程代码库。
+- 项目名称：蓝心同行。
+- 角色名：蓝小心。
+- 赛道：第三届（2026）AIGC 创新赛应用赛道。
+- 产品方向：面向移动端出行场景的“全旅程 AI 旅游搭子”。
+- 核心差异点：长期记忆、隐私可控、主动陪伴、2D 形象化表达、完整旅程闭环。
+- 当前重点：将作品完善为 Agent 应用开发实习级简历项目，优先安全边界、真实记忆、动态工具、HITL、评测、Trace、移动端证据和面试材料。
 
-产品方向是“蓝心同行：懂你的全旅程AI旅游搭子”，一个面向移动终端出行场景的个性化AI Agent。核心差异点是长期记忆、可控隐私、主动陪伴、2D形象化表达和完整旅程闭环。
+## 仓库地图
 
-## 当前仓库结构
-
-- `PRD.md`：核心产品需求文档，包含产品定位、用户痛点、功能需求、技术架构、Demo剧本和里程碑。
-- `材料中有用的信息.md`：比赛资源、开发环境、蓝心大模型能力、快应用方案、提交清单和评分要点摘要。
-- `材料/`：大赛宣讲PDF材料，包括AIGC创新赛介绍、蓝心大模型、蓝心九问平台、快应用平台。
-- 根目录PDF/PPTX：参赛声明、赛事附件、应用赛道初赛作品策划模板。
-- `AIGC.zip`：材料压缩包备份，内容与仓库内材料基本重复。
-- `prototype/mobile.html`：竖屏手机端静态原型，单文件HTML/CSS，使用 `project/img/` 下的蓝小心素材。
-- `demo-app/`：Vite + React + TypeScript 前端Demo应用，用于初赛展示和热更新调试。
-- `demo-app/public/img/`：Demo应用使用的蓝小心素材副本，对应页面中的 `/img/...` 静态资源路径。
-- `project/img/`：蓝小心角色图、表情状态图和后续原型素材。
+- `apps/mobile/`：Flutter Android/vivo App；当前只维护 Android 原生平台壳。
+- `services/api/`：FastAPI + LangGraph 后端，使用 `uv` 管理依赖。
+- `infra/docker-compose.yml`：本地 API + Postgres 编排，Docker API 可读取 `services/api/.env` 的真实模型/高德配置。
+- `docs/product/PRD.md`：产品需求与比赛叙事主文档。
+- `docs/engineering/`：API、Agent 图、技术设计、隐私合规、数据库迁移等工程文档。
+- `docs/handoff/`：AI/人工交接、验收、运行与使用说明；历史比赛材料已归档，不作为当前主线。
+- `docs/reference/vivo-aigc/`：vivo AIGC 在线文档本地镜像；接入蓝心/ASR/TTS/LBS/端侧能力时优先查这里。
+- `project/img/`：蓝小心原始素材；新增原始角色图和图片统一放这里。
+- `docs/todo.md`：剩余人工事项总表；不要把 Mock 或固定演示数据标为真实完成。
 
 ## 常用命令
 
-当前仓库根目录没有统一的 `package.json`、构建脚本、测试框架或lint配置；前端Demo命令需进入 `demo-app/` 后执行。
+```powershell
+# 后端
+cd services/api
+uv sync
+uv run pytest
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+uv run python scripts/real_provider_smoke.py
 
-当前可用的检查方式主要是文档与Git状态检查：
+# Docker 本地演示
+cd ../..
+python scripts/docker_compose_preflight.py --json
+docker compose -f infra/docker-compose.yml up --build -d
 
-```bash
-# 查看当前改动
-git status --short
+# 前端
+cd apps/mobile
+flutter pub get
+$env:NO_PROXY='localhost,127.0.0.1,::1'
+flutter analyze
+flutter test --concurrency=1
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
 
-# 查看文档差异
-git diff -- PRD.md CLAUDE.md .gitignore
-
-# 查看仓库已跟踪文件
-git ls-files
+# Android APK
+cd ../..
+python scripts/android_release_preflight.py --json
+cd apps/mobile
+flutter build apk --debug
 ```
 
-当前已有单文件手机端静态原型，可用本地静态服务预览：
+真机联调时：
 
-```bash
-python -m http.server 8765 --bind 127.0.0.1 --directory "e:/contest/C4/2026/AIGC"
-# 浏览器打开 http://127.0.0.1:8765/prototype/mobile.html
+```powershell
+# 后端监听局域网
+cd services/api
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Flutter 指向电脑局域网 IP
+cd apps/mobile
+flutter run --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000
 ```
 
-当前 Vite 前端 Demo 可用命令：
+Android 模拟器联调本机 FastAPI 时需要先执行：
 
-```bash
-cd demo-app
-npm install
-npm run sync:images
-npm run dev -- --host 127.0.0.1
-npm run build
-npm run preview -- --host 127.0.0.1
+```powershell
+adb reverse tcp:8000 tcp:8000
 ```
 
-素材维护约定：原始角色图和新增图片统一放在 `project/img/`；若要让 Demo 页面可直接通过 `/img/...` 引用，先执行 `npm run sync:images` 同步到 `demo-app/public/img/`。
+## 产品与技术边界
 
-当前没有单独测试框架；功能检查以 `npm run build`、浏览器移动端预览和演示链路点击为主。Demo 首页必须检查蓝小心全身图是否完整展示，而不是只截到头部。
+### 产品主线
 
-## 产品架构大图
+PRD 不是单点问答助手，而是“全旅程 AI 旅游搭子”。理解需求时按以下闭环拆解：
 
-PRD中的产品不是单点问答助手，而是“全旅程AI旅游搭子”。理解需求时优先按以下模块拆解：
+1. 记忆胶囊与用户旅行画像。
+2. 个性化出行规划。
+3. 出行前 / 出行中 / 出行后全旅程陪伴。
+4. 主动情境对话与可控打扰频率。
+5. 蓝小心 2D 形象、状态、人格与默契感。
+6. 旅拍候选集与发布前确认的内容生成。
+7. 旅行盲盒、状态变化、复盘与记忆沉淀。
 
-1. 记忆胶囊与用户旅行画像
-   - Agent识别可能影响旅行体验的信息；
-   - 用户确认保存范围：长期记忆、本次旅行、当前会话、不记忆；
-   - 保存后的画像影响规划、推荐、互动和文案生成。
+### 真实数据与降级边界
 
-2. 个性化出行规划引擎
-   - 综合用户画像、本次旅行上下文、天气、时间、地点、同行人和外部工具；
-   - 输出路线、推荐理由、画像匹配点、备选方案和风险提示；
-   - 支持出行前规划和出行中动态调整。
+- 主链路验收必须优先使用真实模型、真实用户数据、真实设备能力和真实第三方 API。
+- Mock、固定样例、手动模拟只允许作为异常降级或测试 fixture，不计入真实验收通过。
+- 未配置真实模型或高德 Key 时，后端必须显式返回 `fallback/unconfigured`，前端需要让用户看见降级原因。
+- 不要把“后台无感监控照片”“无确认自动发布社交平台”等高风险能力写成 MVP 承诺。
+- 涉及真实 API、Live2D、地图、照片权限、模型调用的能力，必须保留候选实现、风险和 MVP 降级路径。
 
-3. 全旅程陪伴流
-   - 出行前：规划、偏好确认、准备清单、搭子人格设定；
-   - 出行中：主动提醒、路线调整、景点讲解、旅拍候选、盲盒任务；
-   - 出行后：旅行复盘、照片整理、文案生成、记忆沉淀。
+### 隐私与安全边界
 
-4. 主动情境对话
-   - 触发来源包括时间、位置、行为、搭子状态、外部事件和旅行节点；
-   - 必须可控，支持安静/标准/活跃/自定义主动程度；
-   - 避免高频打扰用户。
+- 不提交真实 `.env`、密钥、Token、私人位置、未授权照片或用户敏感原文。
+- 照片候选和上传元数据不得把设备本地 `localPath/localUri` 发到云端保存；云端只保留远程 URL、文件名、内容类型和显式隐私标记。
+- 模型调用日志只允许脱敏摘要：密钥、Authorization、Token、密码统一 `[REDACTED]`；用户原文类字段只保留字符数或截断摘要。
+- 旅拍文案、朋友圈、小红书、日记、Vlog 等内容发布前必须由用户确认。
+- 多人出游协调不得在对外响应中暴露成员敏感偏好原文，只展示聚合协调结果与隐私摘要。
 
-5. 2D形象化搭子与自定义人格
-   - MVP不强绑定Live2D；
-   - 可从静态立绘、表情切换、预设动画逐步升级；
-   - 人格影响对话语气、主动频率、盲盒任务、文案风格和状态表达。
+## 移动端开发基线
 
-6. 旅拍候选集与内容生成
-   - 不承诺无确认自动发布；
-   - 用户通过应用内拍照、系统照片选择器或授权最近照片加入候选集；
-   - 生成朋友圈、小红书、日记、Vlog旁白等内容，发布前必须由用户确认。
+- 只维护 Android/vivo：保留 `apps/mobile/android/`、Dart 业务代码和通用资源；不要主动恢复 iOS、macOS、Windows、Linux、Web 平台工程。
+- 优先覆盖 vivo/Android 主流手机尺寸：360x780、375x812、390x844、412x915、430x932，同时关注横屏、平板宽度和系统字体缩放 1.2/1.4。
+- 移动端调试优先使用已连接 Android/vivo 真机；无真机、真机不可用或需复现模拟器专属问题时再用模拟器。
+- 固定底部导航、输入栏、底部 CTA 和列表页必须显式处理 SafeArea；主要触控目标按 Android 48dp 设计。
+- 首页沉浸式页面不得只依赖 `Stack + Positioned + 屏幕比例`；短屏或横屏要折叠次要浮动元素或允许滚动兜底。
+- 真实 Agent/Provider 路径可能约 30 秒返回；不要把 API `receiveTimeout` 改回只适合 Mock 的短超时。
+- Flutter widget test 在本机若设置了 `HTTP_PROXY`，先临时设置 `$env:NO_PROXY='localhost,127.0.0.1,::1'`，否则 `flutter_tester` 可能 WebSocket 握手失败。
+- 本机执行 `flutter build apk --debug` 前先运行 `python scripts/android_release_preflight.py --json`；本机 Android SDK 需要 `platforms;android-35`，CI 会安装 SDK 35 与 `build-tools;35.0.0`。
 
-7. 搭子状态、好感度与旅行盲盒
-   - 搭子拥有精力、心情、好奇心、默契值、好感度等状态；
-   - 状态随互动、行程、任务和照片变化；
-   - 复盘中展示状态变化和共同经历。
+## 后端与 Provider 基线
 
-## 技术方案边界
+- 后端：FastAPI + LangGraph，`uv` 管理依赖。
+- 真实模型配置从 `services/api/.env.example` 复制到本地 `.env`；真实模型需要 `LANXIN_MODEL_PROVIDER`、对应 base URL/API Key/model。
+- vivo 文本模型当前按 vivo AIGC `1745-大模型` 口径接入：`POST https://api-ai.vivo.com.cn/v1/chat/completions`，`Authorization: Bearer <AppKey>`，建议补 `requestId` query 参数。
+- 真实高德工具需要 `LANXIN_AMAP_API_KEY`，并验证天气、POI、步行、驾车、公交、混合路线返回 `provider=amap fallback=false`。
+- Alembic revision id 必须不超过 32 字符，以兼容默认 Postgres `alembic_version.version_num`。
+- 生产或公开环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用示例默认值。
 
-PRD当前采用端云协同Agent思路：
-
-- 端侧/本地：隐私记忆、轻量规则、基础意图识别、用户画像读取、本地存储；
-- 云端大模型：复杂规划、多模态理解、长文案生成、复杂推理；
-- 外部工具：地图、天气、地点POI、照片选择、语音、分享能力；
-- 表达层：2D搭子、语音、卡片和移动端UI。
-
-当前阶段不要把PRD过早锁定到单一实现，例如Live2D、后台无感照片监听、自动社交发布或某一个具体模型。除非已经完成技术验证，否则应保持“候选方案 + 风险 + MVP降级路径”的表达。
-
-## Vibe coding 实现约束
-
-用户计划后续主要通过 vibe coding 完成项目，因此所有方案、PRD补充、原型设计和技术拆分都应方便直接转成代码实现：
-
-- 优先输出可拆分、可迭代的小闭环，不设计过度复杂的一次性大系统。
-- 原型优先面向竖屏手机端，适合截图进PPT和录制3分钟Demo视频。
-- 前端原型优先采用低依赖、易修改的结构；早期可用单文件HTML/CSS/JS快速验证。
-- 页面设计需明确素材路径、组件区域、按钮文案、状态字段和交互流，避免只有抽象概念。
-- 功能优先级按P0/P1/P2落地，P0必须能形成“记忆胶囊 → 个性化规划 → 主动提醒 → 蓝小心状态 → 旅行复盘”的演示闭环。
-- 任何涉及真实API、Live2D、地图、照片权限、模型调用的能力，都应先提供模拟数据或降级实现，确保Demo可控。
-- 生成代码时优先保证移动端竖屏展示效果，默认宽度按390px左右手机视口设计。
-
-## 比赛与交付重点
-
-初赛更关注策划完整度和创新表达，重点产物包括：
-
-- 作品策划文档或PPT；
-- 团队介绍；
-- 作品设计理念；
-- 产品原型设计；
-- 创新点说明；
-- 前景评估；
-- 技术可行性说明；
-- 3分钟Demo故事线。
-
-评分侧重点来自现有材料：创新性、应用价值、完成度和大模型应用说明。修改PRD或后续PPT时，应优先强化这些维度。
-
-## 文档维护原则
+## 文档与交接规则
 
 - 默认使用中文维护仓库文档。
-- 修改PRD时优先保持产品叙事一致：长期记忆、主动陪伴、全旅程闭环、隐私可控。
-- 不要把“后台无感监控照片”“无确认自动发布社交平台”等高风险能力写成MVP承诺。
-- 对未验证能力使用“候选实现”“技术验证项”“MVP降级方案”的表述。
-- 如果新增真实代码项目，必须同步补充本文件中的开发命令、目录说明和测试方式。
-- 评估用户提供的角色图、原型图或视觉素材时，应优先采用用户给出的素材定位；若姿势、用途或生成阶段不确定，先标注为“待确认”或询问，不要自行断定为自拍图、标准立绘或其他类型。
-- 当用户通过 `@文件名`、模板名或模糊文件名引用项目资料时，应先用 Glob 主动搜索根目录和相关目录，确认真实文件名与格式后再读取，不要只依赖用户给出的路径或扩展名。
+- 用户已授权持续自动推进时，数据库迁移、CI 配置、本地服务、依赖与其他 AI 可直接完成且不阻碍开发的事项默认批准并直接执行；只有硬件不支持、额度或密钥不足、登录/验证码、付款、生产部署、远程推送、破坏性删除等确需人工介入或高风险操作才暂停，并应先继续完成其余可离线推进的工作。
+- 修改 PRD 或比赛材料时，优先强化创新性、应用价值、完成度、大模型应用说明和 3 分钟 Demo 故事线。
+- 方案、PRD 补充、原型设计和技术拆分都要方便 vibe coding：小闭环、低依赖、可端到端体验、可直接转代码。
+- 当用户通过 `@文件名`、模板名或模糊文件名引用项目资料时，先用 Glob 搜索真实文件名和格式，再读取。
+- 评估角色图、原型图或视觉素材时，优先采用用户给出的素材定位；姿势、用途或生成阶段不确定时标注“待确认”或询问。
+- `AGENTS.md` 通过引用本文件继承上下文，不单独维护重复规则。
+- 若新增真实代码项目或改变开发命令，必须同步更新本文件的命令和目录说明。
+- `docs/todo.md` 只保留需要真实密钥、真实设备、正式签名、素材授权、远端推送、部署环境、比赛提交或负责人确认的事项。
+
+## GitNexus 规则
+
+当前仓库已由 GitNexus 索引为 `lanxin-travelmate-aigc-2026`。
+
+- 修改函数、类、方法前，必须先对目标 symbol 做 GitNexus impact 分析；若结果为 HIGH/CRITICAL，先警告用户再继续。
+- 提交前必须运行 GitNexus `detect_changes` 检查影响范围；回归审查可对比默认分支 `main`。
+- 不要用普通全文替换重命名 symbol；需要重命名时使用 GitNexus rename。
+- 文档-only 轻量修改无需 symbol impact，但仍应做 `git diff --check`；若准备提交，再跑 `detect_changes`。
+- 若 MCP 工具不可用或超时，用本地 `git diff`、定向搜索和测试结果补充核对，并在汇报中说明。
+
+## 验收与测试口径
+
+- 功能验收、模型效果验收和截图录屏默认使用中文与中国境内真实出行场景，例如广州、深圳、杭州、重庆、长沙。
+- 如果 ADB 或真机输入法无法稳定注入中文，可以临时用拼音或英文输入，但语义仍应对应中国本地用户和国内旅行场景。
+- UI、真机体验和视觉效果验收由用户负责；AI 只按用户反馈修改代码，不要自行反复截图、坐标点击或主观判断“是否改对”。
+- AI 修改后只做必要工程级验证，例如 `flutter analyze`、必要定向测试、构建/安装可用性和 GitNexus 影响检查；具体交互是否符合预期以用户验收反馈为准。
+- 用户指出 UI/交互问题后，AI 直接定位并修改；改完后简要说明改动和验证结果，等待用户继续在真机上验收。
+- 开发策略：核心功能优先；在核心链路完全落地前，不编写过多测试。测试只补足能验证核心功能、接口契约和关键回归的最小用例，不追求大量边缘覆盖。
+- 发现 bug 时优先写最小复现测试或静态守卫，再修复到测试通过；UI、交互和视觉最终效果由用户真机验收，不用为主观体验反复补自动化测试。若因本地环境无法跑通，必须说明原因和替代验证。
+- 非热更新自动生效的前后端修改后，要重启当前相关服务；无法安全识别或重启时明确提示用户。
+
+## 重要交接入口
+
+- 当前共享状态：`docs/handoff/ai-shared-state.md`
+- 剩余人工事项：`docs/todo.md`
+- 最终验收分工：`docs/handoff/final-acceptance.md`
+- 端到端验收：`docs/handoff/e2e-acceptance.md`
+- Demo 脚本：`docs/handoff/demo-script.md`
+- Demo 证据包：`docs/handoff/demo-evidence-pack.md`
+- 提交清单：`docs/handoff/submission-checklist.md`
+- 隐私合规：`docs/engineering/privacy-and-compliance.md`
+- API 契约：`docs/engineering/api-contract.md`
+- Agent 图：`docs/engineering/agent-graph.md`
+- 数据库迁移：`docs/engineering/database-migrations.md`
+
+## 禁止事项
+
+- 不要把 Mock、固定样例或手动模拟包装成真实完成。
+- 不要主动恢复非 Android 平台工程。
+- 不要提交真实 `.env` 或任何密钥。
+- 不要删除素材、历史文档、平台文件或大文件，除非用户明确确认。
+- 不要把当前状态流水账继续追加到本文件；写入 `docs/handoff/ai-shared-state.md`。
+- 当前简历作品优化不制作 PPT，不要新增或维护 PPT 相关交付；需要展示时优先维护 README、架构文档、面试材料和可运行验收命令。

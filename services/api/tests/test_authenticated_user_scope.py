@@ -1,0 +1,182 @@
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+
+client = TestClient(app)
+
+
+def _guest_headers(device_id: str) -> tuple[str, dict[str, str]]:
+    response = client.post("/api/auth/guest", json={"deviceId": device_id, "displayName": "Scoped Guest"})
+    assert response.status_code == 200
+    payload = response.json()
+    return payload["userId"], {"Authorization": f"Bearer {payload['accessToken']}"}
+
+
+def test_profile_me_defaults_to_authenticated_user_instead_of_global_guest():
+    user_id, headers = _guest_headers(f"scope-profile-{uuid4().hex}")
+
+    update = client.put(
+        "/api/profile/me",
+        headers=headers,
+        json={
+            "travelPace": "slow",
+            "dietaryPreferences": ["no cilantro"],
+            "interestTags": ["night view"],
+            "transportPreferences": ["walking"],
+            "personality": "concise_companion",
+            "proactivityLevel": "quiet",
+        },
+    )
+
+    assert update.status_code == 200
+    assert update.json()["userId"] == user_id
+
+    authenticated = client.get("/api/profile/me", headers=headers)
+    assert authenticated.status_code == 200
+    assert authenticated.json()["userId"] == user_id
+    assert authenticated.json()["dietaryPreferences"] == ["no cilantro"]
+
+    anonymous_guest = client.get("/api/profile/me")
+    assert anonymous_guest.status_code == 200
+    assert anonymous_guest.json()["userId"] == "guest"
+    assert anonymous_guest.json()["dietaryPreferences"] != ["no cilantro"]
+
+
+def test_memory_guest_payload_is_scoped_to_authenticated_user():
+    user_id, headers = _guest_headers(f"scope-memory-{uuid4().hex}")
+    memory_id = f"mem-scope-{uuid4().hex}"
+
+    created = client.post(
+        "/api/memory/capsules",
+        headers=headers,
+        json={
+            "id": memory_id,
+            "userId": "guest",
+            "title": "Night views",
+            "content": "Prefer night-view stops.",
+            "scope": "longTerm",
+        },
+    )
+
+    assert created.status_code == 200
+    assert created.json()["userId"] == user_id
+
+    authenticated = client.get("/api/memory/capsules", headers=headers)
+    assert authenticated.status_code == 200
+    assert any(item["id"] == memory_id for item in authenticated.json()["items"])
+
+    global_guest = client.get("/api/memory/capsules")
+    assert global_guest.status_code == 200
+    assert all(item["id"] != memory_id for item in global_guest.json()["items"])
+
+
+def test_authenticated_user_cannot_update_or_delete_another_users_memory():
+    owner_id, owner_headers = _guest_headers(f"scope-memory-owner-{uuid4().hex}")
+    _attacker_id, attacker_headers = _guest_headers(f"scope-memory-attacker-{uuid4().hex}")
+    memory_id = f"mem-cross-user-{uuid4().hex}"
+
+    created = client.post(
+        "/api/memory/capsules",
+        headers=owner_headers,
+        json={
+            "id": memory_id,
+            "userId": "guest",
+            "title": "Owner memory",
+            "content": "Only the owner can change this.",
+            "scope": "longTerm",
+        },
+    )
+    assert created.status_code == 200
+    assert created.json()["userId"] == owner_id
+
+    update = client.put(
+        f"/api/memory/capsules/{memory_id}",
+        headers=attacker_headers,
+        json={
+            "title": "Attacker overwrite",
+            "content": "Should be rejected.",
+        },
+    )
+    delete = client.delete(
+        f"/api/memory/capsules/{memory_id}",
+        headers=attacker_headers,
+    )
+
+    assert update.status_code == 403
+    assert delete.status_code == 403
+
+    owner_memories = client.get("/api/memory/capsules", headers=owner_headers)
+    assert owner_memories.status_code == 200
+    item = next(item for item in owner_memories.json()["items"] if item["id"] == memory_id)
+    assert item["title"] == "Owner memory"
+
+
+def test_authenticated_settings_routes_reject_user_id_impersonation():
+    _user_id, headers = _guest_headers(f"scope-impersonation-{uuid4().hex}")
+
+    profile = client.get(
+        "/api/profile/me",
+        headers=headers,
+        params={"userId": "victim-user"},
+    )
+    assert profile.status_code == 403
+
+    export = client.get(
+        "/api/memory/export",
+        headers=headers,
+        params={"userId": "victim-user"},
+    )
+    assert export.status_code == 403
+
+    clear = client.delete(
+        "/api/memory/capsules",
+        headers=headers,
+        params={"userId": "victim-user"},
+    )
+    assert clear.status_code == 403
+
+
+def test_anonymous_settings_routes_reject_explicit_non_guest_user_id():
+    response = client.get("/api/memory/export", params={"userId": "victim-user"})
+
+    assert response.status_code == 401
+
+
+def test_agent_chat_loads_authenticated_profile_when_user_id_is_omitted():
+    user_id, headers = _guest_headers(f"scope-agent-{uuid4().hex}")
+    update = client.put(
+        "/api/profile/me",
+        headers=headers,
+        json={
+            "travelPace": "slow",
+            "personality": "gentle_companion",
+            "proactivityLevel": "quiet",
+            "syncStrategy": "selectedOnly",
+            "notificationEnabled": False,
+            "voiceEnabled": True,
+            "textModePreferred": True,
+            "customPrompt": "Keep authenticated suggestions calm.",
+        },
+    )
+    assert update.status_code == 200
+    assert update.json()["userId"] == user_id
+
+    chat = client.post(
+        "/api/agent/chat",
+        headers=headers,
+        json={"sessionId": "auth-scope-session", "message": "Plan a quiet afternoon nearby."},
+    )
+
+    assert chat.status_code == 200
+    audit = client.get(
+        "/api/audit/model-calls",
+        headers=headers,
+        params={"scenario": "trip_planning", "limit": 20},
+    )
+    assert audit.status_code == 200
+    latest = next(item for item in audit.json()["items"] if item["requestSummary"].get("userId") == user_id)
+    assert latest["requestSummary"]["userSettings"]["customPrompt"] == "Keep authenticated suggestions calm."
+

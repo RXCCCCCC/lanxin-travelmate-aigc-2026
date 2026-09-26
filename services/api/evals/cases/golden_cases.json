@@ -1,0 +1,207 @@
+{
+  "cases": [
+    {
+      "id": "chat-001",
+      "category": "纯聊天",
+      "message": "你好，今天想随便聊聊",
+      "expected": {"intent": "companion_chat", "tools": [], "excludedTools": ["weather_tool", "poi_tool", "route_tool"]}
+    },
+    {
+      "id": "chat-002",
+      "category": "纯聊天",
+      "message": "今天心情一般，陪我聊聊",
+      "expected": {"intent": "companion_chat", "tools": [], "excludedTools": ["route_tool"]}
+    },
+    {
+      "id": "chat-003",
+      "category": "无工具问题",
+      "message": "旅行前怎么缓解焦虑",
+      "expected": {"intent": "companion_chat", "tools": [], "excludedTools": ["weather_tool", "poi_tool", "route_tool"]}
+    },
+    {
+      "id": "plan-001",
+      "category": "行程规划",
+      "message": "帮我规划杭州两天行程",
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "杭州"}
+    },
+    {
+      "id": "plan-002",
+      "category": "行程规划",
+      "message": "周末去重庆两天，不想太累",
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "重庆"}
+    },
+    {
+      "id": "plan-003",
+      "category": "行程规划",
+      "message": "Plan a relaxed two-day itinerary",
+      "context": {"planningInputs": {"destination": "Chengdu"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "Chengdu"}
+    },
+    {
+      "id": "poi-001",
+      "category": "POI 工具",
+      "message": "推荐广州夜景和附近景点",
+      "context": {"planningInputs": {"destination": "广州"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "广州"}
+    },
+    {
+      "id": "poi-002",
+      "category": "POI 工具",
+      "message": "苏州有什么好玩的景点",
+      "context": {"planningInputs": {"destination": "苏州"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "苏州"}
+    },
+    {
+      "id": "weather-001",
+      "category": "天气工具",
+      "message": "杭州明天天气怎么样",
+      "expected": {"intent": "companion_chat", "tools": ["weather_tool"], "excludedTools": ["poi_tool", "route_tool"], "destination": "杭州"}
+    },
+    {
+      "id": "weather-002",
+      "category": "天气工具",
+      "message": "北京后天气温如何",
+      "expected": {"intent": "companion_chat", "tools": ["weather_tool"], "excludedTools": ["poi_tool", "route_tool"], "destination": "北京"}
+    },
+    {
+      "id": "route-001",
+      "category": "路线工具",
+      "message": "从当前位置规划到西湖",
+      "context": {"planningInputs": {"destination": "杭州", "originCoordinate": {"latitude": 30.25, "longitude": 120.16}, "destinationCoordinate": {"latitude": 30.24, "longitude": 120.15}, "transportMode": "walking"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool", "route_tool"], "destination": "杭州"}
+    },
+    {
+      "id": "route-002",
+      "category": "路线工具",
+      "message": "规划上海一日路线",
+      "context": {"planningInputs": {"destination": "上海"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "上海"}
+    },
+    {
+      "id": "route-003",
+      "category": "路线工具",
+      "message": "从酒店导航到宽窄巷子",
+      "context": {"planningInputs": {"destination": "成都", "originCoordinate": {"latitude": 30.67, "longitude": 104.06}, "destinationCoordinate": {"latitude": 30.67, "longitude": 104.05}, "transportMode": "transit"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool", "route_tool"], "destination": "成都"}
+    },
+    {
+      "id": "no-tool-001",
+      "category": "无工具问题",
+      "message": "旅行预算怎么控制比较好",
+      "expected": {"intent": "companion_chat", "tools": [], "excludedTools": ["weather_tool", "poi_tool", "route_tool"]}
+    },
+    {
+      "id": "review-001",
+      "category": "复盘",
+      "message": "帮我复盘这次杭州旅行",
+      "expected": {"intent": "trip_review", "tools": [], "excludedTools": ["weather_tool", "poi_tool", "route_tool"]}
+    },
+    {
+      "id": "review-002",
+      "category": "复盘",
+      "message": "Please review and recap my last trip",
+      "expected": {"intent": "trip_review", "tools": [], "excludedTools": ["route_tool"]}
+    },
+    {
+      "id": "memory-001",
+      "category": "长期记忆",
+      "message": "我不吃香菜",
+      "expected": {"intent": "companion_chat", "tools": [], "memoryTitles": ["不吃香菜"]}
+    },
+    {
+      "id": "memory-002",
+      "category": "长期记忆",
+      "message": "我很喜欢夜景",
+      "expected": {"intent": "companion_chat", "tools": ["weather_tool", "poi_tool"], "memoryTitles": ["喜欢夜景"]}
+    },
+    {
+      "id": "memory-003",
+      "category": "当前行程记忆",
+      "message": "这次旅行我不想太累，慢一点",
+      "expected": {"intent": "companion_chat", "tools": [], "memoryTitles": ["本次旅行想轻松一点"]}
+    },
+    {
+      "id": "sensitive-001",
+      "category": "敏感记忆",
+      "message": "我膝盖不舒服，少安排爬坡",
+      "expected": {"intent": "companion_chat", "tools": [], "memoryTitles": ["身体状态需要照顾"], "sensitiveMemoryTitles": ["身体状态需要照顾"]}
+    },
+    {
+      "id": "sensitive-002",
+      "category": "敏感记忆",
+      "message": "我住在解放碑附近",
+      "expected": {"intent": "companion_chat", "tools": [], "memoryTitles": ["位置上下文需要保护"], "sensitiveMemoryTitles": ["位置上下文需要保护"]}
+    },
+    {
+      "id": "sensitive-003",
+      "category": "敏感记忆",
+      "message": "这次和妈妈同行",
+      "expected": {"intent": "companion_chat", "tools": [], "memoryTitles": ["同行人信息需要确认"], "sensitiveMemoryTitles": ["同行人信息需要确认"]}
+    },
+    {
+      "id": "sensitive-004",
+      "category": "敏感记忆",
+      "message": "我腿疼，酒店在西湖附近，和朋友一起",
+      "expected": {"intent": "companion_chat", "tools": [], "memoryTitles": ["身体状态需要照顾", "位置上下文需要保护", "同行人信息需要确认"], "sensitiveMemoryTitles": ["身体状态需要照顾", "位置上下文需要保护", "同行人信息需要确认"]}
+    },
+    {
+      "id": "destination-001",
+      "category": "多轮目的地继承",
+      "message": "继续规划两天行程",
+      "context": {"planningInputs": {"destination": "西安"}, "recentMessages": [{"role": "user", "text": "想去西安看看"}]},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "destination": "西安"}
+    },
+    {
+      "id": "destination-002",
+      "category": "目的地漂移",
+      "message": "改成北京两天行程",
+      "context": {"planningInputs": {"destination": "北京"}, "recentMessages": [{"role": "user", "text": "之前想去上海"}]},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "destination": "北京"}
+    },
+    {
+      "id": "fallback-001",
+      "category": "Provider 失败",
+      "message": "帮我规划广州周末行程",
+      "context": {"planningInputs": {"destination": "广州"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "destination": "广州", "plannerFallback": true}
+    },
+    {
+      "id": "fallback-002",
+      "category": "Schema 失败",
+      "message": "推荐南京景点",
+      "context": {"planningInputs": {"destination": "南京"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "destination": "南京", "plannerFallback": true}
+    },
+    {
+      "id": "fallback-003",
+      "category": "限流",
+      "message": "深圳天气",
+      "expected": {"intent": "companion_chat", "tools": ["weather_tool"], "destination": "深圳", "plannerFallback": true}
+    },
+    {
+      "id": "no-tool-002",
+      "category": "无工具问题",
+      "message": "帮我写一句旅行日记",
+      "expected": {"intent": "companion_chat", "tools": [], "excludedTools": ["weather_tool", "poi_tool", "route_tool"]}
+    },
+    {
+      "id": "conflict-001",
+      "category": "记忆冲突",
+      "message": "这次旅行想轻松一点，但以后也可以安排紧凑行程",
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "memoryTitles": ["本次旅行想轻松一点"]}
+    },
+    {
+      "id": "plan-004",
+      "category": "行程规划",
+      "message": "成都三天攻略，想看人文景点",
+      "context": {"planningInputs": {"destination": "成都"}},
+      "expected": {"intent": "trip_planning", "tools": ["weather_tool", "poi_tool"], "excludedTools": ["route_tool"], "destination": "成都"}
+    },
+    {
+      "id": "review-003",
+      "category": "复盘",
+      "message": "总结一下这趟旅行的路线和提醒",
+      "expected": {"intent": "trip_review", "tools": [], "excludedTools": ["weather_tool", "poi_tool", "route_tool"]}
+    }
+  ]
+}

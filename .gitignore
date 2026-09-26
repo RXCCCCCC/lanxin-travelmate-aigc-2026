@@ -10,6 +10,16 @@ dist/
 build/
 .coverage/
 coverage/
+**/artifacts/evals/
+
+# Python / uv
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+*.py[cod]
 .env
 .env.local
 .env.*.local
@@ -26,6 +36,7 @@ coverage/
 *.tmp
 
 # Logs
+*.db
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -33,3 +44,16 @@ pnpm-debug.log*
 
 # Local browser / test artifacts
 .playwright-mcp/
+.trellis/
+.claude/
+.mcp.json
+.worktrees/
+
+比赛材料/
+
+.cache/
+.npm-cache/
+.pnpm-home/
+
+# Competition submission packages (large local artifacts)
+submission/

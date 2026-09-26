@@ -1,0 +1,71 @@
+from collections.abc import Generator
+
+from sqlalchemy import inspect, text
+from sqlmodel import Session, SQLModel, create_engine
+
+from app.core.config import get_settings
+
+
+def _connect_args(database_url: str) -> dict[str, bool]:
+    if database_url.startswith("sqlite"):
+        return {"check_same_thread": False}
+    return {}
+
+
+settings = get_settings()
+engine = create_engine(
+    settings.database_url,
+    echo=False,
+    connect_args=_connect_args(settings.database_url),
+)
+
+
+def _add_column_if_missing(table_name: str, column_name: str, ddl: str) -> None:
+    inspector = inspect(engine)
+    if table_name not in inspector.get_table_names():
+        return
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if column_name in existing_columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {ddl}"))
+
+
+def _add_index_if_missing(table_name: str, index_name: str, ddl: str) -> None:
+    inspector = inspect(engine)
+    if table_name not in inspector.get_table_names():
+        return
+    existing_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+    if index_name in existing_indexes:
+        return
+    with engine.begin() as connection:
+        connection.execute(text(ddl))
+
+
+def _run_lightweight_migrations() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+    _add_column_if_missing("auth_credentials", "password_hash", "password_hash VARCHAR")
+    _add_column_if_missing("tool_call_logs", "user_id", "user_id VARCHAR DEFAULT 'guest' NOT NULL")
+    _add_column_if_missing("cloud_trip_reviews", "user_id", "user_id VARCHAR DEFAULT 'guest' NOT NULL")
+    _add_column_if_missing("cloud_trip_reviews", "created_at", "created_at DATETIME DEFAULT '1970-01-01 00:00:00' NOT NULL")
+    _add_index_if_missing(
+        "tool_call_logs",
+        "ix_tool_call_logs_user_id",
+        "CREATE INDEX ix_tool_call_logs_user_id ON tool_call_logs (user_id)",
+    )
+    _add_index_if_missing(
+        "cloud_trip_reviews",
+        "ix_cloud_trip_reviews_user_id",
+        "CREATE INDEX ix_cloud_trip_reviews_user_id ON cloud_trip_reviews (user_id)",
+    )
+
+
+def create_db_and_tables() -> None:
+    SQLModel.metadata.create_all(engine)
+    _run_lightweight_migrations()
+
+
+def get_session() -> Generator[Session, None, None]:
+    with Session(engine) as session:
+        yield session

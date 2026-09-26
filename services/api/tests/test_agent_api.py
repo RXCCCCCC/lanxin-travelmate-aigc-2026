@@ -1,0 +1,492 @@
+import json
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+from sqlmodel import Session, select
+
+from app.db.models import AgentRunRecord
+from app.db.session import engine
+from app.main import app
+
+
+client = TestClient(app)
+
+
+def test_health_endpoint_returns_service_status():
+    response = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["service"] == "lanxin-travelmate-api"
+
+
+def test_agent_chat_returns_unified_mock_response():
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜",
+            "sessionId": "demo-session",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {
+        "replyText",
+        "voiceText",
+        "avatarState",
+        "emotion",
+        "cards",
+        "memoryCandidates",
+        "toolTrace",
+        "nextActions",
+        "syncSuggestions",
+        "errors",
+        "runId",
+        "requestId",
+        "status",
+        "resumeToken",
+    }
+    assert payload["runId"].startswith("run-")
+    assert payload["requestId"].startswith("req-")
+    assert payload["status"] == "pending_confirmation"
+    assert payload["resumeToken"]
+    assert payload["avatarState"] == "planning"
+    assert payload["errors"] == []
+    assert len(payload["memoryCandidates"]) >= 3
+    assert any(item["title"] == "不吃香菜" for item in payload["memoryCandidates"])
+    assert any(card["type"] == "tripPlan" for card in payload["cards"])
+    assert any(step["tool"] == "weather_tool" for step in payload["toolTrace"])
+
+
+def test_agent_chat_idempotency_key_reuses_persisted_run():
+    idempotency_key = f"test-{uuid4().hex}"
+    request = {
+        "message": "你好",
+        "sessionId": "idempotent-session",
+        "userId": "guest",
+        "idempotencyKey": idempotency_key,
+    }
+
+    first = client.post("/api/agent/chat", json=request)
+    repeated = client.post("/api/agent/chat", json=request)
+
+    assert first.status_code == 200
+    assert repeated.status_code == 200
+    assert repeated.json()["runId"] == first.json()["runId"]
+    with Session(engine) as session:
+        record = session.exec(
+            select(AgentRunRecord).where(
+                AgentRunRecord.run_id == first.json()["runId"],
+            )
+        ).one()
+    state = json.loads(record.state_json)
+    assert record.status == "completed"
+    assert state["nodeTrace"]
+
+
+def test_agent_chat_plain_message_uses_chat_only_graph(monkeypatch):
+    from app.api.routes import agent
+
+    calls: list[str] = []
+
+    class ChatOnlyGraph:
+        def invoke(self, state):
+            raise AssertionError("plain agent chat must not run the full graph")
+
+        def invoke_plan_only(self, state):
+            raise AssertionError("plain agent chat must not run planning graph")
+
+        def invoke_review_only(self, state):
+            raise AssertionError("plain agent chat must not run review graph")
+
+        def invoke_chat_only(self, state):
+            calls.append(state["message"])
+            return {
+                **state,
+                "model_call_logs": [],
+                "response": {
+                    "replyText": "我在，刚刚这句会走快速聊天链路。",
+                    "voiceText": "我在，刚刚这句会走快速聊天链路。",
+                    "avatarState": "hello",
+                    "emotion": "warm",
+                    "cards": [],
+                    "memoryCandidates": [],
+                    "toolTrace": [{"tool": "chat_only"}],
+                    "nextActions": [],
+                    "syncSuggestions": [],
+                    "errors": [],
+                },
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", ChatOnlyGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "你好",
+            "sessionId": "chat-only-session",
+            "userId": "guest",
+            "tripId": "chat-only-trip",
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == ["你好"]
+    assert response.json()["toolTrace"] == [{"tool": "chat_only"}]
+
+
+def test_agent_chat_memory_preference_returns_candidates_without_ack_template():
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "我不吃香菜",
+            "sessionId": "memory-confirm-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(item["title"] == "不吃香菜" for item in payload["memoryCandidates"])
+    assert not payload["replyText"].startswith("收到：")
+    assert "确认记忆胶囊" not in payload["replyText"]
+
+
+def test_agent_chat_memory_confirmation_resumes_idempotently():
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "我不吃香菜",
+            "sessionId": f"resume-{uuid4().hex}",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    pending = response.json()
+    assert pending["status"] == "pending_confirmation"
+    assert pending["resumeToken"]
+    resume_payload = {
+        "resumeToken": pending["resumeToken"],
+        "action": "confirm",
+        "candidateIds": ["mem-cilantro"],
+    }
+
+    first = client.post(
+        f"/api/agent/runs/{pending['runId']}/resume",
+        json=resume_payload,
+    )
+    repeated = client.post(
+        f"/api/agent/runs/{pending['runId']}/resume",
+        json=resume_payload,
+    )
+    trace = client.get(f"/api/agent/runs/{pending['runId']}")
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "completed"
+    assert first.json()["savedMemoryIds"]
+    assert first.json()["alreadyApplied"] is False
+    assert repeated.status_code == 200
+    assert repeated.json()["alreadyApplied"] is True
+    assert repeated.json()["savedMemoryIds"] == first.json()["savedMemoryIds"]
+    assert trace.status_code == 200
+    assert trace.json()["status"] == "completed"
+    assert trace.json()["state"]["pendingConfirmation"]["decision"]["action"] == "confirm"
+    assert "tokenHash" not in trace.json()["state"]["pendingConfirmation"]
+
+
+def test_agent_chat_plan_reply_summarizes_plan_instead_of_only_redirecting(monkeypatch):
+    from app.api.routes import agent
+
+    class PlanOnlyGraph:
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "广州轻松两日行程",
+                    "destination": "广州",
+                    "summary": "上午逛沙面，下午去永庆坊，晚上看珠江夜景。",
+                    "risks": ["晚高峰过江路段可能拥堵。"],
+                    "alternatives": [
+                        {
+                            "title": "雨天室内版",
+                            "summary": "把户外街区替换为广东省博物馆和室内商圈。",
+                        }
+                    ],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", PlanOnlyGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "帮我规划广州两天行程",
+            "sessionId": "plan-chat-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "广州" in payload["replyText"]
+    assert "沙面" in payload["replyText"]
+    assert "雨天室内版" in payload["replyText"]
+    assert "蓝小心" in payload["replyText"]
+    assert "查看行程" not in payload["replyText"]
+    assert any(card["type"] == "tripPlan" for card in payload["cards"])
+
+
+def test_agent_chat_plan_reply_hides_internal_plan_fragments(monkeypatch):
+    from app.api.routes import agent
+
+    class DirtyPlanOnlyGraph:
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "model fallback plan",
+                    "destination": "广州",
+                    "summary": "route_tool 缺少坐标，需手动规划",
+                    "alternatives": [
+                        {
+                            "title": "备选方案",
+                            "summary": "fallback model text",
+                        }
+                    ],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", DirtyPlanOnlyGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "帮我规划广州两天行程",
+            "sessionId": "dirty-plan-chat-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    reply = response.json()["replyText"]
+    assert "广州" in reply
+    assert "model" not in reply
+    assert "route_tool" not in reply
+    assert "缺少坐标" not in reply
+    assert "手动规划" not in reply
+    assert "地图 App" in reply or "天气" in reply
+
+
+def test_agent_chat_plan_card_payload_is_sanitized_like_trip_plan(monkeypatch):
+    from app.api.routes import agent
+
+    class DirtyPlanOnlyGraph:
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "北京周末路线",
+                    "destination": "待确认目的地",
+                    "summary": "路线规划工具因为缺少坐标信息无法生成详细步行路线，需手动规划点位间交通",
+                    "profileMatches": ["medium", "night view"],
+                    "risks": [
+                        "工具返回的POI数据存在偏差（返回北京点位），可能影响行程点位准确性",
+                        "天气接口无有效数据",
+                    ],
+                    "dynamicAdjustment": {
+                        "trigger": "待确认目的地实时拥挤和天气变化",
+                        "suggestion": "fallback model",
+                    },
+                    "alternatives": [
+                        {
+                            "title": "备选方案",
+                            "summary": "真实模型返回的文本备选方案",
+                            "reason": "provider=mock",
+                            "bestFor": "适合在原计划拥挤，天气变化或体力不足时切换",
+                        }
+                    ],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", DirtyPlanOnlyGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "帮我规划广州两天行程，预算 medium，喜欢 night view",
+            "sessionId": "dirty-plan-card-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    card = next(card for card in payload["cards"] if card["type"] == "tripPlan")
+    plan = card["payload"]
+    plan_text = json.dumps(plan, ensure_ascii=False)
+    assert "待确认目的地" not in plan_text
+    assert "天气接口无有效数据" not in plan_text
+    assert "POI数据存在偏差" not in plan_text
+    assert "fallback model" not in plan_text
+    assert "provider=mock" not in plan_text
+    assert "真实模型返回" not in plan_text
+    assert "medium" not in plan_text
+    assert "night view" not in plan_text
+    assert "广州" in plan_text
+
+
+def test_agent_chat_natural_attraction_question_returns_trip_plan_card(monkeypatch):
+    from app.api.routes import agent
+
+    calls: list[str] = []
+
+    class NaturalQuestionPlanGraph:
+        def invoke_plan_only(self, state):
+            calls.append("plan")
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "广州轻松游玩建议",
+                    "destination": "广州",
+                    "summary": "上午逛沙面，下午去永庆坊，晚上看珠江夜景。",
+                    "days": [
+                        {
+                            "dayLabel": "第 1 天",
+                            "items": [
+                                {
+                                    "time": "上午",
+                                    "location": "沙面",
+                                    "activity": "看建筑和拍照",
+                                }
+                            ],
+                        }
+                    ],
+                    "risks": [],
+                    "alternatives": [],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+        def invoke_chat_only(self, state):
+            calls.append("chat")
+            return {
+                **state,
+                "model_call_logs": [],
+                "response": {
+                    "replyText": "普通聊天回复",
+                    "voiceText": "普通聊天回复",
+                    "avatarState": "hello",
+                    "emotion": "warm",
+                    "cards": [],
+                    "memoryCandidates": [],
+                    "toolTrace": [{"tool": "chat_only"}],
+                    "nextActions": [],
+                    "syncSuggestions": [],
+                    "errors": [],
+                },
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", NaturalQuestionPlanGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "广州有什么好玩的",
+            "sessionId": "natural-attraction-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert calls == ["plan"]
+    assert payload["avatarState"] == "planning"
+    assert any(card["type"] == "tripPlan" for card in payload["cards"])
+    assert "沙面" in payload["replyText"]
+
+
+def test_agent_chat_plan_card_adds_digest_days_when_model_omits_days(monkeypatch):
+    from app.api.routes import agent
+
+    class SummaryOnlyPlanGraph:
+        def invoke_plan_only(self, state):
+            return {
+                **state,
+                "model_call_logs": [],
+                "trip_plan": {
+                    "title": "广州经典轻松游",
+                    "destination": "广州",
+                    "summary": "上午逛沙面，下午去永庆坊，晚上看珠江夜景。",
+                    "profileMatches": ["已按轻松节奏减少跨区移动。"],
+                    "risks": ["晚高峰过江可能拥堵。"],
+                    "alternatives": [],
+                },
+                "tool_trace": [],
+                "errors": [],
+            }
+
+    monkeypatch.setattr(agent, "TravelMateGraph", SummaryOnlyPlanGraph)
+
+    response = client.post(
+        "/api/agent/chat",
+        json={
+            "message": "广州有什么好玩的",
+            "sessionId": "summary-only-plan-session",
+            "userId": "guest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    card = next(card for card in payload["cards"] if card["type"] == "tripPlan")
+    plan = card["payload"]
+    assert plan["days"]
+    first_item = plan["days"][0]["items"][0]
+    assert "沙面" in first_item["location"] or "沙面" in first_item["activity"]
+    assert "永庆坊" in json.dumps(plan["days"], ensure_ascii=False)
+
+
+def test_agent_chat_stream_emits_stage_and_final_events():
+    with client.stream(
+        "POST",
+        "/api/agent/chat/stream",
+        json={
+            "message": "\u5468\u672b\u60f3\u53bb\u91cd\u5e86\u4e24\u5929\uff0c\u4e0d\u60f3\u592a\u7d2f\uff0c\u559c\u6b22\u591c\u666f\uff0c\u6211\u4e0d\u5403\u9999\u83dc",
+            "sessionId": "sse-session",
+        },
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        events: list[tuple[str, dict]] = []
+        current_event = None
+        for line in response.iter_lines():
+            if line.startswith("event:"):
+                current_event = line.split(":", 1)[1].strip()
+            elif line.startswith("data:") and current_event:
+                events.append((current_event, json.loads(line.split(":", 1)[1].strip())))
+
+    stage_events = [payload for name, payload in events if name == "stage"]
+    final_events = [payload for name, payload in events if name == "final"]
+    assert len(stage_events) >= 3
+    assert all(payload.get("label") for payload in stage_events)
+    assert len(final_events) == 1
+    final = final_events[0]
+    assert final["avatarState"] == "planning"
+    assert final["runId"].startswith("run-")
+    assert final["requestId"].startswith("req-")
+    assert final["status"] == "pending_confirmation"
+    assert final["resumeToken"]
+    assert any(card["type"] == "tripPlan" for card in final["cards"])

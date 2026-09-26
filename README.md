@@ -1,84 +1,193 @@
 # 蓝心同行：懂你的全旅程 AI 旅伴
 
-本仓库用于 2026 年 AIGC 创新赛（应用赛道）的产品策划、原型与前端 Demo。
+一个可完整运行的 AI 旅行陪伴应用：Flutter Android 客户端 + FastAPI/LangGraph Agent 后端，覆盖“聊天 → 记忆胶囊 → 个性化规划 → 主动提醒 → 旅行复盘”闭环。项目源于 2026 AIGC 创新赛，现持续演进为个人作品。
 
-## 项目简介
+核心亮点：
 
-- 产品方向：面向移动端的个性化 AI 旅伴，强调长期记忆、可控隐私、主动陪伴、2D 形象表达和全旅程闭环。
-- 当前定位：PRD、原型、演示材料和轻量 Demo 为主，不是完整后端服务。
+- LangGraph 显式状态机 Agent：输入规范化 → 意图路由 → 记忆抽取 → 行程上下文 → 工具调用规划 → 角色化回复，每个节点可单测、可降级。
+- 真实可控记忆：服务端只加载当前用户已确认的 `longTerm` 记忆，以及与当前 `tripId` 匹配的 `currentTrip` 记忆；敏感记忆进入模型上下文前只保留结构化约束。
+- 受约束动态工具规划：模型优先生成结构化 `ToolPlan`，经过工具白名单、参数、步骤数和依赖关系校验；失败时自动切换确定性 Planner。
+- 并行工具执行：无依赖的天气、POI、路线步骤并发执行，单步失败不会取消其他结果，Trace 保持计划顺序并记录原因、耗时和降级状态。
+- SSE 流式体验：`/api/agent/chat/stream` 逐节点推送中文阶段进度，客户端实时显示“查询实时天气与景点”等状态，失败自动降级非流式。
+- 多轮上下文与目的地继承：客户端携带最近对话，追问“第一天晚上去哪”能正确继承上轮目的地。
+- 真实数据优先：蓝心/OpenAI 兼容模型 + 高德天气/POI/路线真实 Provider，无 Key 或异常时明确降级标注，不用假数据冒充。
+- 隐私与审计：模型调用日志脱敏（密钥/原文摘要化），记忆写入需用户确认。
+- 可恢复运行状态：每次请求生成 `runId/requestId`，服务端持久化脱敏结构化状态、节点耗时、模型/工具摘要和 24 小时 TTL，不保存完整聊天原文。
+- Human-in-the-loop：需显式同意的记忆候选进入 `pending_confirmation`，确认/取消接口具备用户隔离、resume token、过期校验和幂等语义。
+- 工程化：Docker Compose 一键部署（含 Postgres + Alembic 迁移）、公网 HTTPS API、真机验证、CI 预检脚本。
+- 确定性评测：内置 32 条中文 Golden Cases，覆盖意图、目的地、记忆、敏感确认、工具选择和降级，无密钥环境可运行，并已接入 GitHub Actions 门禁与报告产物上传。
 
-## 技术栈
+## 架构
 
-- `demo-app/`：Vite + React + TypeScript
-- `prototype/mobile.html`：单文件静态原型
-- 资源素材：`project/img/`、`demo-app/public/img/`
+详细架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，包含系统图、Agent 状态机流程、SSE 流式机制、端云分工和技术选型理由。
 
-## 本地启动
+- Agent 评测方法与当前指标：[docs/engineering/agent-evaluation.md](docs/engineering/agent-evaluation.md)
+- Agent Run、Trace 与 HITL：[docs/engineering/agent-observability.md](docs/engineering/agent-observability.md)
+- 面试官 5 分钟验收：[docs/handoff/final-acceptance.md](docs/handoff/final-acceptance.md)
+- 面试追问与简历描述：[INTERVIEW_PREP.md](INTERVIEW_PREP.md)
 
-### 静态原型
+## 当前结构
 
-```bash
-python -m http.server 8765 --bind 127.0.0.1 --directory .
-# 浏览器打开 http://127.0.0.1:8765/prototype/mobile.html
+- `apps/mobile/`：Flutter 移动端原型，含蓝小心状态、聊天页、记忆、规划、提醒、复盘页面。
+- `services/api/`：FastAPI 后端，使用 uv 管理依赖，内置 LangGraph TravelMate Agent、真实模型 Provider、外部工具注册器和审计日志。
+- `docs/todo.md`：全项目未完成待办总表。
+- `docs/product/`：PRD、开发路线、UI 计划和比赛材料整理。
+- `docs/engineering/`：技术设计、API 契约、Agent 图、开发路线和贡献说明。
+- `docs/handoff/`：面向队友交接和人工阅读的说明材料。
+- `infra/docker-compose.yml`：本地 api + postgres 编排，nginx 作为占位服务。
+- `project/img/`、`apps/mobile/assets/avatars/`：蓝小心素材。
+
+## 启动后端
+
+```powershell
+cd services/api
+uv sync
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-### 前端 Demo
+访问：
 
-```bash
-cd demo-app
-npm ci
-npm run sync:images
-npm run dev -- --host 127.0.0.1
+- 健康检查：`http://127.0.0.1:8000/api/health`
+- Swagger：`http://127.0.0.1:8000/docs`
+
+流式接口（SSE）：`POST /api/agent/chat/stream`，依次推送 `stage`（中文阶段文案）、`final`（完整响应）事件；非流式为 `POST /api/agent/chat`。
+
+聊天接口 smoke：
+
+```powershell
+cd services/api
+uv run python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/api/agent/chat', json={'message':'周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜'}).json())"
 ```
 
-### 构建与预览
+## 后端环境变量
 
-```bash
-cd demo-app
-npm run build
-npm run preview -- --host 127.0.0.1
+可复制 `services/api/.env.example` 为 `services/api/.env`。真实联调时常用配置：
+
+```powershell
+LANXIN_MODEL_PROVIDER=lanxin
+LANXIN_LANXIN_BASE_URL=你的蓝心接口地址
+LANXIN_LANXIN_API_KEY=你的蓝心密钥
+LANXIN_LANXIN_MODEL=模型名
+LANXIN_AMAP_API_KEY=你的高德Key
 ```
 
-## 环境变量
+未配置 `LANXIN_AMAP_API_KEY` 时，天气、POI、路线工具返回 `provider=unconfigured` 和 `fallback=true`，不会伪装真实数据。
+## 启动 Flutter
 
-仓库目前未发现明确的运行时环境变量读取逻辑，先统一参考根目录 `.env.example`。
-
-## 分支协作规范
-
-请参考 `CONTRIBUTING.md`。当前约定：
-
-- `main`：稳定可发布分支
-- `dev`：开发集成分支
-- `feat/*`、`fix/*`、`chore/*`、`docs/*`：功能、修复、工程和文档分支
-
-## 测试与构建
-
-当前主要验证方式：
-
-```bash
-cd demo-app
-npm run lint --if-present
-npm test --if-present
-npm run build --if-present
+```powershell
+cd apps/mobile
+flutter pub get
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
 ```
 
-仓库当前没有单独的 Python 或 Android 工程目录；如果后续新增，会在 CI 中自动检测并执行对应检查。
+Android 模拟器使用：
 
-## 版本发布
+```powershell
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
+```
 
-- 在 `main` 打 tag，例如 `v0.1.0`
-- 触发 Release workflow
-- 自动生成 Release Notes，并上传可用构建产物
+真机使用局域网 IP：
 
-## 仓库结构
+```powershell
+flutter run --dart-define=API_BASE_URL=http://你的电脑局域网IP:8000
+```
 
-- `PRD.md`：产品需求文档
-- `CLAUDE.md`：仓库约定
-- `prototype/mobile.html`：静态原型
-- `demo-app/`：前端 Demo
-- `材料/`：比赛材料
+## 测试与检查
 
-## 素材约定
+后端：
 
-- 新增素材统一放在 `project/img/`
-- Demo 通过 `/img/...` 引用素材时，先同步到 `demo-app/public/img/`
+```powershell
+cd services/api
+uv run pytest
+
+# 无密钥 Agent 确定性评测
+uv run python -m evals.runner --output-dir artifacts/evals
+```
+
+当前确定性基线为 32/32 Case 通过；评测会输出 JSON 和 Markdown 报告，并统计意图准确率、工具选择准确率、目的地一致性、记忆命中率、敏感确认规则、Schema 通过率和 P50/P95 延迟。
+
+`/api/agent/chat` 与 `/api/agent/chat/stream` 会返回 `runId/requestId/status`。当 `status=pending_confirmation` 时，客户端可使用 `resumeToken` 调用 `POST /api/agent/runs/{runId}/resume` 确认或取消记忆；`GET /api/agent/runs/{runId}` 可查询当前用户范围内的脱敏 Trace。
+
+2026 年 8 月 11 日完整回归基线：后端 `223 passed`，Flutter `108 passed`，`flutter analyze` 无问题；Golden Cases 32/32；临时 Postgres 从空库升级到 `0009_agent_runs` 并回滚一版通过；高德天气/步行路线和 OpenAI 兼容模型真实 smoke 通过。
+
+前端：
+
+```powershell
+cd apps/mobile
+$env:NO_PROXY='localhost,127.0.0.1,::1'
+flutter analyze
+flutter test --concurrency=1
+python ..\..\scripts\android_release_preflight.py --json
+flutter build apk --debug
+```
+
+如果本机设置了 `HTTP_PROXY`，运行 Flutter 测试时需要临时设置 `NO_PROXY`，否则本地 `flutter_tester` WebSocket 可能被代理拦截。
+
+本机执行 `flutter build apk --debug` 前先运行 `python scripts/android_release_preflight.py --json`；当前预检会检查 Android-only 平台壳、`applicationId`、版本号、SDK 35、build-tools 35.0.0 和 release 签名状态。本机需要安装 Android SDK `platforms;android-35`；CI 的 Android APK job 会自动安装 Android SDK 35、`build-tools;35.0.0` 并运行 strict 预检。
+
+Docker：
+
+```powershell
+docker build -t lanxin-travelmate-api ./services/api
+docker compose -f infra/docker-compose.yml up --build
+python scripts/docker_compose_preflight.py --json
+
+# 迁移链与回滚计划检查
+cd services/api
+uv run python scripts/migration_plan.py check
+uv run python scripts/migration_plan.py plan --target head --rollback-to <升级前revision> --backup-path <备份文件路径>
+```
+真实 Provider smoke：
+
+```powershell
+cd services/api
+uv run python scripts/real_provider_smoke.py
+uv run pytest tests/test_ci_real_smoke_workflow.py -q
+```
+
+GitHub Actions 的 `Real provider smoke` job 只有在配置对应 Secrets 时才会调用真实服务：
+- `LANXIN_AMAP_API_KEY`
+- `LANXIN_MODEL_PROVIDER`
+- `LANXIN_LANXIN_BASE_URL` / `LANXIN_LANXIN_API_KEY` / `LANXIN_LANXIN_MODEL`
+- `LANXIN_OPENAI_BASE_URL` / `LANXIN_OPENAI_API_KEY` / `LANXIN_OPENAI_MODEL`
+
+脚本只输出 provider、scenario、fallback、errorType 等摘要，并用 `[REDACTED]` 标记密钥占位，不应在日志中打印真实密钥。
+
+认证 token 使用 HMAC-SHA256 JWT；生产或公开演示环境必须设置 `LANXIN_AUTH_TOKEN_SECRET`，不要使用 `.env.example` 中的默认值。游客升级为正式账号使用 `POST /api/auth/upgrade-guest`，该接口在当前游客 `userId` 上原地绑定密码凭证，不迁移或复制原始数据，因此已有记忆、画像、旅程、照片候选和提醒历史会继续按同一用户可见。
+
+## 第一阶段验收
+
+1. 后端 `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000` 可启动。
+2. `/api/health` 返回 `status=ok`。
+3. `/docs` 可打开。
+4. `/api/agent/chat` 返回统一 Agent 响应结构。
+5. Flutter 聊天页发送“周末想去重庆两天，不想太累，喜欢夜景，我不吃香菜”后展示蓝小心回复。
+6. 聊天页出现记忆候选，点击“确认记忆胶囊”后写入本地 Drift SQLite。
+7. 记忆页可看到已确认胶囊，并支持编辑/删除。
+8. 规划、提醒、复盘页优先展示本次 Agent/后端状态；未配置真实能力时必须明确显示降级原因。
+9. P1 演示可继续验证：规划页备选方案/高德导航入口、多人偏好协调并带入规划、提醒页三类模拟触发、旅拍页文案生成/盲盒任务接受-完成-跳过、盲盒完成奖励数值、复盘页独立生成。
+10. `uv run pytest`、`flutter analyze`、`flutter test --concurrency=1` 可作为基础验收命令；本机先执行 `python scripts/android_release_preflight.py --json`，有 Android SDK 35 时再执行 `flutter build apk --debug`。
+
+## 分支协作
+
+- `main`：稳定发布分支。
+- `dev`：开发集成分支。
+- `feat/*`：功能分支。
+- `fix/*`：修复分支。
+- `docs/*`：文档分支。
+
+不自动推送远程；涉及 push、PR、merge、删除远程分支等操作需单独确认。
+
+
+## 真实模型结构化链路
+
+后端默认仍可使用 Mock Provider 保证本地演示稳定；当 `LANXIN_MODEL_PROVIDER` 配置为 `lanxin` 或 OpenAI 兼容 Provider 时，Agent 会按场景调用真实模型并校验结构化输出：
+
+- `memory_extraction`：校验 `MemoryExtractionOutput`，生成候选记忆并补齐隐私确认字段。
+- `trip_planning`：校验 `TripPlanningOutput`，生成结构化规划。
+- `trip_review`：校验 `TripReviewOutput`，生成复盘；失败时回退到已持久化路线、照片、提醒、盲盒、状态事件和记忆聚合。
+- `companion_chat`：校验 `ChatOutput`，生成最终聊天回复；失败时保留本地响应。
+
+每个模型场景都会在 `toolTrace` 或模型审计日志中标注 `provider`、`scenario`、`fallback` 和错误类型。未配置真实密钥或 schema 无效时必须明确降级，不计入真实数据验收。后端集成测试 `uv run pytest tests/test_model_providers.py -q` 覆盖同一个结构化 Provider 驱动记忆抽取、规划、复盘和聊天四个场景。
+
+test
